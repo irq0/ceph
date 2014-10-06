@@ -347,6 +347,10 @@ done
 
 DAEMONOPTS="
 	log file = $CEPH_OUT_DIR/\$name.log
+	log to graylog = true
+	log graylog host = logstash
+	log graylog port = 12222
+	err to graylog = true
         admin socket = $CEPH_OUT_DIR/\$name.asok
 	chdir = \"\"
 	pid file = $CEPH_OUT_DIR/\$name.pid
