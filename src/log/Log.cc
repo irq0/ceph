@@ -173,10 +173,14 @@ void Log::set_fsid(uuid_d fsid)
 
 void Log::set_graylog_destination(string host, int port)
 {
-  boost::asio::ip::udp::resolver resolver(m_graylog_io_service);
-  boost::asio::ip::udp::resolver::query query(host,
-					      boost::lexical_cast<string>(port));
-  m_graylog_endpoint = *resolver.resolve(query);
+  try {
+    boost::asio::ip::udp::resolver resolver(m_graylog_io_service);
+    boost::asio::ip::udp::resolver::query query(host,
+						boost::lexical_cast<string>(port));
+    m_graylog_endpoint = *resolver.resolve(query);
+  } catch (boost::system::system_error const& e) {
+    cerr << "Error resolving graylog destination: " << e.what() << std::endl;
+  }
 }
 
 void Log::submit_entry(Entry *e)
