@@ -633,6 +633,9 @@ namespace librados
     int create(const std::string& oid, bool exclusive,
 	       const std::string& category); ///< category is unused
 
+    int stub(const std::string& oid);
+    int unstub(const std::string& oid);
+
     /**
      * write bytes to an object at a specified offset
      *

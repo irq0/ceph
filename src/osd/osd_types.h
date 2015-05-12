@@ -243,6 +243,7 @@ enum {
   CEPH_OSD_RMW_FLAG_CACHE       = (1 << 6),
   CEPH_OSD_RMW_FLAG_FORCE_PROMOTE   = (1 << 7),
   CEPH_OSD_RMW_FLAG_SKIP_PROMOTE    = (1 << 8),
+  CEPH_OSD_RMW_FLAG_OBJDATA     = (1 << 9),
 };
 
 
@@ -544,7 +545,7 @@ inline ostream& operator<<(ostream& out, const coll_t& c) {
 
 CEPH_HASH_NAMESPACE_START
   template<> struct hash<coll_t> {
-    size_t operator()(const coll_t &c) const { 
+    size_t operator()(const coll_t &c) const {
       size_t h = 0;
       string str(c.to_str());
       std::string::const_iterator end(str.end());
@@ -2822,6 +2823,23 @@ struct object_info_t {
   uint64_t size;
   utime_t mtime;
   utime_t local_mtime; // local mtime
+
+  typedef enum {
+    STUB_STATE_LOCAL,
+    STUB_STATE_REMOTE,
+  } stub_state_t;
+
+  stub_state_t stub_state;
+
+  static string get_stub_state_string(stub_state_t rs) {
+    if (rs == STUB_STATE_LOCAL) {
+      return "local";
+    } else if (rs == STUB_STATE_REMOTE) {
+      return "remote";
+    } else {
+      return "unknown";
+    }
+  }
 
   // note: these are currently encoded into a total 16 bits; see
   // encode()/decode() for the weirdness.

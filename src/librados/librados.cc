@@ -1080,6 +1080,18 @@ int librados::IoCtx::write_full(const std::string& oid, bufferlist& bl)
   return io_ctx_impl->write_full(obj, bl);
 }
 
+int librados::IoCtx::stub(const std::string& oid)
+{
+  object_t obj(oid);
+  return io_ctx_impl->stub(obj);
+}
+
+int librados::IoCtx::unstub(const std::string& oid)
+{
+  object_t obj(oid);
+  return io_ctx_impl->unstub(obj);
+}
+
 int librados::IoCtx::clone_range(const std::string& dst_oid, uint64_t dst_off,
 				 const std::string& src_oid, uint64_t src_off,
 				 size_t len)

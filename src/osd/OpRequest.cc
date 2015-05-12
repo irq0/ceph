@@ -85,6 +85,7 @@ bool OpRequest::check_rmw(int flag) {
 bool OpRequest::may_read() { return need_read_cap() || need_class_read_cap(); }
 bool OpRequest::may_write() { return need_write_cap() || need_class_write_cap(); }
 bool OpRequest::may_cache() { return check_rmw(CEPH_OSD_RMW_FLAG_CACHE); }
+bool OpRequest::may_use_obj_data() { return check_rmw(CEPH_OSD_RMW_FLAG_OBJDATA); }
 bool OpRequest::includes_pg_op() { return check_rmw(CEPH_OSD_RMW_FLAG_PGOP); }
 bool OpRequest::need_read_cap() {
   return check_rmw(CEPH_OSD_RMW_FLAG_READ);
@@ -123,6 +124,7 @@ void OpRequest::set_pg_op() { set_rmw_flags(CEPH_OSD_RMW_FLAG_PGOP); }
 void OpRequest::set_cache() { set_rmw_flags(CEPH_OSD_RMW_FLAG_CACHE); }
 void OpRequest::set_promote() { set_rmw_flags(CEPH_OSD_RMW_FLAG_FORCE_PROMOTE); }
 void OpRequest::set_skip_promote() { set_rmw_flags(CEPH_OSD_RMW_FLAG_SKIP_PROMOTE); }
+void OpRequest::set_need_obj_data() { set_rmw_flags(CEPH_OSD_RMW_FLAG_OBJDATA); }
 
 void OpRequest::mark_flag_point(uint8_t flag, const string& s) {
 #ifdef WITH_LTTNG

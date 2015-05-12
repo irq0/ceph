@@ -8618,6 +8618,9 @@ int OSD::init_op_flags(OpRequestRef& op)
     if (ceph_osd_op_mode_cache(iter->op.op))
       op->set_cache();
 
+    if (ceph_osd_op_uses_extent(iter->op.op))
+      op->set_need_obj_data();
+
     switch (iter->op.op) {
     case CEPH_OSD_OP_CALL:
       {
@@ -8654,6 +8657,8 @@ int OSD::init_op_flags(OpRequestRef& op)
 	  op->set_class_read();
 	if (is_write)
 	  op->set_class_write();
+
+	op->set_need_obj_data();
 	break;
       }
 
@@ -8678,6 +8683,7 @@ int OSD::init_op_flags(OpRequestRef& op)
 	  iter->op.flags == CEPH_OSD_OP_FLAG_FAILOK) {
 	op->set_skip_promote();
       }
+      op->set_need_obj_data();
       break;
 
     case CEPH_OSD_OP_CACHE_TRY_FLUSH:
@@ -8687,8 +8693,32 @@ int OSD::init_op_flags(OpRequestRef& op)
       if (m->ops.size() == 1) {
 	op->set_skip_promote();
       }
+      op->set_need_obj_data();
+      break;
 
-    default:
+    case CEPH_OSD_OP_TMAPUP:
+    case CEPH_OSD_OP_TMAPPUT:
+    case CEPH_OSD_OP_TMAPGET:
+    case CEPH_OSD_OP_CREATE:
+    case CEPH_OSD_OP_ROLLBACK:
+    case CEPH_OSD_OP_COPY_FROM:
+    case CEPH_OSD_OP_COPY_GET_CLASSIC:
+    case CEPH_OSD_OP_COPY_GET:
+    case CEPH_OSD_OP_TMAP2OMAP:
+    case CEPH_OSD_OP_CLONERANGE:
+    case CEPH_OSD_OP_PULL:
+    case CEPH_OSD_OP_PUSH:
+    case CEPH_OSD_OP_BALANCEREADS:
+    case CEPH_OSD_OP_UNBALANCEREADS:
+    case CEPH_OSD_OP_SCRUB:
+    case CEPH_OSD_OP_SCRUB_RESERVE:
+    case CEPH_OSD_OP_SCRUB_UNRESERVE:
+    case CEPH_OSD_OP_SCRUB_STOP:
+    case CEPH_OSD_OP_SCRUB_MAP:
+      op->set_need_obj_data();
+      break;
+
+   default:
       break;
     }
   }

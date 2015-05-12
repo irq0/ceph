@@ -20,6 +20,7 @@
 #include "ReplicatedPG.h"
 #include "OSD.h"
 #include "OpRequest.h"
+#include "StubTool.h"
 
 #include "common/errno.h"
 #include "common/perf_counters.h"
@@ -3357,6 +3358,7 @@ int ReplicatedPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
   PGBackend::PGTransaction* t = ctx->op_t;
 
   dout(10) << "do_osd_op " << soid << " " << ops << dendl;
+  dout(1) << "stub_state: " << oi.get_stub_state_string(oi.stub_state) << dendl;
 
   for (vector<OSDOp>::iterator p = ops.begin(); p != ops.end(); ++p, ctx->current_osd_subop_num++) {
     OSDOp& osd_op = *p;
@@ -5079,11 +5081,120 @@ int ReplicatedPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
       }
       break;
 
+    case CEPH_OSD_OP_STUB:
+      {
+        if (oi.stub_state != object_info_t::STUB_STATE_LOCAL) {
+          dout(1) << "[stub] can't stub stubbed object " << soid << dendl;
+          result = 0;
+          break;
+        }
+
+        dout(1) << "[stub] starting to move object " << soid << dendl;
+
+        bufferlist data;
+        int r = pgbackend->objects_read_sync(soid, 0, oi.size, 0, &data);
+        dout(1) << "[stub] read got " << r << " / " << oi.size
+                << " bytes from obj " << soid << dendl;
+
+        if ((r < 0) || ((unsigned int)r != oi.size)) {
+          dout(1) << "[stub] faild to read object " << soid << dendl;
+          result = -EIO;
+          break;
+        }
+
+        string uri;
+        if (StubTool::in(soid, data, &uri)) {
+          vector<OSDOp> nops(2);
+
+          nops[0].op.op = CEPH_OSD_OP_TRUNCATE;
+          nops[0].op.extent.offset = 0;
+          nops[0].op.extent.length = 0;
+
+          string key = "stub_uri";
+          bufferlist val;
+          val.append(uri);
+
+          nops[1].op.op = CEPH_OSD_OP_SETXATTR;
+          nops[1].op.xattr.name_len = key.length();
+          nops[1].op.xattr.value_len = val.length();
+          nops[1].indata.append(key);
+          nops[1].indata.append(val);
+
+          int r = do_osd_ops(ctx, nops);
+
+          oi.stub_state = object_info_t::STUB_STATE_REMOTE;
+
+          dout(1) << "[stub] object " << soid
+                  << " successfully moved to " << uri
+                  << " ops: " << cpp_strerror(r)
+                  << dendl;
+        } else {
+          dout(1) << "[stub] failed to move object " << soid << " to stub server " << dendl;
+          result = -EIO;
+          break;
+        }
+      }
+      break;
+
+    case CEPH_OSD_OP_UNSTUB:
+      {
+        if (oi.stub_state != object_info_t::STUB_STATE_REMOTE) {
+          dout(1) << "[stub] can't unstub local object " << soid << dendl;
+          result = 0;
+          break;
+        }
+        dout(1) << "[stub] starting get object " << soid << " back" << dendl;
+
+        bufferlist attr_val;
+        int r = getattr_maybe_cache(ctx->obc, "_stub_uri", &attr_val);
+
+        ostringstream os;
+        attr_val.write_stream(os);
+        string uri = os.str();
+
+        if ((r < 0) || (uri.empty())) {
+          result = -EIO;
+          dout(1) << "[stub] no stub uri: " << cpp_strerror(r) << dendl;
+          break;
+        }
+
+        bufferlist data;
+        if (StubTool::out(uri, &data)) {
+          vector<OSDOp> nops(2);
+          nops[0].op.op = CEPH_OSD_OP_WRITEFULL;
+          nops[0].op.extent.offset = 0;
+          nops[0].op.extent.length = data.length();
+          nops[0].indata = data;
+
+          string key = "stub_uri";
+          nops[1].op.op = CEPH_OSD_OP_RMXATTR;
+          nops[1].op.xattr.name_len = key.length();
+          nops[1].indata.append(key);
+
+          do_osd_ops(ctx, nops);
+
+          oi.stub_state = object_info_t::STUB_STATE_LOCAL;
+
+          std::ostringstream os;
+          data.hexdump(os);
+
+          dout(1) << "[stub] got object " << soid << " :  " << data
+                  << " back " << dendl;
+          result = 0;
+        } else {
+          dout(1) << "[stub] failed to get object " << soid << " back" << dendl;
+          result = -EIO;
+          break;
+        }
+      }
+      break;
+
     default:
       tracepoint(osd, do_osd_op_pre_unknown, soid.oid.name.c_str(), soid.snap.val, op.op, ceph_osd_op_name(op.op));
       dout(1) << "unrecognized osd op " << op.op
 	      << " " << ceph_osd_op_name(op.op)
 	      << dendl;
+
       result = -EOPNOTSUPP;
     }
 

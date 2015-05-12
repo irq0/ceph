@@ -60,6 +60,7 @@ struct OpRequest : public TrackedOp {
   bool may_read();
   bool may_write();
   bool may_cache();
+  bool may_use_obj_data();
   bool includes_pg_op();
   bool need_read_cap();
   bool need_write_cap();
@@ -75,6 +76,7 @@ struct OpRequest : public TrackedOp {
   void set_pg_op();
   void set_promote();
   void set_skip_promote();
+  void set_need_obj_data();
 
   void _dump(utime_t now, Formatter *f) const;
 

@@ -1010,6 +1010,14 @@ struct ObjectOperation {
     add_op(CEPH_OSD_OP_CACHE_EVICT);
   }
 
+  void stub() {
+    add_op(CEPH_OSD_OP_STUB);
+  }
+
+  void unstub() {
+    add_op(CEPH_OSD_OP_UNSTUB);
+  }
+
   void set_alloc_hint(uint64_t expected_object_size,
                       uint64_t expected_write_size ) {
     add_alloc_hint(CEPH_OSD_OP_SETALLOCHINT, expected_object_size,

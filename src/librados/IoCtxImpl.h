@@ -135,6 +135,9 @@ struct librados::IoCtxImpl {
   int tmap_get(const object_t& oid, bufferlist& bl);
   int tmap_to_omap(const object_t& oid, bool nullok=false);
 
+  int stub(const object_t& oid);
+  int unstub(const object_t& oid);
+
   int exec(const object_t& oid, const char *cls, const char *method, bufferlist& inbl, bufferlist& outbl);
 
   int getxattr(const object_t& oid, const char *name, bufferlist& bl);

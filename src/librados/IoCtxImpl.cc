@@ -476,6 +476,22 @@ int librados::IoCtxImpl::write_full(const object_t& oid, bufferlist& bl)
   return operate(oid, &op, NULL);
 }
 
+int librados::IoCtxImpl::stub(const object_t& oid)
+{
+  ::ObjectOperation op;
+  prepare_assert_ops(&op);
+  op.stub();
+  return operate(oid, &op, NULL);
+}
+
+int librados::IoCtxImpl::unstub(const object_t& oid)
+{
+  ::ObjectOperation op;
+  prepare_assert_ops(&op);
+  op.unstub();
+  return operate(oid, &op, NULL);
+}
+
 int librados::IoCtxImpl::clone_range(const object_t& dst_oid,
 				     uint64_t dst_offset,
 				     const object_t& src_oid,

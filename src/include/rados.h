@@ -163,6 +163,7 @@ extern const char *ceph_osd_state_name(int s);
 #define CEPH_OSD_OP_MODE_RMW   0x3000
 #define CEPH_OSD_OP_MODE_SUB   0x4000
 #define CEPH_OSD_OP_MODE_CACHE 0x8000
+#define CEPH_OSD_OP_MODE_STUB  0x9000
 
 #define CEPH_OSD_OP_TYPE       0x0f00
 #define CEPH_OSD_OP_TYPE_LOCK  0x0100
@@ -244,12 +245,16 @@ extern const char *ceph_osd_state_name(int s);
 	f(CACHE_FLUSH,	__CEPH_OSD_OP(CACHE, DATA, 31),	"cache-flush")	    \
 	f(CACHE_EVICT,	__CEPH_OSD_OP(CACHE, DATA, 32),	"cache-evict")	    \
 	f(CACHE_TRY_FLUSH, __CEPH_OSD_OP(CACHE, DATA, 33), "cache-try-flush") \
-									    \
+                                                                            \
 	/* convert tmap to omap */					    \
 	f(TMAP2OMAP,	__CEPH_OSD_OP(RMW, DATA, 34),	"tmap2omap")	    \
 									    \
 	/* hints */							    \
 	f(SETALLOCHINT,	__CEPH_OSD_OP(WR, DATA, 35),	"set-alloc-hint")   \
+                                                                            \
+        /* osd stubs */                                                     \
+        f(STUB,        __CEPH_OSD_OP(STUB, DATA, 42), "stub")               \
+        f(UNSTUB,      __CEPH_OSD_OP(STUB, DATA, 43), "unstub")             \
 									    \
 	/** multi **/							    \
 	f(CLONERANGE,	__CEPH_OSD_OP(WR, MULTI, 1),	"clonerange")	    \
@@ -361,6 +366,8 @@ static inline int ceph_osd_op_uses_extent(int op)
 	case CEPH_OSD_OP_ZERO:
 	case CEPH_OSD_OP_APPEND:
 	case CEPH_OSD_OP_TRIMTRUNC:
+	case CEPH_OSD_OP_STUB:
+	case CEPH_OSD_OP_UNSTUB:
 		return true;
 	default:
 		return false;

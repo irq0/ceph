@@ -16,6 +16,7 @@ libosd_la_SOURCES = \
 	osd/ECMsgTypes.cc \
 	osd/ECTransaction.cc \
 	osd/PGBackend.cc \
+	osd/StubTool.cc \
 	osd/HitSet.cc \
 	osd/OSD.cc \
 	osd/OSDCap.cc \
@@ -30,7 +31,7 @@ libosd_la_CXXFLAGS = ${AM_CXXFLAGS}
 if WITH_KINETIC
 libosd_la_CXXFLAGS += -std=gnu++11
 endif
-libosd_la_LIBADD = $(LIBOSDC) $(LIBOS) $(LIBOSD_TYPES) $(LIBOS_TYPES)
+libosd_la_LIBADD = $(LIBOSDC) $(LIBOS) -lcurl $(LIBOSD_TYPES) $(LIBOS_TYPES)
 if WITH_LTTNG
 libosd_la_LIBADD += $(LIBOSD_TP)
 endif
@@ -49,6 +50,7 @@ noinst_HEADERS += \
 	osd/PGLog.h \
 	osd/ReplicatedPG.h \
 	osd/PGBackend.h \
+	osd/StubTool.h \
 	osd/ReplicatedBackend.h \
 	osd/TierAgentState.h \
 	osd/ECBackend.h \

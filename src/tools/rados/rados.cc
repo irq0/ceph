@@ -2615,6 +2615,28 @@ static int rados_tool_common(const std::map < std::string, std::string > &opts,
 	   << cpp_strerror(ret) << std::endl;
       goto out;
     }
+  } else if (strcmp(nargs[0], "stub") == 0) {
+    if (!pool_name || nargs.size() < 2)
+      usage_exit();
+
+    string oid(nargs[1]);
+
+    ret = io_ctx.stub(oid);
+    if (ret < 0) {
+      cerr << "error stubbing " << pool_name << "/" << oid << "/" << ": " << cpp_strerror(ret) << std::endl;
+      goto out;
+    }
+  } else if (strcmp(nargs[0], "unstub") == 0) {
+    if (!pool_name || nargs.size() < 2)
+      usage_exit();
+
+    string oid(nargs[1]);
+
+    ret = io_ctx.unstub(oid);
+    if (ret < 0) {
+      cerr << "error unstubbing " << pool_name << "/" << oid << "/" << ": " << cpp_strerror(ret) << std::endl;
+      goto out;
+    }
   } else {
     cerr << "unrecognized command " << nargs[0] << "; -h or --help for usage" << std::endl;
     ret = -EINVAL;
