@@ -1741,6 +1741,22 @@ void ReplicatedPG::do_op(OpRequestRef& op)
     ctx->ignore_cache = true;
   }
 
+  // stub?
+  if ((op->may_use_obj_data()) &&
+      (obc->obs.oi.stub_state == object_info_t::STUB_STATE_REMOTE) &&
+      (ctx->ops.front().op.op != CEPH_OSD_OP_UNSTUB)) {
+
+    OSDOp newop;
+    newop.op.op = CEPH_OSD_OP_UNSTUB;
+    ctx->ops.insert(ctx->ops.begin(), newop);
+
+    ctx->op->set_write(); // UNSTUB is basically a write
+
+    dout(1) << " [stub] need to get back stubbed object ("
+            << obc->obs.oi.soid << ") - ops needs obj data. Injecting unstub op: "
+            << ctx->ops << dendl;
+  }
+
   if ((op->may_read()) && (obc->obs.oi.is_lost())) {
     // This object is lost. Reading from it returns an error.
     dout(20) << __func__ << ": object " << obc->obs.oi.soid
