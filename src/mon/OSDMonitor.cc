@@ -4326,6 +4326,8 @@ int OSDMonitor::prepare_new_pool(string& name, uint64_t auid,
     pi->set_flag(pg_pool_t::FLAG_NOPGCHANGE);
   if (g_conf->osd_pool_default_flag_nosizechange)
     pi->set_flag(pg_pool_t::FLAG_NOSIZECHANGE);
+  if (g_conf->osd_pool_default_flag_hashpsonlyprefix)
+    pi->set_flag(pg_pool_t::FLAG_HASHPSONLYPREFIX);
 
   pi->size = size;
   pi->min_size = min_size;

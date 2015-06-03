@@ -501,7 +501,7 @@ unsigned pg_t::get_split_bits(unsigned pg_num) const {
 
   // Find unique p such that pg_num \in [2^(p-1), 2^p)
   unsigned p = pg_pool_t::calc_bits_of(pg_num);
-  assert(p); // silence coverity #751330 
+  assert(p); // silence coverity #751330
 
   if ((m_seed % (1<<(p-1))) < (pg_num % (1<<(p-1))))
     return p;
@@ -642,7 +642,7 @@ void coll_t::decode(bufferlist::iterator& bl)
     __u8 type;
     spg_t pgid;
     snapid_t snap;
-    
+
     ::decode(type, bl);
     ::decode(pgid, bl);
     ::decode(snap, bl);
@@ -668,7 +668,7 @@ void coll_t::decode(bufferlist::iterator& bl)
   case 3:
     ::decode(str, bl);
     break;
-    
+
   default: {
     ostringstream oss;
     oss << "coll_t::decode(): don't know how to decode version "
@@ -699,11 +699,11 @@ std::string pg_vector_string(const vector<int32_t> &a)
   ostringstream oss;
   oss << "[";
   for (vector<int32_t>::const_iterator i = a.begin(); i != a.end(); ++i) {
-    if (i != a.begin()) 
+    if (i != a.begin())
       oss << ",";
-    if (*i != CRUSH_ITEM_NONE) 
+    if (*i != CRUSH_ITEM_NONE)
       oss << *i;
-    else 
+    else
       oss << "NONE";
   }
   oss << "]";
@@ -1063,8 +1063,18 @@ static string make_hash_str(const string &inkey, const string &nspace)
   return nspace + '\037' + inkey;
 }
 
-uint32_t pg_pool_t::hash_key(const string& key, const string& ns) const
+uint32_t pg_pool_t::hash_key(const string& inkey, const string& ns) const
 {
+  string key(inkey);
+
+  if (flags & FLAG_HASHPSONLYPREFIX) {
+    string::size_type n = inkey.find(".");
+
+    if (n != string::npos) {
+      key = inkey.substr(0, n) ;
+    }
+  }
+
   string n = make_hash_str(key, ns);
   return ceph_str_hash(object_hash, n.c_str(), n.length());
 }
@@ -1082,7 +1092,7 @@ pg_t pg_pool_t::raw_pg_to_pg(pg_t pg) const
   pg.set_ps(ceph_stable_mod(pg.ps(), pg_num, pg_num_mask));
   return pg;
 }
-  
+
 /*
  * map raw pg (full precision ps) into a placement seed.  include
  * pool id in that value so that different pools don't use the same
@@ -3131,7 +3141,7 @@ void pg_log_t::encode(bufferlist& bl) const
   ::encode(rollback_info_trimmed_to, bl);
   ENCODE_FINISH(bl);
 }
- 
+
 void pg_log_t::decode(bufferlist::iterator &bl, int64_t pool)
 {
   DECODE_START_LEGACY_COMPAT_LEN(6, 3, 3, bl);
@@ -3189,7 +3199,7 @@ void pg_log_t::generate_test_instances(list<pg_log_t*>& o)
     o.back()->log.push_back(**p);
 }
 
-void pg_log_t::copy_after(const pg_log_t &other, eversion_t v) 
+void pg_log_t::copy_after(const pg_log_t &other, eversion_t v)
 {
   can_rollback_to = other.can_rollback_to;
   head = other.head;
@@ -3244,12 +3254,12 @@ void pg_log_t::copy_up_to(const pg_log_t &other, int max)
   }
 }
 
-ostream& pg_log_t::print(ostream& out) const 
+ostream& pg_log_t::print(ostream& out) const
 {
   out << *this << std::endl;
   for (list<pg_log_entry_t>::const_iterator p = log.begin();
        p != log.end();
-       ++p) 
+       ++p)
     out << *p << std::endl;
   return out;
 }
@@ -3313,7 +3323,7 @@ void pg_missing_t::generate_test_instances(list<pg_missing_t*>& o)
   o.back()->add(hobject_t(object_t("foo"), "foo", 123, 456, 0, ""), eversion_t(5, 6), eversion_t(5, 1));
 }
 
-ostream& operator<<(ostream& out, const pg_missing_t::item& i) 
+ostream& operator<<(ostream& out, const pg_missing_t::item& i)
 {
   out << i.need;
   if (i.have != eversion_t())
@@ -3321,7 +3331,7 @@ ostream& operator<<(ostream& out, const pg_missing_t::item& i)
   return out;
 }
 
-ostream& operator<<(ostream& out, const pg_missing_t& missing) 
+ostream& operator<<(ostream& out, const pg_missing_t& missing)
 {
   out << "missing(" << missing.num_missing();
   //if (missing.num_lost()) out << ", " << missing.num_lost() << " lost";
@@ -4148,12 +4158,12 @@ void object_info_t::copy_user_bits(const object_info_t& other)
   omap_digest = other.omap_digest;
 }
 
-ps_t object_info_t::legacy_object_locator_to_ps(const object_t &oid, 
+ps_t object_info_t::legacy_object_locator_to_ps(const object_t &oid,
 						const object_locator_t &loc) {
   ps_t ps;
   if (loc.key.length())
     // Hack, we don't have the osd map, so we don't really know the hash...
-    ps = ceph_str_hash(CEPH_STR_HASH_RJENKINS, loc.key.c_str(), 
+    ps = ceph_str_hash(CEPH_STR_HASH_RJENKINS, loc.key.c_str(),
 		       loc.key.length());
   else
     ps = ceph_str_hash(CEPH_STR_HASH_RJENKINS, oid.name.c_str(),
@@ -4317,7 +4327,7 @@ void object_info_t::dump(Formatter *f) const
 void object_info_t::generate_test_instances(list<object_info_t*>& o)
 {
   o.push_back(new object_info_t());
-  
+
   // fixme
 }
 
@@ -4728,7 +4738,7 @@ void ScrubMap::merge_incr(const ScrubMap &l)
       objects[p->first] = p->second;
     }
   }
-}          
+}
 
 void ScrubMap::encode(bufferlist& bl) const
 {
