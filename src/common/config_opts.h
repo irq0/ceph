@@ -621,6 +621,7 @@ OPTION(osd_pool_default_flag_hashpspool, OPT_BOOL, true)   // use new pg hashing
 OPTION(osd_pool_default_flag_nodelete, OPT_BOOL, false) // pool can't be deleted
 OPTION(osd_pool_default_flag_nopgchange, OPT_BOOL, false) // pool's pg and pgp num can't be changed
 OPTION(osd_pool_default_flag_nosizechange, OPT_BOOL, false) // pool's size and min size can't be changed
+OPTION(osd_pool_default_flag_hashpsonlyprefix, OPT_BOOL, false) // hash only prefix of object name for ps
 OPTION(osd_pool_default_hit_set_bloom_fpp, OPT_FLOAT, .05)
 OPTION(osd_pool_default_cache_target_dirty_ratio, OPT_FLOAT, .4)
 OPTION(osd_pool_default_cache_target_dirty_high_ratio, OPT_FLOAT, .6)

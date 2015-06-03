@@ -2700,6 +2700,8 @@ int OSDMap::build_simple(CephContext *cct, epoch_t e, uuid_d &fsid,
       pools[pool].set_flag(pg_pool_t::FLAG_NOPGCHANGE);
     if (cct->_conf->osd_pool_default_flag_nosizechange)
       pools[pool].set_flag(pg_pool_t::FLAG_NOSIZECHANGE);
+    if (cct->_conf->osd_pool_default_flag_hashpsonlyprefix)
+      pools[pool].set_flag(pg_pool_t::FLAG_HASHPSONLYPREFIX);
     pools[pool].size = cct->_conf->osd_pool_default_size;
     pools[pool].min_size = cct->_conf->get_osd_pool_default_min_size();
     pools[pool].crush_ruleset = default_replicated_ruleset;

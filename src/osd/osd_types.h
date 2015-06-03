@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 /*
  * Ceph - scalable distributed file system
@@ -10,9 +10,9 @@
  *
  * This is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2.1, as published by the Free Software 
+ * License version 2.1, as published by the Free Software
  * Foundation.  See file COPYING.
- * 
+ *
  */
 
 #ifndef CEPH_OSD_TYPES_H
@@ -134,7 +134,7 @@ inline bool operator!=(const osd_reqid_t& l, const osd_reqid_t& r) {
   return (l.name != r.name) || (l.inc != r.inc) || (l.tid != r.tid);
 }
 inline bool operator<(const osd_reqid_t& l, const osd_reqid_t& r) {
-  return (l.name < r.name) || (l.inc < r.inc) || 
+  return (l.name < r.name) || (l.inc < r.inc) ||
     (l.name == r.name && l.inc == r.inc && l.tid < r.tid);
 }
 inline bool operator<=(const osd_reqid_t& l, const osd_reqid_t& r) {
@@ -146,7 +146,7 @@ inline bool operator>=(const osd_reqid_t& l, const osd_reqid_t& r) { return !(l 
 
 namespace std {
   template<> struct hash<osd_reqid_t> {
-    size_t operator()(const osd_reqid_t &r) const { 
+    size_t operator()(const osd_reqid_t &r) const {
       static hash<uint64_t> H;
       return H(r.name.num() ^ r.tid ^ r.inc);
     }
@@ -457,7 +457,7 @@ struct spg_t {
 
   static const uint8_t calc_name_buf_size = pg_t::calc_name_buf_size + 4; // 36 + len('s') + len("255");
   char *calc_name(char *buf, const char *suffix_backwords) const;
- 
+
   bool parse(const char *s);
   bool parse(const std::string& s) {
     return parse(s.c_str());
@@ -673,7 +673,7 @@ inline ostream& operator<<(ostream& out, const coll_t& c) {
 
 namespace std {
   template<> struct hash<coll_t> {
-    size_t operator()(const coll_t &c) const { 
+    size_t operator()(const coll_t &c) const {
       size_t h = 0;
       string str(c.to_str());
       std::string::const_iterator end(str.end());
@@ -715,7 +715,7 @@ public:
   eversion_t(epoch_t e, version_t v) : version(v), epoch(e), __pad(0) {}
 
   // cppcheck-suppress noExplicitConstructor
-  eversion_t(const ceph_eversion& ce) : 
+  eversion_t(const ceph_eversion& ce) :
     version(ce.version),
     epoch(ce.epoch),
     __pad(0) { }
@@ -921,7 +921,7 @@ int pg_string_state(const std::string& state);
 /*
  * pool_snap_info_t
  *
- * attributes for a single pool snapshot.  
+ * attributes for a single pool snapshot.
  */
 struct pool_snap_info_t {
   snapid_t snapid;
@@ -1051,6 +1051,7 @@ struct pg_pool_t {
     FLAG_WRITE_FADVISE_DONTNEED = 1<<7, // write mode with LIBRADOS_OP_FLAG_FADVISE_DONTNEED
     FLAG_NOSCRUB = 1<<8, // block periodic scrub
     FLAG_NODEEP_SCRUB = 1<<9, // block periodic deep-scrub
+    FLAG_HASHPSONLYPREFIX = 1<<10, // hash only prefix of key for ps
   };
 
   static const char *get_flag_name(int f) {
@@ -1065,6 +1066,7 @@ struct pg_pool_t {
     case FLAG_WRITE_FADVISE_DONTNEED: return "write_fadvise_dontneed";
     case FLAG_NOSCRUB: return "noscrub";
     case FLAG_NODEEP_SCRUB: return "nodeep-scrub";
+    case FLAG_HASHPSONLYPREFIX: return "hash_ps_only_prefix";
     default: return "???";
     }
   }
@@ -1103,6 +1105,8 @@ struct pg_pool_t {
       return FLAG_NOSCRUB;
     if (name == "nodeep-scrub")
       return FLAG_NODEEP_SCRUB;
+    if (name == "hash_ps_only_prefix")
+      return FLAG_HASHPSONLYPREFIX;
     return 0;
   }
 
@@ -1253,7 +1257,7 @@ public:
   uint32_t min_read_recency_for_promote;   ///< minimum number of HitSet to check before promote on read
   uint32_t min_write_recency_for_promote;  ///< minimum number of HitSet to check before promote on write
   uint32_t hit_set_grade_decay_rate;   ///< current hit_set has highest priority on objects
-                                       ///temperature count,the follow hit_set's priority decay 
+                                       ///temperature count,the follow hit_set's priority decay
                                        ///by this params than pre hit_set
   uint32_t hit_set_search_last_n;   ///<accumulate atmost N hit_sets for temperature
 
@@ -1452,7 +1456,7 @@ public:
    * map a raw pg (with full precision ps) into an actual pg, for storage
    */
   pg_t raw_pg_to_pg(pg_t pg) const;
-  
+
   /*
    * map raw pg (full precision ps) into a placement seed.  include
    * pool id in that value so that different pools don't use the same
@@ -1984,7 +1988,7 @@ struct pg_history_t {
   epoch_t last_epoch_clean;    // lower bound on last epoch the PG was completely clean.
   epoch_t last_epoch_split;    // as parent
   epoch_t last_epoch_marked_full;  // pool or cluster
-  
+
   /**
    * In the event of a map discontinuity, same_*_since may reflect the first
    * map the osd has seen in the new map sequence rather than the actual start
@@ -2007,7 +2011,7 @@ struct pg_history_t {
       last_epoch_started(0), last_epoch_clean(0), last_epoch_split(0),
       last_epoch_marked_full(0),
       same_up_since(0), same_interval_since(0), same_primary_since(0) {}
-  
+
   bool merge(const pg_history_t &other) {
     // Here, we only update the fields which cannot be calculated from the OSDmap.
     bool modified = false;
@@ -2024,7 +2028,7 @@ struct pg_history_t {
       modified = true;
     }
     if (last_epoch_split < other.last_epoch_split) {
-      last_epoch_split = other.last_epoch_split; 
+      last_epoch_split = other.last_epoch_split;
       modified = true;
     }
     if (last_epoch_marked_full < other.last_epoch_marked_full) {
@@ -2072,7 +2076,7 @@ inline ostream& operator<<(ostream& out, const pg_history_t& h) {
 /**
  * pg_info_t - summary of PG statistics.
  *
- * some notes: 
+ * some notes:
  *  - last_complete implies we have all objects that existed as of that
  *    stamp, OR a newer object, OR have already applied a later delete.
  *  - if last_complete >= log.bottom, then we know pg contents thru log.head.
@@ -2083,7 +2087,7 @@ struct pg_info_t {
   eversion_t last_update;      ///< last object version applied to store.
   eversion_t last_complete;    ///< last version pg was complete through.
   epoch_t last_epoch_started;  ///< last epoch at which this pg started on this osd
-  
+
   version_t last_user_version; ///< last user object version applied to store
 
   eversion_t log_tail;         ///< oldest log entry.
@@ -2110,7 +2114,7 @@ struct pg_info_t {
       last_backfill(hobject_t::get_max()),
       last_backfill_bitwise(false)
   { }
-  
+
   void set_last_backfill(hobject_t pos, bool sort) {
     last_backfill = pos;
     last_backfill_bitwise = sort;
@@ -2133,7 +2137,7 @@ struct pg_info_t {
 };
 WRITE_CLASS_ENCODER(pg_info_t)
 
-inline ostream& operator<<(ostream& out, const pg_info_t& pgi) 
+inline ostream& operator<<(ostream& out, const pg_info_t& pgi)
 {
   out << pgi.pgid << "(";
   if (pgi.dne())
@@ -2279,7 +2283,7 @@ ostream& operator<<(ostream& out, const pg_interval_t& i);
 typedef map<epoch_t, pg_interval_t> pg_interval_map_t;
 
 
-/** 
+/**
  * pg_query_t - used to ask a peer for information about a pg.
  *
  * note: if version=0, type=LOG, then we just provide our full log.
@@ -2333,7 +2337,7 @@ struct pg_query_t {
       epoch_sent(epoch_sent), to(to), from(from) {
     assert(t == LOG);
   }
-  
+
   void encode(bufferlist &bl, uint64_t features) const;
   void decode(bufferlist::iterator &bl);
 
@@ -2545,7 +2549,7 @@ struct pg_log_entry_t {
    : soid(_soid), reqid(rid), version(v), prior_version(pv), user_version(uv),
      mtime(mt), op(_op), invalid_hash(false), invalid_pool(false)
      {}
-      
+
   bool is_clone() const { return op == CLONE; }
   bool is_modify() const { return op == MODIFY; }
   bool is_promote() const { return op == PROMOTE; }
@@ -2563,7 +2567,7 @@ struct pg_log_entry_t {
   bool is_delete() const {
     return op == DELETE || op == LOST_DELETE;
   }
-      
+
   bool reqid_is_indexed() const {
     return reqid != osd_reqid_t() && (op == MODIFY || op == DELETE);
   }
@@ -2593,7 +2597,7 @@ struct pg_log_t {
   /*
    *   head - newest entry (update|delete)
    *   tail - entry previous to oldest (update|delete) for which we have
-   *          complete negative information.  
+   *          complete negative information.
    * i.e. we can infer pg contents for any store whose last_update >= tail.
    */
   eversion_t head;    // newest entry
@@ -2607,7 +2611,7 @@ struct pg_log_t {
   eversion_t rollback_info_trimmed_to;
 
   list<pg_log_entry_t> log;  // the actual log.
-  
+
   pg_log_t() {}
 
   void clear() {
@@ -2643,7 +2647,7 @@ struct pg_log_t {
       while (p->version < v)
 	++p;
       return p;
-    }      
+    }
   }
 
   list<pg_log_entry_t>::iterator find_entry(eversion_t v) {
@@ -2661,7 +2665,7 @@ struct pg_log_t {
       while (p->version < v)
 	++p;
       return p;
-    }      
+    }
   }
 
   static void filter_log(spg_t import_pgid, const OSDMap &curmap,
@@ -2702,7 +2706,7 @@ struct pg_log_t {
 };
 WRITE_CLASS_ENCODER(pg_log_t)
 
-inline ostream& operator<<(ostream& out, const pg_log_t& log) 
+inline ostream& operator<<(ostream& out, const pg_log_t& log)
 {
   out << "log((" << log.tail << "," << log.head << "], crt="
       << log.can_rollback_to << ")";
@@ -2741,7 +2745,7 @@ struct pg_missing_t {
       o.back()->need = eversion_t(1, 2);
       o.back()->have = eversion_t(1, 1);
     }
-  }; 
+  };
   WRITE_CLASS_ENCODER(item)
 
   map<hobject_t, item, hobject_t::ComparatorWithDefault> missing;  // oid -> (need v, have v)
@@ -2855,7 +2859,7 @@ WRITE_CLASS_ENCODER(pg_nls_response_t)
 
 // For backwards compatibility with older OSD requests
 struct pg_ls_response_t {
-  collection_list_handle_t handle; 
+  collection_list_handle_t handle;
   list<pair<object_t, string> > entries;
 
   void encode(bufferlist& bl) const {
@@ -3030,7 +3034,7 @@ class ObjectExtent {
   object_locator_t oloc;   // object locator (pool etc)
 
   vector<pair<uint64_t,uint64_t> >  buffer_extents;  // off -> len.  extents in buffer being mapped (may be fragmented bc of striping!)
-  
+
   ObjectExtent() : objectno(0), offset(0), length(0), truncate_size(0) {}
   ObjectExtent(object_t o, uint64_t ono, uint64_t off, uint64_t l, uint64_t ts) :
     oid(o), objectno(ono), offset(off), length(l), truncate_size(ts) { }
@@ -3038,7 +3042,7 @@ class ObjectExtent {
 
 inline ostream& operator<<(ostream& out, const ObjectExtent &ex)
 {
-  return out << "extent(" 
+  return out << "extent("
              << ex.oid << " (" << ex.objectno << ") in " << ex.oloc
              << " " << ex.offset << "~" << ex.length
 	     << " -> " << ex.buffer_extents
@@ -3066,8 +3070,8 @@ public:
   epoch_t mounted;     // last epoch i mounted
   epoch_t clean_thru;  // epoch i was active and clean thru
 
-  OSDSuperblock() : 
-    whoami(-1), 
+  OSDSuperblock() :
+    whoami(-1),
     current_epoch(0), oldest_map(0), newest_map(0), weight(0),
     mounted(0), clean_thru(0) {
   }
@@ -3122,11 +3126,11 @@ struct SnapSet {
 
   /// get space accounted to clone
   uint64_t get_clone_bytes(snapid_t clone) const;
-    
+
   void encode(bufferlist& bl) const;
   void decode(bufferlist::iterator& bl);
   void dump(Formatter *f) const;
-  static void generate_test_instances(list<SnapSet*>& o);  
+  static void generate_test_instances(list<SnapSet*>& o);
 
   SnapContext get_ssc_as_of(snapid_t as_of) const {
     SnapContext out;
@@ -3266,7 +3270,7 @@ struct object_info_t {
 
   void copy_user_bits(const object_info_t& other);
 
-  static ps_t legacy_object_locator_to_ps(const object_t &oid, 
+  static ps_t legacy_object_locator_to_ps(const object_t &oid,
 					  const object_locator_t &loc);
 
   bool test_flag(flag_t f) const {
@@ -3423,7 +3427,7 @@ public:
     }
     mod->setattrs(to_set);
   }
-  
+
   struct RWState {
     enum State {
       RWNONE,
@@ -3876,8 +3880,8 @@ struct ScrubMap {
 
     object() :
       // Init invalid size so it won't match if we get a stat EIO error
-      size(-1), omap_digest(0), digest(0), nlinks(0), 
-      negative(false), digest_present(false), omap_digest_present(false), 
+      size(-1), omap_digest(0), digest(0), nlinks(0),
+      negative(false), digest_present(false), omap_digest_present(false),
       read_error(false), stat_error(false) {}
 
     void encode(bufferlist& bl) const;

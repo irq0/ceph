@@ -2099,7 +2099,7 @@ void OSDMonitor::_booted(MonOpRequestRef op, bool logit)
 {
   op->mark_osdmon_event(__func__);
   MOSDBoot *m = static_cast<MOSDBoot*>(op->get_req());
-  dout(7) << "_booted " << m->get_orig_source_inst() 
+  dout(7) << "_booted " << m->get_orig_source_inst()
 	  << " w " << m->sb.weight << " from " << m->sb.current_epoch << dendl;
 
   if (logit) {
@@ -4569,7 +4569,7 @@ int OSDMonitor::get_crush_ruleset(const string &ruleset_name,
  * @param erasure_code_profile The profile name in OSDMap to be used for erasure code
  * @param pool_type TYPE_ERASURE, or TYPE_REP
  * @param expected_num_objects expected number of objects on the pool
- * @param fast_read fast read type. 
+ * @param fast_read fast read type.
  * @param ss human readable error message, if any.
  *
  * @return 0 on success, negative errno on failure.
@@ -4661,6 +4661,8 @@ int OSDMonitor::prepare_new_pool(string& name, uint64_t auid,
     pi->set_flag(pg_pool_t::FLAG_NOPGCHANGE);
   if (g_conf->osd_pool_default_flag_nosizechange)
     pi->set_flag(pg_pool_t::FLAG_NOSIZECHANGE);
+  if (g_conf->osd_pool_default_flag_hashpsonlyprefix)
+    pi->set_flag(pg_pool_t::FLAG_HASHPSONLYPREFIX);
   if (g_conf->osd_pool_use_gmt_hitset &&
       (osdmap.get_up_osd_features() & CEPH_FEATURE_OSD_HITSET_GMT))
     pi->use_gmt_hitset = true;
@@ -6814,7 +6816,7 @@ done:
       fast_read = FAST_READ_OFF;
     else if (fast_read_param > 0)
       fast_read = FAST_READ_ON;
-    
+
     err = prepare_new_pool(poolstr, 0, // auid=0 for admin created pool
 			   -1, // default crush rule
 			   ruleset_name,
@@ -7473,7 +7475,7 @@ done:
   return true;
 }
 
-bool OSDMonitor::preprocess_pool_op(MonOpRequestRef op) 
+bool OSDMonitor::preprocess_pool_op(MonOpRequestRef op)
 {
   op->mark_osdmon_event(__func__);
   MPoolOp *m = static_cast<MPoolOp*>(op->get_req());
