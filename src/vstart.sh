@@ -1,8 +1,10 @@
-#!/bin/sh
+#!/bin/bash
+
+export SCRIPTPATH="$(dirname $0)"
 
 if [ -z "$CEPH_BUILD_ROOT" ]; then
-        [ -z "$CEPH_BIN" ] && CEPH_BIN=.
-        [ -z "$CEPH_LIB" ] && CEPH_LIB=.libs
+        [ -z "$CEPH_BIN" ] && CEPH_BIN="${SCRIPTPATH}"
+        [ -z "$CEPH_LIB" ] && CEPH_LIB="${SCRIPTPATH}/.libs"
         [ -z $EC_PATH ] && EC_PATH=$CEPH_LIB
         [ -z $OBJCLASS_PATH ] && OBJCLASS_PATH=$CEPH_LIB
 else
@@ -12,31 +14,28 @@ else
         [ -z $OBJCLASS_PATH ] && OBJCLASS_PATH=$CEPH_LIB/rados-classes
 fi
 
-if [ -z "${CEPH_VSTART_WRAPPER}" ]; then
-    PATH=$(pwd):$PATH
-fi
+export PYTHONPATH="${SCRIPTPATH}/pybind"
+export LD_LIBRARY_PATH="${SCRIPTPATH}/.libs:${SCRIPTPATH}"
+export DYLD_LIBRARY_PATH="$LD_LIBRARY_PATH"
+export DL_LOAD_PATH="$LD_LIBRARY_PATH"
 
-export PYTHONPATH=./pybind
-export LD_LIBRARY_PATH=$CEPH_LIB
-export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH
-
-# abort on failure
+set -u
 set -e
 
-[ -z "$CEPH_NUM_MON" ] && CEPH_NUM_MON="$MON"
-[ -z "$CEPH_NUM_OSD" ] && CEPH_NUM_OSD="$OSD"
-[ -z "$CEPH_NUM_MDS" ] && CEPH_NUM_MDS="$MDS"
-[ -z "$CEPH_NUM_RGW" ] && CEPH_NUM_RGW="$RGW"
+INIT_CEPH=${INIT_CEPH:-$CEPH_BIN/init-ceph}
 
-[ -z "$CEPH_NUM_MON" ] && CEPH_NUM_MON=3
-[ -z "$CEPH_NUM_OSD" ] && CEPH_NUM_OSD=3
-[ -z "$CEPH_NUM_MDS" ] && CEPH_NUM_MDS=3
-[ -z "$CEPH_NUM_RGW" ] && CEPH_NUM_RGW=1
+CEPH_NUM_MON=${MON:-3}
+CEPH_NUM_OSD=${OSD:-3}
+CEPH_NUM_MDS=${MDS:-3}
+CEPH_NUM_RGW=${RGW:-1}
 
-[ -z "$CEPH_DIR" ] && CEPH_DIR="$PWD"
-[ -z "$CEPH_DEV_DIR" ] && CEPH_DEV_DIR="$CEPH_DIR/dev"
-[ -z "$CEPH_OUT_DIR" ] && CEPH_OUT_DIR="$CEPH_DIR/out"
-[ -z "$CEPH_RGW_PORT" ] && CEPH_RGW_PORT=8000
+echo "Ceph dir: ${CEPH_DIR:=$PWD}"
+echo "Dev dir: ${CEPH_DEV_DIR:=${CEPH_DIR}/dev}"
+echo "Out dir: ${CEPH_OUT_DIR:=${CEPH_DIR}/out}"
+echo "RGW port: ${CEPH_RGW_PORT:=8000}"
+echo "Ceph bin dir: ${CEPH_BIN:="${SCRIPTPATH}"}"
+echo "Ceph port: ${CEPH_PORT:=6789}"
+
 
 extra_conf=""
 new=0
@@ -57,6 +56,10 @@ cephx=1 #turn cephx on by default
 cache=""
 memstore=0
 journal=1
+valgrind=""
+valgrind_mds=""
+valgrind_osd=""
+valgrind_mon=""
 
 MON_ADDR=""
 
@@ -212,6 +215,7 @@ run() {
     eval "valg=\$valgrind_$type"
     [ -z "$valg" ] && valg="$valgrind"
 
+    cd "$CEPH_BIN"
     if [ -n "$valg" ]; then
 	echo "valgrind --tool=$valg $* -f &"
 	valgrind --tool=$valg $* -f &
@@ -222,7 +226,7 @@ run() {
 	    $*
 	else
 	    echo "ceph-run $* -f &"
-	    ./ceph-run $* -f &
+	    $CEPH_BIN/ceph-run $* -f &
 	fi
     fi
 }
@@ -265,11 +269,17 @@ if [ -n "$MON_ADDR" ]; then
 	CMON_ARGS=" -m "$MON_ADDR
 	COSD_ARGS=" -m "$MON_ADDR
 	CMDS_ARGS=" -m "$MON_ADDR
+else
+	CMON_ARGS=""
+	COSD_ARGS=""
+	CMDS_ARGS=""
 fi
 
 if [ "$memstore" -eq 1 ]; then
     COSDMEMSTORE='
 	osd objectstore = memstore'
+else
+    COSDMEMSTORE=""
 fi
 
 # lockdep everywhere?
@@ -280,10 +290,13 @@ if [ -z "$CEPH_PORT" ]; then
     [ -e ".ceph_port" ] && CEPH_PORT=`cat .ceph_port`
 fi
 
-[ -z "$INIT_CEPH" ] && INIT_CEPH=$CEPH_BIN/init-ceph
 
 # sudo if btrfs
-test -d $CEPH_DEV_DIR/osd0/. && test -e $CEPH_DEV_DIR/sudo && SUDO="sudo"
+if [ -d "$CEPH_DEV_DIR/osd0/" -a -e "$CEPH_DEV_DIR/sudo" ]; then
+	SUDO="sudo"
+else
+	SUDO=""
+fi
 
 if [ "$start_all" -eq 1 ]; then
     $SUDO $INIT_CEPH stop
@@ -311,10 +324,6 @@ else
     if [ -z "$IP" ]; then IP="$RAW_IP"; fi
     echo ip $IP
 fi
-echo "ip $IP"
-echo "port $PORT"
-
-
 
 if [ "$cephx" -eq 1 ]; then
     CEPH_ADM="$CEPH_BIN/ceph -c $conf_fn -k $keyring_fn"
@@ -357,6 +366,7 @@ if [ "$start_mon" -eq 1 ]; then
         osd pgp bits = 5  ; (invalid, but ceph should cope!)
         osd crush chooseleaf type = 0
         osd pool default min size = 1
+        osd pool default flag hashpsonlyprefix = true
         osd failsafe full ratio = .99
         mon osd full ratio = .99
         mon data avail warn = 10
@@ -477,7 +487,10 @@ EOF
 		    cmd="$CEPH_BIN/ceph-mon --mkfs -c $conf_fn -i $f --monmap=$monmap_fn"
 		    cmd="$cmd --keyring=$keyring_fn"
 		    echo $cmd
+                    (
+                        cd $CEPH_BIN
 		    $cmd
+                    )
 		done
 
 		rm $monmap_fn
@@ -676,8 +689,8 @@ fi
 echo "started.  stop.sh to stop.  see out/* (e.g. 'tail -f out/????') for debug output."
 
 echo ""
-echo "export PYTHONPATH=./pybind"
-echo "export LD_LIBRARY_PATH=$CEPH_LIB"
+echo "export PYTHONPATH=$PYTHONPATH"
+echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
 
 if [ "$CEPH_DIR" != "$PWD" ]; then
     echo "export CEPH_CONF=$conf_fn"
