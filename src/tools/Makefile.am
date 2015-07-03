@@ -14,6 +14,10 @@ crushtool_SOURCES = tools/crushtool.cc
 crushtool_LDADD = $(CEPH_GLOBAL)
 bin_PROGRAMS += crushtool
 
+hashsim_SOURCES = tools/hashsim.cc
+hashsim_LDADD = $(CEPH_GLOBAL) $(LIBCLIENT)
+bin_PROGRAMS += hashsim
+
 osdmaptool_SOURCES = tools/osdmaptool.cc
 osdmaptool_LDADD = $(CEPH_GLOBAL)
 bin_PROGRAMS += osdmaptool
