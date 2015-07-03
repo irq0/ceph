@@ -4333,7 +4333,7 @@ int OSDMonitor::prepare_new_pool(string& name, uint64_t auid,
   pi->min_size = min_size;
   pi->crush_ruleset = crush_ruleset;
   pi->expected_num_objects = expected_num_objects;
-  pi->object_hash = CEPH_STR_HASH_RJENKINS;
+  pi->object_hash = g_conf->osd_pool_object_hash;
   pi->set_pg_num(pg_num ? pg_num : g_conf->osd_pool_default_pg_num);
   pi->set_pgp_num(pgp_num ? pgp_num : g_conf->osd_pool_default_pgp_num);
   pi->last_change = pending_inc.epoch;
