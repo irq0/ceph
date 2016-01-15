@@ -1,6 +1,13 @@
 
 #include "include/types.h"
 
+#define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
+#include <cryptopp/sha.h>
+#include <cryptopp/md5.h>
+#include <cryptopp/adler32.h>
+#include <cryptopp/crc.h>
+#include <cryptopp/integer.h>
+
 /*
  * Robert Jenkin's hash function.
  * http://burtleburtle.net/bob/hash/evahash.html
@@ -91,6 +98,57 @@ unsigned ceph_str_hash_linux(const char *str, unsigned length)
 	return hash;
 }
 
+unsigned ceph_str_hash_truncated_sha1(const char *str, unsigned length)
+{
+        CryptoPP::SHA1 hash;
+        byte digest[CryptoPP::SHA1::DIGESTSIZE];
+        hash.CalculateTruncatedDigest(digest, 4, (byte*)str, length);
+
+        // cryptopp sha1 digest is big endian
+        // compared the results to:
+        // python -c 'import hashlib, struct; m = hashlib.sha1(); m.update("dinge"); print struct.unpack("<I", m.digest()[:4])[0]'
+        // dinge -> 3917024803
+        return *(uint32_t*)digest;
+}
+
+unsigned ceph_str_hash_truncated_md5(const char *str, unsigned length)
+{
+        CryptoPP::Weak1::MD5 hash;
+        byte digest[CryptoPP::Weak1::MD5::DIGESTSIZE];
+        hash.CalculateTruncatedDigest(digest, 4, (byte*)str, length);
+
+        // cryptopp md5 is little endian.
+        // compared the results to:
+        // python -c 'import hashlib, struct; m = hashlib.md5(); m.update("dinge"); print struct.unpack("<I", m.digest()[:4])[0]'
+        // dinge -> 461942412
+        return *(uint32_t*)digest;
+}
+
+
+unsigned ceph_str_hash_adler32(const char *str, unsigned length)
+{
+        CryptoPP::Adler32 hash;
+        byte digest[CryptoPP::Adler32::DIGESTSIZE];
+        hash.CalculateDigest(digest, (byte*)str, length);
+
+        // cryptopp crc32 seemes to be big endian
+        // compared the results to: python -c 'import zlib; print zlib.adler32("dinge") & 0xffffffff'
+        //  dinge -> 102367752
+        return CryptoPP::Integer(digest, CryptoPP::Adler32::DIGESTSIZE).ConvertToLong();
+}
+
+
+unsigned ceph_str_hash_crc32(const char *str, unsigned length)
+{
+        CryptoPP::CRC32 hash;
+        byte digest[CryptoPP::CRC32::DIGESTSIZE];
+        hash.CalculateDigest(digest, (byte*)str, length);
+
+        // cryptopp crc32 seemes to be little endian.
+        // compared the results to: python -c 'import binascii; print binascii.crc32("dinge") & 0xffffffff'
+        // dinge -> 3113422980
+        return *(uint32_t*)digest;
+}
 
 unsigned ceph_str_hash(int type, const char *s, unsigned len)
 {
@@ -99,6 +157,14 @@ unsigned ceph_str_hash(int type, const char *s, unsigned len)
 		return ceph_str_hash_linux(s, len);
 	case CEPH_STR_HASH_RJENKINS:
 		return ceph_str_hash_rjenkins(s, len);
+        case CEPH_STR_HASH_TRUNCATED_SHA1:
+                return ceph_str_hash_truncated_sha1(s, len);
+        case CEPH_STR_HASH_TRUNCATED_MD5:
+                return ceph_str_hash_truncated_md5(s, len);
+        case CEPH_STR_HASH_ADLER32:
+                return ceph_str_hash_adler32(s, len);
+        case CEPH_STR_HASH_CRC32:
+                return ceph_str_hash_crc32(s, len);
 	default:
 		return -1;
 	}
@@ -111,6 +177,14 @@ const char *ceph_str_hash_name(int type)
 		return "linux";
 	case CEPH_STR_HASH_RJENKINS:
 		return "rjenkins";
+        case CEPH_STR_HASH_TRUNCATED_SHA1:
+                return "sha1-trunc";
+        case CEPH_STR_HASH_TRUNCATED_MD5:
+                return "md5-trunc";
+        case CEPH_STR_HASH_ADLER32:
+                return "adler32";
+        case CEPH_STR_HASH_CRC32:
+                return "crc32";
 	default:
 		return "unknown";
 	}
