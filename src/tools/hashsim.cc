@@ -42,6 +42,31 @@ void usage()
   cout.flush();
 }
 
+/*
+ * Since the conversions made in the new ceph_str_hash_.. functions are not
+ * endian safe, compare some known values here.
+ */
+static void check_hashes()
+{
+  std::string s;
+
+  s = "dinge";
+  if (ceph_str_hash_truncated_sha1(s.c_str(), s.length()) != 3917024803) abort();
+  if (ceph_str_hash_truncated_md5(s.c_str(), s.length()) != 461942412) abort();
+  if (ceph_str_hash_adler32(s.c_str(), s.length()) != 102367752) abort();
+  if (ceph_str_hash_crc32(s.c_str(), s.length()) != 3113422980) abort();
+  if (ceph_str_hash_linux(s.c_str(), s.length()) != 285901154) abort();
+  if (ceph_str_hash_rjenkins(s.c_str(), s.length()) != 1740849162) abort();
+
+  s = "Ceph is a distributed object store and file system designed to provide excellent performance, reliability and scalability.";
+  if (ceph_str_hash_truncated_sha1(s.c_str(), s.length()) != 2509992478) abort();
+  if (ceph_str_hash_truncated_md5(s.c_str(), s.length()) != 174182118) abort();
+  if (ceph_str_hash_adler32(s.c_str(), s.length()) != 3703909802) abort();
+  if (ceph_str_hash_crc32(s.c_str(), s.length()) != 3875590023) abort();
+  if (ceph_str_hash_linux(s.c_str(), s.length()) != 1002001631) abort();
+  if (ceph_str_hash_rjenkins(s.c_str(), s.length()) != 3668998067) abort();
+}
+
 int sim(const OSDMap& osdmap, const ceph_file_layout& layout, std::string filename, uint64_t size)
 {
   // pseudo cephfs stiping - don't do inodes. Pass the filename to the striper instead of an inode number
@@ -121,6 +146,8 @@ int main(int argc, const char **argv)
 
   global_init(&def_args, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_UTILITY, 0);
   common_init_finish(g_ceph_context);
+
+  check_hashes();
 
   std::string osdmap_filename("");
   std::string filename("");
@@ -231,7 +258,7 @@ int main(int argc, const char **argv)
 
     std::cerr << argv[0] << ": "
 	      << " (pool0) prefix_hash: " << pool->has_flag(pg_pool_t::FLAG_HASHPSONLYPREFIX)
-	      << " (pool0) hash algorithm: " << pool->get_object_hash()
+	      << " (pool0) hash algorithm: " << pool->get_object_hash() << " (" << ceph_str_hash_name(pool->get_object_hash()) << ") "
 	      << " (conf) prefix_hash: " << g_conf->osd_pool_default_flag_hashpsonlyprefix
 	      << " (conf) hash algorithm: " << g_conf->osd_pool_object_hash
 	      << std::endl;
