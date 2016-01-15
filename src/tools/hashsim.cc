@@ -236,7 +236,12 @@ int main(int argc, const char **argv)
   }
 
   cerr << argv[0] << ": Start OSDMap dump" << std::endl;
-  osdmap.dump_json(cerr);
+
+  JSONFormatter jsf(true);
+  jsf.open_object_section("osdmap");
+  osdmap.dump(&jsf);
+  jsf.close_section();
+  jsf.flush(cerr);
   cerr << argv[0] << ": End OSDMap dump" << std::endl;
 
   ceph_file_layout layout;
