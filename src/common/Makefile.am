@@ -169,7 +169,8 @@ LIBCOMMON_DEPS += \
 	$(LIBMSG) $(LIBAUTH) \
 	$(LIBCRUSH) $(LIBJSON_SPIRIT) $(LIBLOG) $(LIBARCH) \
 	$(BOOST_RANDOM_LIBS) \
-	-luuid
+	-luuid \
+	$(CRYPTOPP_LIBS)
 
 if LINUX
 LIBCOMMON_DEPS += -lrt -lblkid
