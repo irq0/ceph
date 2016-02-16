@@ -112,22 +112,25 @@ int sim(const OSDMap& osdmap, const ceph_file_layout& layout, std::string filena
     out_primary_osds.push_back(primary);
   }
 
-  json_spirit::Object j;
+  // json_spirit::Object j;
 
-  j.push_back(json_spirit::Pair("oids", json_spirit::Value(out_oids.begin(), out_oids.end())));
-  j.push_back(json_spirit::Pair("pgs", json_spirit::Value(out_pgs.begin(), out_pgs.end())));
-  j.push_back(json_spirit::Pair("osds", json_spirit::Value(out_osds.begin(), out_osds.end())));
+  // j.push_back(json_spirit::Pair("filename", json_spirit::Value(filename)));
+  // j.push_back(json_spirit::Pair("size", json_spirit::Value(size)));
+  // j.push_back(json_spirit::Pair("oids", json_spirit::Value(out_oids.begin(), out_oids.end())));
+  // j.push_back(json_spirit::Pair("pgs", json_spirit::Value(out_pgs.begin(), out_pgs.end())));
+  // j.push_back(json_spirit::Pair("osds", json_spirit::Value(out_osds.begin(), out_osds.end())));
+  // j.push_back(json_spirit::Pair("primary_osds", json_spirit::Value(out_primary_osds.begin(), out_primary_osds.end())));
 
-  set<std::string> out_unique_pgs(out_pgs.begin(), out_pgs.end());
-  set<int> out_unique_primary_osds(out_primary_osds.begin(), out_primary_osds.end());
+  json_spirit::Array j;
 
-  std::cout << filename << ";"
-	    << size << ";"
-	    << extents.size() << ";"
-	    << out_oids.size() << ";"
-	    << out_unique_pgs.size() << ";"
-	    << out_osds.size() << ";"
-	    << out_unique_primary_osds.size() << ";";
+  j.push_back(json_spirit::Value(filename));
+  j.push_back(json_spirit::Value(size));
+  j.push_back(json_spirit::Value(out_oids.begin(), out_oids.end()));
+  j.push_back(json_spirit::Value(out_pgs.begin(), out_pgs.end()));
+  j.push_back(json_spirit::Value(out_osds.begin(), out_osds.end()));
+  j.push_back(json_spirit::Value(out_primary_osds.begin(), out_primary_osds.end()));
+
+
 
   json_spirit::write(j, std::cout);
   std::cout << std::endl;
