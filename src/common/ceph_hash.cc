@@ -8,6 +8,8 @@
 #include <cryptopp/crc.h>
 #include <cryptopp/integer.h>
 
+#include "xxHash/xxhash.h"
+
 /*
  * Robert Jenkin's hash function.
  * http://burtleburtle.net/bob/hash/evahash.html
@@ -150,6 +152,16 @@ unsigned ceph_str_hash_crc32(const char *str, unsigned length)
         return *(uint32_t*)digest;
 }
 
+unsigned ceph_str_hash_crc32c(const char *str, unsigned length)
+{
+        return ceph_crc32c(0, (unsigned char*)str, length);
+}
+
+unsigned ceph_str_hash_xxhash(const char *str, unsigned length)
+{
+        return XXH32(str, length, 0);
+}
+
 unsigned ceph_str_hash(int type, const char *s, unsigned len)
 {
 	switch (type) {
@@ -165,6 +177,10 @@ unsigned ceph_str_hash(int type, const char *s, unsigned len)
                 return ceph_str_hash_adler32(s, len);
         case CEPH_STR_HASH_CRC32:
                 return ceph_str_hash_crc32(s, len);
+        case CEPH_STR_HASH_CRC32C:
+                return ceph_str_hash_crc32(s, len);
+        case CEPH_STR_HASH_XXHASH:
+                return ceph_str_hash_xxhash(s, len);
 	default:
 		return -1;
 	}
@@ -185,6 +201,10 @@ const char *ceph_str_hash_name(int type)
                 return "adler32";
         case CEPH_STR_HASH_CRC32:
                 return "crc32";
+        case CEPH_STR_HASH_CRC32C:
+                return "crc32c";
+        case CEPH_STR_HASH_XXHASH:
+                return "xxhash";
 	default:
 		return "unknown";
 	}
