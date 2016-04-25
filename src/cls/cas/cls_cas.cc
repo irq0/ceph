@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include "common/ceph_json.h"
+
 #include "include/types.h"
 #include "include/utime.h"
 #include "objclass/objclass.h"
@@ -27,39 +29,20 @@ CLS_NAME(cas)
 cls_handle_t h_class;
 cls_method_handle_t h_cas_get;
 cls_method_handle_t h_cas_put;
+cls_method_handle_t h_cas_up;
+cls_method_handle_t h_cas_down;
 
 
 #define CAS_REFCOUNT_ATTR "cas.refcount"
+#define CAS_PINNED_ATTR "cas.pinned"
 #define CAS_METADATA_ATTR_PREFIX "cas.meta."
-
-struct cls_cas_put_op {
-  bufferlist data;
-  string fp_type;
-
-  cls_cas_put_op() {}
-
-  void encode(bufferlist& bl) const {
-    ENCODE_START(1, 1, bl);
-    ::encode(fp_type, bl);
-    ::encode(data, bl);
-    ENCODE_FINISH(bl);
-  }
-
-  void decode(bufferlist::iterator& bl) {
-    DECODE_START(1, bl);
-    ::decode(fp_type, bl);
-    ::decode(data, bl);
-    DECODE_FINISH(bl);
-  }
-};
-WRITE_CLASS_ENCODER(cls_cas_put_op)
 
 static int get_refcount(cls_method_context_t hctx, uint64_t *refcount)
 {
   bufferlist bl;
   int ret = cls_cxx_getxattr(hctx, CAS_REFCOUNT_ATTR, &bl);
 
-  if (ret == -ENODATA) {
+  if (ret == -ENODATA || ret == -ENOENT) {
     *refcount = 0;
     return 0;
   } else if (ret < 0) {
@@ -89,7 +72,53 @@ static int set_refcount(cls_method_context_t hctx, uint64_t refcount)
   return 0;
 }
 
-static int mod_refcount(cls_method_context_t hctx, int64_t delta)
+static int pin_object(cls_method_context_t hctx)
+{
+  bufferlist bl;
+  ::encode(real_clock::now(), bl);
+
+  int ret = cls_cxx_setxattr(hctx, CAS_PINNED_ATTR, &bl);
+  if (ret < 0)
+    return ret;
+
+  return 0;
+}
+
+static int object_pinned(cls_method_context_t hctx, bool *out_pinned, uint64_t *out_pinned_since=nullptr)
+{
+  bufferlist bl;
+  int ret = cls_cxx_getxattr(hctx, CAS_PINNED_ATTR, &bl);
+
+  if (ret == -ENODATA) {
+    *out_pinned = false;
+    return 0;
+  } else if (ret < 0) {
+    return ret;
+  } else {
+    uint64_t pinned_attr = 0;
+
+    try {
+      bufferlist::iterator iter = bl.begin();
+      ::decode(pinned_attr, iter);
+    return 0;
+    } catch (buffer::error& err) {
+      CLS_LOG(0, "ERROR: failed to decode pinned attr entry\n");
+      return -EIO;
+    }
+
+    if (pinned_attr > 0) {
+      *out_pinned = true;
+      if (out_pinned_since != nullptr) {
+	*out_pinned_since = pinned_attr;
+      }
+      return 0;
+    }
+  }
+}
+
+
+
+static int mod_refcount(cls_method_context_t hctx, int64_t delta, uint64_t *out_new_refcount=nullptr)
 {
   uint64_t cur_refcount = 0;
   int ret = -1;
@@ -98,21 +127,86 @@ static int mod_refcount(cls_method_context_t hctx, int64_t delta)
   if (ret < 0)
     return ret;
 
-  uint64_t new_refcount = cur_refcount + delta;
+  uint64_t new_refcount = 0;
+  if (cur_refcount + delta > std::numeric_limits<uint64_t>::max()) {
+    CLS_LOG(0, "mod_refcount beyond uint64_t limit: pinning object");
+    new_refcount = std::numeric_limits<uint64_t>::max();
+
+    ret = pin_object(hctx);
+    if (ret < 0)
+      return ret;
+  } else {
+    new_refcount = cur_refcount + delta;
+  }
+
   ret = set_refcount(hctx, new_refcount);
   if (ret < 0)
     return ret;
+
+  if (out_new_refcount != nullptr)
+    *out_new_refcount = new_refcount;
 
   CLS_LOG(0, "mod_refcount: %" PRIu64 " -> %" PRIu64, cur_refcount, new_refcount);
   return 0;
 }
 
-static int set_cas_metadata(cls_method_context_t hctx, string fp_type)
+static int set_cas_metadata(cls_method_context_t hctx, const map<string, string>& metadata)
 {
   bufferlist bl;
-  ::encode(fp_type, bl);
 
-  int ret = cls_cxx_setxattr(hctx, CAS_METADATA_ATTR_PREFIX "fp_type", &bl);
+  for (const auto& item : metadata) {
+    bl.clear();
+    ::encode(item.second, bl);
+
+    string key(CAS_METADATA_ATTR_PREFIX);
+    key += item.first;
+
+    int ret = cls_cxx_setxattr(hctx, key.c_str(), &bl);
+    if (ret < 0) {
+      CLS_LOG(1, "ERROR: failed set metadata attr_k=%s attr_v=%s", key.c_str(), bl.c_str());
+      return ret;
+    }
+  }
+
+  return 0;
+}
+
+
+static int initialize_object(cls_method_context_t hctx, bufferlist *in)
+{
+  CLS_LOG(0, "NEW OBJ: %s", in->c_str());
+
+  int ret = -1;
+
+  JSONObj* j;
+  try {
+    JSONDecoder json_dec(*in);
+    j = &json_dec.parser;
+  } catch (const JSONDecoder::err& err) {
+    CLS_LOG(1, "ERROR: failed to decode JSON entry: %s\n", err.message.c_str());
+    return -EINVAL;
+  }
+
+  string data;
+  JSONDecoder::decode_json("data", data, j);
+
+  bufferlist bl;
+  bl.append(data);
+
+  ret = cls_cxx_write_full(hctx, &bl);
+  if (ret < 0)
+    return ret;
+
+
+  ret = set_refcount(hctx, 1);
+  if (ret < 0)
+    return ret;
+
+
+  map<string, string> metadata;
+  JSONDecoder::decode_json("meta", metadata, j);
+
+  ret = set_cas_metadata(hctx, metadata);
   if (ret < 0)
     return ret;
 
@@ -120,35 +214,48 @@ static int set_cas_metadata(cls_method_context_t hctx, string fp_type)
 }
 
 
-static int cls_cas_put(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int destroy_object(cls_method_context_t hctx)
 {
-  CLS_LOG(0, "PUT");
+  CLS_LOG(0, "DESTROY OBJ");
 
-  bufferlist::iterator in_iter = in->begin();
+  int ret = -1;
 
-  cls_cas_put_op op;
-  try {
-    ::decode(op, in_iter);
-  } catch (buffer::error& err) {
-    CLS_LOG(1, "ERROR: cls_rc_cas_put(): failed to decode entry\n");
-    return -EINVAL;
+  bool pinned = true;
+  ret = object_pinned(hctx, &pinned);
+  if (ret < 0)
+    return ret;
+
+  if (!pinned) {
+    ret = cls_cxx_remove(hctx);
+    if (ret < 0)
+      return ret;
+  } else {
+    CLS_LOG(0, "Object pinned: Won't remove");
   }
 
-  // TODO compress
-  int ret = -1;
-  ret = cls_cxx_write_full(hctx, &op.data);
-  if (ret < 0)
-    return ret;
-
-  ret = mod_refcount(hctx, +1);
-  if (ret < 0)
-    return ret;
-
-  ret = set_cas_metadata(hctx, op.fp_type);
-  if (ret < 0)
-    return ret;
-
   return 0;
+}
+
+
+
+static int cls_cas_put(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  CLS_LOG(0, "PUT: %s", in->c_str());
+
+  int ret = -1;
+  uint64_t size;
+  time_t mtime;
+
+  int stat_ret = cls_cxx_stat(hctx, &size, &mtime);
+  if (stat_ret == -ENOENT) {
+    ret = initialize_object(hctx, in);
+  } else if (stat_ret < 0) {
+    ret = stat_ret;
+  } else {
+    ret = mod_refcount(hctx, +1);
+  }
+
+  return ret;
 }
 
 
@@ -173,6 +280,51 @@ static int cls_cas_get(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return 0;
 }
 
+static int cls_cas_up(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  CLS_LOG(0, "UP: %s", in->c_str());
+
+  int ret = -1;
+  uint64_t size;
+  time_t mtime;
+
+  int stat_ret = cls_cxx_stat(hctx, &size, &mtime);
+  if (stat_ret == -ENOENT) {
+    return -EINVAL;
+  } else if (stat_ret < 0) {
+    ret = stat_ret;
+  } else {
+    ret = mod_refcount(hctx, +1);
+  }
+
+  return ret;
+}
+
+static int cls_cas_down(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+{
+  CLS_LOG(0, "DOWN: %s", in->c_str());
+
+  int ret = -1;
+  uint64_t size;
+  time_t mtime;
+
+  int stat_ret = cls_cxx_stat(hctx, &size, &mtime);
+  if (stat_ret == -ENOENT) {
+    return -EINVAL;
+  } else if (stat_ret < 0) {
+    ret = stat_ret;
+  } else {
+    uint64_t new_refcount = 0;
+    ret = mod_refcount(hctx, -1, &new_refcount);
+
+    if (new_refcount <= 0)
+      ret = destroy_object(hctx);
+  }
+
+  return ret;
+}
+
+
 void __cls_init()
 {
   CLS_LOG(1, "Loaded CAS class!");
@@ -181,6 +333,8 @@ void __cls_init()
 
   cls_register_cxx_method(h_class, "get", CLS_METHOD_RD | CLS_METHOD_WR, cls_cas_get, &h_cas_get);
   cls_register_cxx_method(h_class, "put", CLS_METHOD_RD | CLS_METHOD_WR, cls_cas_put, &h_cas_put);
+  cls_register_cxx_method(h_class, "up", CLS_METHOD_RD | CLS_METHOD_WR, cls_cas_up, &h_cas_up);
+  cls_register_cxx_method(h_class, "down", CLS_METHOD_RD | CLS_METHOD_WR, cls_cas_down, &h_cas_down);
 
   return;
 }
