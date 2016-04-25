@@ -19,6 +19,7 @@
 #include "objclass/objclass.h"
 #include "cls/refcount/cls_refcount_ops.h"
 #include "common/Clock.h"
+#include <boost/archive/iterators/binary_from_base64.hpp>
 
 #include "global/global_context.h"
 #include "include/compat.h"
@@ -171,40 +172,36 @@ static int set_cas_metadata(cls_method_context_t hctx, const map<string, string>
   return 0;
 }
 
-
 static int initialize_object(cls_method_context_t hctx, bufferlist *in)
 {
   CLS_LOG(0, "NEW OBJ: %s", in->c_str());
 
   int ret = -1;
 
-  JSONObj* j;
+  map<string, string> metadata;
+  bufferlist data;
+
   try {
     JSONDecoder json_dec(*in);
-    j = &json_dec.parser;
+
+    JSONDecoder::decode_json("meta", metadata, &json_dec.parser, true);
+    JSONDecoder::decode_json("data", data, &json_dec.parser, true);
   } catch (const JSONDecoder::err& err) {
     CLS_LOG(1, "ERROR: failed to decode JSON entry: %s\n", err.message.c_str());
     return -EINVAL;
   }
 
-  string data;
-  JSONDecoder::decode_json("data", data, j);
+  stringstream ss;
+  data.hexdump(ss);
+  CLS_LOG(0, "Data:\n %s", ss.str().c_str());
 
-  bufferlist bl;
-  bl.append(data);
-
-  ret = cls_cxx_write_full(hctx, &bl);
+  ret = cls_cxx_write_full(hctx, &data);
   if (ret < 0)
     return ret;
-
 
   ret = set_refcount(hctx, 1);
   if (ret < 0)
     return ret;
-
-
-  map<string, string> metadata;
-  JSONDecoder::decode_json("meta", metadata, j);
 
   ret = set_cas_metadata(hctx, metadata);
   if (ret < 0)
@@ -261,23 +258,23 @@ static int cls_cas_put(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
 static int cls_cas_get(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-  CLS_LOG(0, "GET");
 
   uint64_t size;
   time_t mtime;
 
   int ret = -1;
 
-
   ret = cls_cxx_stat(hctx, &size, &mtime);
   if (ret < 0)
     return ret;
 
   ret = cls_cxx_read(hctx, 0, size, out);
-  if (ret < 0)
-    return ret;
+  CLS_LOG(0, "GET: size=%d mtime=%d ret=%d", size, mtime, ret);
 
-  return 0;
+  //  if (ret < 0)
+  return ret;
+
+  //return 0;
 }
 
 static int cls_cas_up(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
