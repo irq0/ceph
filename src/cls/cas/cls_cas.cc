@@ -130,7 +130,7 @@ static int mod_refcount(cls_method_context_t hctx, int64_t delta, uint64_t *out_
 
   uint64_t new_refcount = 0;
   if (cur_refcount + delta > std::numeric_limits<uint64_t>::max()) {
-    CLS_LOG(0, "mod_refcount beyond uint64_t limit: pinning object");
+    CLS_LOG(1, "mod_refcount beyond uint64_t limit: pinning object");
     new_refcount = std::numeric_limits<uint64_t>::max();
 
     ret = pin_object(hctx);
@@ -147,7 +147,7 @@ static int mod_refcount(cls_method_context_t hctx, int64_t delta, uint64_t *out_
   if (out_new_refcount != nullptr)
     *out_new_refcount = new_refcount;
 
-  CLS_LOG(0, "mod_refcount: %" PRIu64 " -> %" PRIu64, cur_refcount, new_refcount);
+  CLS_LOG(10, "mod_refcount: %" PRIu64 " -> %" PRIu64, cur_refcount, new_refcount);
   return 0;
 }
 
@@ -164,7 +164,7 @@ static int set_cas_metadata(cls_method_context_t hctx, const map<string, string>
 
     int ret = cls_cxx_setxattr(hctx, key.c_str(), &bl);
     if (ret < 0) {
-      CLS_LOG(1, "ERROR: failed set metadata attr_k=%s attr_v=%s", key.c_str(), bl.c_str());
+      CLS_LOG(0, "ERROR: failed set metadata attr_k=%s attr_v=%s", key.c_str(), bl.c_str());
       return ret;
     }
   }
@@ -174,7 +174,8 @@ static int set_cas_metadata(cls_method_context_t hctx, const map<string, string>
 
 static int initialize_object(cls_method_context_t hctx, bufferlist *in)
 {
-  CLS_LOG(0, "NEW OBJ: %s", in->c_str());
+  CLS_LOG(10, "NEW OBJ");
+  CLS_LOG(25, "NEW OBJ: %s", in->c_str());
 
   int ret = -1;
 
@@ -193,7 +194,7 @@ static int initialize_object(cls_method_context_t hctx, bufferlist *in)
 
   stringstream ss;
   data.hexdump(ss);
-  CLS_LOG(0, "Data:\n %s", ss.str().c_str());
+  CLS_LOG(25, "Data:\n %s", ss.str().c_str());
 
   ret = cls_cxx_write_full(hctx, &data);
   if (ret < 0)
@@ -213,7 +214,7 @@ static int initialize_object(cls_method_context_t hctx, bufferlist *in)
 
 static int destroy_object(cls_method_context_t hctx)
 {
-  CLS_LOG(0, "DESTROY OBJ");
+  CLS_LOG(10, "DESTROY OBJ");
 
   int ret = -1;
 
@@ -237,7 +238,8 @@ static int destroy_object(cls_method_context_t hctx)
 
 static int cls_cas_put(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-  CLS_LOG(0, "PUT: %s", in->c_str());
+  CLS_LOG(10, "PUT");
+  CLS_LOG(25, "PUT: %s", in->c_str());
 
   int ret = -1;
   uint64_t size;
@@ -279,7 +281,8 @@ static int cls_cas_get(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
 
 static int cls_cas_up(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-  CLS_LOG(0, "UP: %s", in->c_str());
+  CLS_LOG(10, "UP");
+  CLS_LOG(25, "UP: %s", in->c_str());
 
   int ret = -1;
   uint64_t size;
@@ -299,7 +302,8 @@ static int cls_cas_up(cls_method_context_t hctx, bufferlist *in, bufferlist *out
 
 static int cls_cas_down(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
-  CLS_LOG(0, "DOWN: %s", in->c_str());
+  CLS_LOG(10, "DOWN");
+  CLS_LOG(25, "DOWN: %s", in->c_str());
 
   int ret = -1;
   uint64_t size;
