@@ -257,28 +257,6 @@ static int cls_cas_put(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return ret;
 }
 
-
-static int cls_cas_get(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
-{
-
-  uint64_t size;
-  time_t mtime;
-
-  int ret = -1;
-
-  ret = cls_cxx_stat(hctx, &size, &mtime);
-  if (ret < 0)
-    return ret;
-
-  ret = cls_cxx_read(hctx, 0, size, out);
-  CLS_LOG(0, "GET: size=%d mtime=%d ret=%d", size, mtime, ret);
-
-  //  if (ret < 0)
-  return ret;
-
-  //return 0;
-}
-
 static int cls_cas_up(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   CLS_LOG(10, "UP");
@@ -332,7 +310,6 @@ void __cls_init()
 
   cls_register("cas", &h_class);
 
-  cls_register_cxx_method(h_class, "get", CLS_METHOD_RD | CLS_METHOD_WR, cls_cas_get, &h_cas_get);
   cls_register_cxx_method(h_class, "put", CLS_METHOD_RD | CLS_METHOD_WR, cls_cas_put, &h_cas_put);
   cls_register_cxx_method(h_class, "up", CLS_METHOD_RD | CLS_METHOD_WR, cls_cas_up, &h_cas_up);
   cls_register_cxx_method(h_class, "down", CLS_METHOD_RD | CLS_METHOD_WR, cls_cas_down, &h_cas_down);
