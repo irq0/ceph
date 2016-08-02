@@ -95,26 +95,27 @@ static int object_pinned(cls_method_context_t hctx, bool *out_pinned, uint64_t *
     return 0;
   } else if (ret < 0) {
     return ret;
-  } else {
-    uint64_t pinned_attr = 0;
+  }
 
-    try {
-      bufferlist::iterator iter = bl.begin();
-      ::decode(pinned_attr, iter);
+  uint64_t pinned_attr = 0;
+
+  try {
+    bufferlist::iterator iter = bl.begin();
+    ::decode(pinned_attr, iter);
     return 0;
-    } catch (buffer::error& err) {
-      CLS_LOG(0, "ERROR: failed to decode pinned attr entry\n");
-      return -EIO;
-    }
+  } catch (buffer::error& err) {
+    CLS_LOG(0, "ERROR: failed to decode pinned attr entry\n");
+    return -EIO;
+  }
 
-    if (pinned_attr > 0) {
-      *out_pinned = true;
-      if (out_pinned_since != nullptr) {
-	*out_pinned_since = pinned_attr;
-      }
-      return 0;
+  if (pinned_attr > 0) {
+    *out_pinned = true;
+    if (out_pinned_since != nullptr) {
+      *out_pinned_since = pinned_attr;
     }
   }
+
+  return 0;
 }
 
 
