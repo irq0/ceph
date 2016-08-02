@@ -272,7 +272,10 @@ static int cls_cas_up(cls_method_context_t hctx, bufferlist *in, bufferlist *out
   } else if (stat_ret < 0) {
     ret = stat_ret;
   } else {
-    ret = mod_refcount(hctx, +1);
+    uint64_t new_refcount = 0;
+    ret = mod_refcount(hctx, +1, &new_refcount);
+
+    ::encode(new_refcount, *out);
   }
 
   return ret;
@@ -298,6 +301,9 @@ static int cls_cas_down(cls_method_context_t hctx, bufferlist *in, bufferlist *o
 
     if (new_refcount <= 0)
       ret = destroy_object(hctx);
+
+    ::encode(new_refcount, *out);
+    return new_refcount;
   }
 
   return ret;
