@@ -45,6 +45,14 @@ add_library(cls_refcount_client STATIC
   refcount/cls_refcount_client.cc
   refcount/cls_refcount_ops.cc)
 
+# cls_cas
+add_library(cls_cas SHARED
+  cas/cls_cas.cc
+  ${CMAKE_SOURCE_DIR}/src/common/ceph_json.cc)
+target_link_libraries(cls_cas json_spirit)
+set_target_properties(cls_cas PROPERTIES VERSION "1.0.0" SOVERSION "1")
+install(TARGETS cls_cas DESTINATION lib/rados-classes)
+
 # cls_version
 add_library(cls_version SHARED version/cls_version.cc)
 set_target_properties(cls_version PROPERTIES VERSION "1.0.0" SOVERSION "1")
