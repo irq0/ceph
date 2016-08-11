@@ -1,9 +1,23 @@
 // -*- mode:C; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-/**
- * /file
- * Content-addressed storage methods
+/*!
+ * \file cls_cas.cc
+ * \brief Content-addressed storage methods
+ *
+ * Methods to manage content-addressed objects. Used by
+ * https://github.com/irq0/veintidos
+ *
+ * The class defines three operations: PUT, UP, DOWN
+ * - PUT is a special write function that also sets metadata and initializes
+ *     the object's reference counter. If the object already exists it ignores
+ *     data and metadata passed and just increments the reference counter
+ * - UP increments the object's reference counter
+ * - DOWN decrements the object's reference counter
+ *
+ * Pinned objects: Not deleted when refcount hits zero. Set when
+ *  refcount overflows a uint64.
+ *
  */
 
 #include <iostream>
@@ -28,15 +42,28 @@ CLS_VER(0,1)
 CLS_NAME(cas)
 
 cls_handle_t h_class;
-cls_method_handle_t h_cas_get;
 cls_method_handle_t h_cas_put;
 cls_method_handle_t h_cas_up;
 cls_method_handle_t h_cas_down;
 
-
+//! Xattr for reference counter
 #define CAS_REFCOUNT_ATTR "cas.refcount"
+
+//! Xattr to mark pinned state of an object
+
+//! Pinned objects aren't removed when their refcount hits 0
 #define CAS_PINNED_ATTR "cas.pinned"
+
+//! Prefix for metadata xattrs
 #define CAS_METADATA_ATTR_PREFIX "cas.meta."
+
+
+/*! \brief Get refcount for object
+ *
+ * \param refcount Out parameter for reference counter,
+ *    set to 0 if no such object exists
+ * \return 0 on success, error code of ceph op
+ */
 
 static int get_refcount(cls_method_context_t hctx, uint64_t *refcount)
 {
@@ -61,6 +88,13 @@ static int get_refcount(cls_method_context_t hctx, uint64_t *refcount)
   }
 }
 
+/*! \brief Set refcount for object
+ *
+ * Set reference count for object. Overwrite if any previous value
+ *
+ * \param refcount New reference count
+ * \return 0 on success, error code of ceph op
+ */
 static int set_refcount(cls_method_context_t hctx, uint64_t refcount)
 {
   bufferlist bl;
@@ -73,6 +107,13 @@ static int set_refcount(cls_method_context_t hctx, uint64_t refcount)
   return 0;
 }
 
+
+/*! \brief Pin an object
+ *
+ * A pinned object won't be deleted when it's refcount hits zero
+ *
+ * \return 0 on success, error code of Ceph op
+ */
 static int pin_object(cls_method_context_t hctx)
 {
   bufferlist bl;
@@ -85,6 +126,15 @@ static int pin_object(cls_method_context_t hctx)
   return 0;
 }
 
+/*! \brief Check if object is pinned
+ *
+ * Check if object is pinned. Also find out since when
+ *
+ * \param out_pinned Out parameter for pinned state
+ * \param out_pinned_since Optional out parameter to return UNIX time stamp of
+ *    when the object was pinned
+ * \return 0 on success, error code of Ceph op otherwise
+ */
 static int object_pinned(cls_method_context_t hctx, bool *out_pinned, uint64_t *out_pinned_since=nullptr)
 {
   bufferlist bl;
@@ -118,8 +168,14 @@ static int object_pinned(cls_method_context_t hctx, bool *out_pinned, uint64_t *
   return 0;
 }
 
-
-
+/*! \brief Modify reference count
+ *
+ * Modify reference counter of an object and optionally return the new value
+ *
+ * \param delta Value to add to reference count
+ * \param out_new_refcount Optional out parameter set to new reference count
+ * \return 0 on success, error code of Ceph op otherwise
+ */
 static int mod_refcount(cls_method_context_t hctx, int64_t delta, uint64_t *out_new_refcount=nullptr)
 {
   uint64_t cur_refcount = 0;
@@ -152,6 +208,14 @@ static int mod_refcount(cls_method_context_t hctx, int64_t delta, uint64_t *out_
   return 0;
 }
 
+/*! \brief Save CAS metadata in object's xattrs
+ *
+ * Save CAS metadata in Xattrs. All key / value pairs must be strings. Stored under a
+ * shared prefix
+ *
+ * \param metadata Map containing metadata key value pairs
+ * \return 0 on success, error code of Ceph op otherwise
+ */
 static int set_cas_metadata(cls_method_context_t hctx, const map<string, string>& metadata)
 {
   bufferlist bl;
@@ -173,6 +237,18 @@ static int set_cas_metadata(cls_method_context_t hctx, const map<string, string>
   return 0;
 }
 
+
+/*! \brief Save new object
+ *
+ * Save data and metadata encoded in in. Initialize with reference count 1
+ *
+ * Expected JSON data in bufferlist:
+ * {"meta": [{"key":..,"val":..},..],
+ *  "data": "BASE64 encoded data"}
+ *
+ * \param in Encoded data and metadata
+ * \return 0 on success, error code of failing Ceph op otherwise
+ */
 static int initialize_object(cls_method_context_t hctx, bufferlist *in)
 {
   CLS_LOG(10, "NEW OBJ");
@@ -212,7 +288,10 @@ static int initialize_object(cls_method_context_t hctx, bufferlist *in)
   return 0;
 }
 
-
+/*! \brief Delete object, if not pinned
+ *
+ * Delete object, if not pinned.
+ */
 static int destroy_object(cls_method_context_t hctx)
 {
   CLS_LOG(10, "DESTROY OBJ");
@@ -236,7 +315,10 @@ static int destroy_object(cls_method_context_t hctx)
 }
 
 
-
+/*! \brief CAS PUT
+ *
+ * CAS class put operation
+ */
 static int cls_cas_put(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   CLS_LOG(10, "PUT");
@@ -258,6 +340,10 @@ static int cls_cas_put(cls_method_context_t hctx, bufferlist *in, bufferlist *ou
   return ret;
 }
 
+/*! \brief CAS UP
+ *
+ * CAS class put operation
+ */
 static int cls_cas_up(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   CLS_LOG(10, "UP");
@@ -282,6 +368,10 @@ static int cls_cas_up(cls_method_context_t hctx, bufferlist *in, bufferlist *out
   return ret;
 }
 
+/*! \brief CAS DOWN
+ *
+ * CAS class put operation
+ */
 static int cls_cas_down(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   CLS_LOG(10, "DOWN");
@@ -310,7 +400,10 @@ static int cls_cas_down(cls_method_context_t hctx, bufferlist *in, bufferlist *o
   return ret;
 }
 
-
+/*! \brief Init
+ *
+ * CAS class initialization
+ */
 void __cls_init()
 {
   CLS_LOG(1, "Loaded CAS class!");
