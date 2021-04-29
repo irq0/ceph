@@ -3362,7 +3362,7 @@ CInode* Server::prepare_new_inode(MDRequestRef& mdr, CDir *dir, inodeno_t useino
     decode_noshare(*_xattrs, p);
     dout(10) << "prepare_new_inode setting xattrs " << *_xattrs << dendl;
     in->reset_xattrs(std::move(_xattrs));
-  }
+  } 
 
   if (!mds->mdsmap->get_inline_data_enabled() ||
       !mdr->session->get_connection()->has_feature(CEPH_FEATURE_MDS_INLINE_DATA))
@@ -6336,8 +6336,6 @@ void Server::handle_client_setxattr(MDRequestRef& mdr)
   pi.inode->ctime = mdr->get_op_stamp();
   if (mdr->get_op_stamp() > pi.inode->rstat.rctime)
     pi.inode->rstat.rctime = mdr->get_op_stamp();
-  if (name == "encryption.ctx"sv)
-    pi.inode->fscrypt = true;
   pi.inode->change_attr++;
   pi.inode->xattr_version++;
 
