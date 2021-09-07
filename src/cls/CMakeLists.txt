@@ -229,6 +229,16 @@ if (WITH_CEPHFS)
     cephfs/cls_cephfs_client.cc)
   add_library(cls_cephfs_client STATIC ${cls_cephfs_client_srcs})
 
+  set(cls_cephfs_fscrypt_srcs
+    cephfs_fscrypt/cls_cephfs_fscrypt.cc)
+  add_library(cls_cephfs_fscrypt SHARED ${cls_cephfs_fscrypt_srcs})
+  set_target_properties(cls_cephfs_fscrypt PROPERTIES
+    VERSION "1.0.0"
+    SOVERSION "1"
+    INSTALL_RPATH ""
+    CXX_VISIBILITY_PRESET hidden)
+  install(TARGETS cls_cephfs_fscrypt DESTINATION ${cls_dir})
+
 endif (WITH_CEPHFS)
 
 if (NOT WIN32)
@@ -262,7 +272,7 @@ set(cls_cas_internal_srcs
   cas/cls_cas_internal.cc)
 add_library(cls_cas_internal STATIC ${cls_cas_internal_srcs})
 
-set(cls_cas_srcs 
+set(cls_cas_srcs
   cas/cls_cas.cc)
 add_library(cls_cas SHARED ${cls_cas_srcs})
 target_link_libraries(cls_cas cls_cas_internal)

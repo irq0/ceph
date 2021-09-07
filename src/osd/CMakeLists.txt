@@ -65,7 +65,7 @@ endif()
 add_dependencies(osd cls_journal cls_hello cls_lock cls_log cls_numops
   cls_refcount cls_timeindex cls_user cls_version cls_cas cls_cmpomap)
 if(WITH_CEPHFS)
-  add_dependencies(osd cls_cephfs)
+  add_dependencies(osd cls_cephfs cls_cephfs_fscrypt)
 endif()
 if(WITH_RBD)
   add_dependencies(osd cls_rbd)

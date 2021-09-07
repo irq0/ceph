@@ -1,6 +1,6 @@
 include(AddCephTest)
 
-set(UNITTEST_LIBS GMock::Main GMock::GMock GTest::GTest ${CMAKE_THREAD_LIBS_INIT} 
+set(UNITTEST_LIBS GMock::Main GMock::GMock GTest::GTest ${CMAKE_THREAD_LIBS_INIT}
     ${GSSAPI_LIBRARIES} ${CMAKE_DL_LIBS})
 
 if(WIN32)
@@ -55,6 +55,7 @@ if(NOT WIN32)
   add_subdirectory(cls_queue)
   add_subdirectory(cls_2pc_queue)
   add_subdirectory(cls_cmpomap)
+  add_subdirectory(cls_cephfs_fscrypt)
   add_subdirectory(journal)
 
   add_subdirectory(erasure-code)
@@ -163,7 +164,7 @@ endif()
 add_executable(ceph_test_mutate
   test_mutate.cc
   )
-target_link_libraries(ceph_test_mutate global librados ${BLKID_LIBRARIES} 
+target_link_libraries(ceph_test_mutate global librados ${BLKID_LIBRARIES}
   ${CMAKE_DL_LIBS})
 
 if(NOT WIN32)
