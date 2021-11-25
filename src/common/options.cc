@@ -8243,6 +8243,11 @@ std::vector<Option> get_mds_options() {
     .set_flag(Option::FLAG_RUNTIME)
     .set_description("set the maximum length of alternate names for dentries"),
 
+    Option("mds_fscrypt_last_block_max_size", Option::TYPE_SIZE, Option::LEVEL_ADVANCED)
+    .set_default(4096)
+    .set_flag(Option::FLAG_RUNTIME)
+    .set_description("maximum size of the last block without the header along with a truncate request when the fscrypt is enabled."),
+
     Option("mds_valgrind_exit", Option::TYPE_BOOL, Option::LEVEL_DEV)
     .set_default(false)
     .set_flag(Option::FLAG_RUNTIME),
