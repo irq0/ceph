@@ -374,6 +374,10 @@ int radosgw_Main(int argc, const char **argv)
   }
 #endif
 
+  if (config_store == "simplefile") {
+    rgw_store = "simplefile";
+  }
+
   rgw::sal::Store* store =
     StoreManager::get_storage(&dp, g_ceph_context,
 				 rgw_store,
