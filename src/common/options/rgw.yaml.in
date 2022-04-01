@@ -3456,6 +3456,7 @@ options:
   - rados
   - dbstore
   - motr
+  - simplefile
 - name: dbstore_db_dir
   type: str
   level: advanced
@@ -3556,3 +3557,10 @@ options:
   - rgw
   - osd
   with_legacy: true
+- name: rgw_simplefile_data_path
+  type: str
+  level: dev
+  default: /tmp/rgw_simplefile
+  desc: RGW simplefile store data dir
+  service:
+    - rgw

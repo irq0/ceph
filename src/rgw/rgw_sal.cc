@@ -25,6 +25,8 @@
 #include "rgw_sal_rados.h"
 #include "rgw_d3n_datacache.h"
 
+#include "rgw_sal_simplefile.h"
+
 #ifdef WITH_RADOSGW_DBSTORE
 #include "rgw_sal_dbstore.h"
 #endif
@@ -38,6 +40,7 @@
 
 extern "C" {
 extern rgw::sal::Store* newStore(void);
+extern rgw::sal::Store* newSimpleFileStore(CephContext *cct);
 #ifdef WITH_RADOSGW_DBSTORE
 extern rgw::sal::Store* newDBStore(CephContext *cct);
 #endif
@@ -136,6 +139,12 @@ rgw::sal::Store* StoreManager::init_storage_provider(const DoutPrefixProvider* d
     }
     return store;
   }
+  else if (svc.compare("simplefile") == 0) {
+    const auto& data_path = g_conf().get_val<std::string>("rgw_simplefile_data_path");
+    ldpp_dout(dpp, 0) << "simplefile store init!" << dendl;
+    rgw::sal::SimpleFileStore *store = new rgw::sal::SimpleFileStore(cct, data_path);
+    return store;
+  }
 
 #ifdef WITH_RADOSGW_DBSTORE
   if (svc.compare("dbstore") == 0) {
@@ -220,6 +229,10 @@ rgw::sal::Store* StoreManager::init_raw_storage_provider(const DoutPrefixProvide
       delete store;
       return nullptr;
     }
+  }
+
+  if (svc.compare("simplefile") == 0) {
+    store = newSimpleFileStore(cct);
   }
 
   if (svc.compare("dbstore") == 0) {
