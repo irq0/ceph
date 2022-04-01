@@ -1,0 +1,54 @@
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t
+// vim: ts=8 sw=2 smarttab ft=cpp
+/*
+ * Ceph - scalable distributed file system
+ * Simple filesystem SAL implementation
+ *
+ * Copyright (C) 2022 SUSE LLC
+ *
+ * This is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License version 2.1, as published by the Free Software
+ * Foundation. See file COPYING.
+ */
+#include "rgw_sal_simplefile.h"
+
+#define dout_subsys ceph_subsys_rgw
+
+using namespace std;
+
+namespace rgw::sal {
+
+int SimpleFileStore::set_buckets_enabled(const DoutPrefixProvider *dpp,
+                                         std::vector<rgw_bucket> &buckets,
+                                         bool enabled) {
+  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+  return -ENOTSUP;
+}
+
+int SimpleFileStore::get_bucket(User *u, const RGWBucketInfo &i,
+                                std::unique_ptr<Bucket> *bucket) {
+  // TODO implement get_bucket by RGWBucketInfo
+  ldout(ctx(), 10) << __func__ << ": TODO get_bucket by RGWBucketInfo" << dendl;
+  return -ENOTSUP;
+}
+
+int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
+                                const rgw_bucket &b,
+                                std::unique_ptr<Bucket> *result,
+                                optional_yield y) {
+  ldout(ctx(), 10) << __func__ << ": TODO get_bucket by RGWBucketInfo" << dendl;
+  return -ENOTSUP;
+}
+
+int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
+                                const std::string &tenant,
+                                const std::string &name,
+                                std::unique_ptr<Bucket> *bucket,
+                                optional_yield y) {
+  // TODO implement get_bucket by name
+  ldpp_dout(dpp, 10) << __func__ << ": TODO get_bucket by name" << dendl;
+  return -ENOTSUP;
+}
+
+} // ns rgw::sal

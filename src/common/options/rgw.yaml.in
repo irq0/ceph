@@ -3575,6 +3575,7 @@ options:
   - dbstore
   - motr
   - daos
+  - simplefile
 - name: rgw_config_store
   type: str
   level: advanced
@@ -3765,3 +3766,10 @@ options:
   default: true
   services:
   - rgw
+- name: rgw_simplefile_data_path
+  type: str
+  level: dev
+  default: /tmp/rgw_simplefile
+  desc: RGW simplefile store data dir
+  service:
+    - rgw
