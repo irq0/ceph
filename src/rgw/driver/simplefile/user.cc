@@ -77,8 +77,8 @@ int SimpleFileUser::trim_usage(const DoutPrefixProvider *dpp,
 }
 
 int SimpleFileUser::load_user(const DoutPrefixProvider *dpp, optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  ldpp_dout(dpp, 10) << __func__ << ": TODO (0)" << dendl;
+  return 0;
 }
 
 int SimpleFileUser::store_user(const DoutPrefixProvider *dpp, optional_yield y,
@@ -94,12 +94,30 @@ int SimpleFileUser::remove_user(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
-int SimpleFileUser::list_buckets(const DoutPrefixProvider *dpp,
-                                 const std::string &marker,
-                                 const std::string &end_marker, uint64_t max,
-                                 bool need_stats, BucketList &buckets,
+static void populate_buckets_from_path(const SimpleFileStore& store,
+                                       const DoutPrefixProvider* dpp,
+                                       std::filesystem::path path,
+                                       BucketList& buckets) {
+  for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
+    auto bucket =
+        std::unique_ptr<Bucket>(new SimpleFileBucket{dir_entry.path(), store});
+    bucket->load_bucket(dpp, null_yield);
+    buckets.add(std::move(bucket));
+  }
+}
+
+int SimpleFileUser::list_buckets(const DoutPrefixProvider* dpp,
+                                 const std::string& marker,
+                                 const std::string& end_marker, uint64_t max,
+                                 bool need_stats, BucketList& buckets,
                                  optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+  // TODO this should list buckets assigned to a user. for now we just get every
+  // bucket
+  populate_buckets_from_path(store, dpp, store.buckets_path(), buckets);
+  ldpp_dout(dpp, 10) << __func__ << ": TODO " << marker << ", " << end_marker
+                     << ", "
+                     << "max=" << max << ", "
+                     << "buckets=" << buckets.get_buckets() << dendl;
   return 0;
 }
 

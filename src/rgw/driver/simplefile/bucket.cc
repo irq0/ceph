@@ -27,8 +27,27 @@ std::unique_ptr<Object> SimpleFileBucket::get_object(const rgw_obj_key &key) {
 
 int SimpleFileBucket::list(const DoutPrefixProvider *dpp, ListParams &, int,
                            ListResults &results, optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  ldpp_dout(dpp, 10) << __func__ << ": iterating " << objects_path() << dendl;
+  for (auto const &dir_entry :
+       std::filesystem::directory_iterator{objects_path()}) {
+    ldpp_dout(dpp, 10) << __func__ << ": adding object from " << dir_entry
+                       << dendl;
+    if (dir_entry.is_directory()) {
+      JSONParser object_meta_parser;
+      const auto object_meta_path =
+          dir_entry.path() / "rgw_bucket_dir_entry.json";
+      if (!object_meta_parser.parse(object_meta_path.c_str())) {
+        ldpp_dout(dpp, 10) << "Failed to parse object metadata from "
+                           << object_meta_path << ". Skipping" << dendl;
+      }
+      rgw_bucket_dir_entry rgw_dir;
+      rgw_dir.decode_json(&object_meta_parser);
+      results.objs.push_back(rgw_dir);
+    }
+  }
+
+  ldpp_dout(dpp, 10) << __func__ << ": TODO " << dendl;
+  return 0;
 }
 
 int SimpleFileBucket::remove_bucket(const DoutPrefixProvider *dpp,
@@ -49,10 +68,20 @@ int SimpleFileBucket::remove_bucket_bypass_gc(int concurrent_max,
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::load_bucket(const DoutPrefixProvider *dpp,
+int SimpleFileBucket::load_bucket(const DoutPrefixProvider* dpp,
                                   optional_yield y, bool get_stats) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  std::filesystem::path meta_file_path =
+      bucket_metadata_path("RGWBucketInfo.json");
+  JSONParser bucket_meta_parser;
+  if (!bucket_meta_parser.parse(meta_file_path.c_str())) {
+    ldpp_dout(dpp, 10) << "Failed to parse bucket metadata from "
+                       << meta_file_path << ". Returing EINVAL" << dendl;
+    return -EINVAL;
+  }
+
+  info.decode_json(&bucket_meta_parser);
+  ldpp_dout(dpp, 10) << __func__ << ": TODO " << meta_file_path << dendl;
+  return 0;
 }
 
 int SimpleFileBucket::chown(const DoutPrefixProvider *dpp, User &new_user,
