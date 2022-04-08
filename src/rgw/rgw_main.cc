@@ -250,6 +250,27 @@ int radosgw_Main(int argc, const char **argv)
   auto cct = rgw_global_init(&defaults, args, CEPH_ENTITY_TYPE_CLIENT,
 			     CODE_ENVIRONMENT_DAEMON, flags);
 
+
+  std::set_terminate([]() -> void {
+    derr << "terminate called after unhandled exception" << dendl;
+
+    auto bt = std::make_unique<ClibBackTrace>(0);
+    derr << "BT:" << dendl;
+    derr << *bt << dendl;
+
+    try {
+      std::rethrow_exception(std::current_exception());
+    } catch (const std::exception &e) {
+      derr << "EXCEPTION: " << typeid(e).name() << ": " << e.what() << dendl;
+    } catch (...) {
+      derr << "EXCEPTION: " << typeid(std::current_exception()).name()
+           << ": ???" << dendl;
+    }
+    derr << "ERRNO: " << errno << "(" << std::strerror(errno) << ")" << dendl;
+    std::abort();
+  });
+
+
   // First, let's determine which frontends are configured.
   list<string> frontends;
   string rgw_frontends_str = g_conf().get_val<string>("rgw_frontends");
