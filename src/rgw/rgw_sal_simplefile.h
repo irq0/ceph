@@ -543,6 +543,9 @@ class SimpleFileStore : public Store {
       std::unique_ptr<rgw::sal::Object> _head_obj, const rgw_user &owner,
       const rgw_placement_rule *ptail_placement_rule, uint64_t olh_epoch,
       const std::string &unique_tag) override;
+
+  // TODO make proper bucket path
+  std::filesystem::path bucket_path() const { return data_path; };
 };
 
 }  // namespace rgw::sal
