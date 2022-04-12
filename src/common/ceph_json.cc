@@ -288,13 +288,9 @@ bool JSONParser::parse()
 bool JSONParser::parse(const char *file_name)
 {
   ifstream is(file_name);
-  success = read(is, data);
-  if (success)
-    handle_value(data);
-  else
-    set_failure();
-
-  return success;
+  read_or_throw(is, data);
+  handle_value(data);
+  return true;
 }
 
 
