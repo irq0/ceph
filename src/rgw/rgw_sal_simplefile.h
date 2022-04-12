@@ -98,6 +98,8 @@ class SimpleFileBucket : public Bucket {
   SimpleFileBucket(const std::filesystem::path& _path, const SimpleFileStore& _store);
   SimpleFileBucket& operator=(const SimpleFileBucket&) = delete;
 
+  const std::filesystem::path& get_path() const { return path; }
+
   virtual std::unique_ptr<Bucket> clone() override {
     return std::unique_ptr<Bucket>(new SimpleFileBucket{*this});
   }
@@ -390,6 +392,7 @@ class SimpleFileStore : public Store {
   }
   virtual bool is_meta_master() override { return true; }
   virtual std::unique_ptr<Object> get_object(const rgw_obj_key &k) {
+    ldout(ctx(), 10) << __func__ << ": TODO obj_key=" << k << dendl;
     return std::make_unique<SimpleFileObject>(*this, k);
   }
   virtual RGWCoroutinesManagerRegistry *get_cr_registry() override {

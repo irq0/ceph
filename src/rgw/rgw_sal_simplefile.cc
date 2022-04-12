@@ -92,31 +92,83 @@ SimpleFileObject::SimpleFileReadOp::SimpleFileReadOp(SimpleFileObject *_source,
 
 int SimpleFileObject::SimpleFileReadOp::prepare(optional_yield y,
                                                 const DoutPrefixProvider *dpp) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
-}
+  const std::filesystem::path data_path = source->store.object_data_path(
+      source->bucket->get_key(), source->get_key());
 
-int SimpleFileObject::SimpleFileReadOp::read(int64_t ofs, int64_t end,
-                                             bufferlist &bl, optional_yield y,
-                                             const DoutPrefixProvider *dpp) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  ldpp_dout(dpp, 10) << __func__
+                     << ": TODO bucket_key=" << source->bucket->get_key().name
+                     << " obj_key=" << source->get_key().name
+                     << " path=" << data_path << dendl;
+
+  const auto size = std::filesystem::file_size(data_path);
+  source->set_key(source->get_key());
+  // must set size, otherwise neither read / iterate is called
+  source->set_obj_size(size);
+  return 0;
 }
 
 int SimpleFileObject::SimpleFileReadOp::get_attr(const DoutPrefixProvider *dpp,
                                                  const char *name,
                                                  bufferlist &dest,
                                                  optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+  ldpp_dout(dpp, 10) << __func__ << ": TODO: " << name << dendl;
+
+  if (std::strcmp(name, "user.rgw.acl") == 0) {
+    // TODO support 'user.rgw.acl' to support read_permissions. Return
+    // empty policy since our test user is admin for now.
+    RGWAccessControlPolicy policy;
+    policy.encode(dest);
+    return 0;
+  }
   return -ENOTSUP;
 }
 
+// sync read
+int SimpleFileObject::SimpleFileReadOp::read(int64_t ofs, int64_t end,
+                                             bufferlist &bl, optional_yield y,
+                                             const DoutPrefixProvider *dpp) {
+  // TODO bounds check, etc.
+  const auto len = end + 1 - ofs;
+  ldpp_dout(dpp, 10) << __func__ << ": TODO offset=" << ofs << " end=" << end
+                     << " len=" << len << dendl;
+
+  const std::filesystem::path object_data_path = source->store.object_data_path(
+      source->bucket->get_key(), source->get_key());
+
+  std::string error;
+  int ret = bl.pread_file(object_data_path.c_str(), ofs, len, &error);
+  if (ret < 0) {
+    ldpp_dout(dpp, 10) << "Failed to read object from file " << object_data_path
+                       << ". Returning EIO" << dendl;
+    return -EIO;
+  }
+  return 0;
+}
+
+// async read
 int SimpleFileObject::SimpleFileReadOp::iterate(const DoutPrefixProvider *dpp,
                                                 int64_t ofs, int64_t end,
                                                 RGWGetDataCB *cb,
                                                 optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  // TODO bounds check, etc.
+  const auto len = end + 1 - ofs;
+
+  ldpp_dout(dpp, 10) << __func__ << ": TODO offset=" << ofs << " end=" << end
+                     << " len=" << len << dendl;
+  const std::filesystem::path object_data_path = source->store.object_data_path(
+      source->bucket->get_key(), source->get_key());
+  // TODO chunk the read
+  bufferlist bl;
+  std::string error;
+  int ret = bl.pread_file(object_data_path.c_str(), ofs, len, &error);
+  if (ret < 0) {
+    ldpp_dout(dpp, 10) << "Failed to read object from file " << object_data_path
+                       << ". Returning EIO" << dendl;
+    return -EIO;
+  }
+
+  cb->handle_data(bl, ofs, len);
+  return 0;
 }
 
 SimpleFileObject::SimpleFileDeleteOp::SimpleFileDeleteOp(
@@ -487,7 +539,7 @@ SimpleFileBucket::SimpleFileBucket(const std::filesystem::path& _path, const Sim
 
 // }}}
 
-// Bucket: Boring Methods {{{
+ // Bucket: Boring Methods {{{
 
 int SimpleFileBucket::try_refresh_info(const DoutPrefixProvider *dpp,
                                        ceph::real_time *pmtime) {
