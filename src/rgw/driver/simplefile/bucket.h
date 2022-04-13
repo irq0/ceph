@@ -37,6 +37,11 @@ class SimpleFileBucket : public StoreBucket {
   SimpleFileBucket(const std::filesystem::path& _path, const SimpleFileStore& _store);
   SimpleFileBucket& operator=(const SimpleFileBucket&) = delete;
 
+  std::filesystem::path bucket_path() const;
+  std::filesystem::path bucket_metadata_path(
+      const std::string& metadata_fn) const;
+  std::filesystem::path objects_path() const;
+
   virtual std::unique_ptr<Bucket> clone() override {
     return std::unique_ptr<Bucket>(new SimpleFileBucket{*this});
   }

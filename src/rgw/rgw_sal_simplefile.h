@@ -277,6 +277,21 @@ class SimpleFileStore : public StoreDriver {
   }
 
   virtual void register_admin_apis(RGWRESTMgr * mgr) override;
+
+  // TODO make proper bucket path
+  std::filesystem::path buckets_path() const;
+  std::filesystem::path users_path() const;
+  std::filesystem::path bucket_path(const rgw_bucket &bucket) const;
+  std::filesystem::path bucket_metadata_path(
+      const rgw_bucket &bucket, const std::string &metadata_fn) const;
+  std::filesystem::path objects_path(const rgw_bucket &bucket) const;
+  std::filesystem::path object_path(const rgw_bucket &bucket,
+                                    const rgw_obj_key &obj) const;
+  std::filesystem::path object_data_path(const rgw_bucket &bucket,
+                                         const rgw_obj_key &obj) const;
+  std::filesystem::path object_metadata_path(
+      const rgw_bucket &bucket, const rgw_obj_key &obj,
+      const std::string &metadata_fn) const;
 };
 
 }  // namespace rgw::sal
