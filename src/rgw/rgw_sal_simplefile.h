@@ -98,7 +98,9 @@ class SimpleFileBucket : public Bucket {
   SimpleFileBucket(const std::filesystem::path& _path, const SimpleFileStore& _store);
   SimpleFileBucket& operator=(const SimpleFileBucket&) = delete;
 
-  const std::filesystem::path& get_path() const { return path; }
+  std::filesystem::path bucket_path() const;
+  std::filesystem::path bucket_metadata_path(const std::string& metadata_fn) const;
+  std::filesystem::path objects_path() const;
 
   virtual std::unique_ptr<Bucket> clone() override {
     return std::unique_ptr<Bucket>(new SimpleFileBucket{*this});
@@ -547,8 +549,19 @@ class SimpleFileStore : public Store {
       const rgw_placement_rule *ptail_placement_rule, uint64_t olh_epoch,
       const std::string &unique_tag) override;
 
-  // TODO make proper bucket path
-  std::filesystem::path bucket_path() const { return data_path; };
+  std::filesystem::path buckets_path() const;
+  std::filesystem::path users_path() const;
+  std::filesystem::path bucket_path(const rgw_bucket &bucket) const;
+  std::filesystem::path bucket_metadata_path(
+      const rgw_bucket &bucket, const std::string &metadata_fn) const;
+  std::filesystem::path objects_path(const rgw_bucket &bucket) const;
+  std::filesystem::path object_path(const rgw_bucket &bucket,
+                                    const rgw_obj_key &obj) const;
+  std::filesystem::path object_data_path(const rgw_bucket &bucket,
+                                         const rgw_obj_key &obj) const;
+  std::filesystem::path object_metadata_path(
+      const rgw_bucket &bucket, const rgw_obj_key &obj,
+      const std::string &metadata_fn) const;
 };
 
 }  // namespace rgw::sal
