@@ -15,6 +15,7 @@
  *
  */
 #include <filesystem>
+#include "os/ObjectStore.h"
 
 #include "rgw_multi.h"
 #include "rgw_notify.h"
@@ -89,14 +90,16 @@ class SimpleFileUser : public User {
 class SimpleFileBucket : public Bucket {
  private:
   const SimpleFileStore& store;
-  const std::filesystem::path path;
+  const coll_t collection;
   RGWAccessControlPolicy acls;
  protected:
   SimpleFileBucket(const SimpleFileBucket&) = default;
 
  public:
-  SimpleFileBucket(const std::filesystem::path& _path, const SimpleFileStore& _store);
+  SimpleFileBucket(const coll_t& _collection, const SimpleFileStore& _store);
   SimpleFileBucket& operator=(const SimpleFileBucket&) = delete;
+
+  const coll_t& get_collection() const { return collection; }
 
   virtual std::unique_ptr<Bucket> clone() override {
     return std::unique_ptr<Bucket>(new SimpleFileBucket{*this});
@@ -372,16 +375,18 @@ class SimpleFileStore : public Store {
   RGWUserInfo dummy_user;
   RGWSyncModuleInstanceRef sync_module;
   SimpleFileZone zone;
-  const std::filesystem::path data_path;
   std::string luarocks_path = "";
   CephContext *const cctx;
+  std::unique_ptr<::ObjectStore> object_store;
 
  public:
-  SimpleFileStore(CephContext *c, const std::filesystem::path &data_path);
+  SimpleFileStore(CephContext *c, std::unique_ptr<::ObjectStore> object_store);
   SimpleFileStore(const SimpleFileStore&) = delete;
   SimpleFileStore& operator=(const SimpleFileStore&) = delete;
   ~SimpleFileStore() {}
   virtual void finalize(void) override;
+
+  ::ObjectStore* get_object_store() const { return object_store.get(); }
 
   virtual const char *get_name() const override { return "simplefile"; }
   virtual std::string get_cluster_id(const DoutPrefixProvider *dpp,
@@ -390,6 +395,7 @@ class SimpleFileStore : public Store {
   }
   virtual bool is_meta_master() override { return true; }
   virtual std::unique_ptr<Object> get_object(const rgw_obj_key &k) {
+    ldout(ctx(), 10) << __func__ << ": TODO obj_key=" << k << dendl;
     return std::make_unique<SimpleFileObject>(*this, k);
   }
   virtual RGWCoroutinesManagerRegistry *get_cr_registry() override {
@@ -543,6 +549,6 @@ class SimpleFileStore : public Store {
       std::unique_ptr<rgw::sal::Object> _head_obj, const rgw_user &owner,
       const rgw_placement_rule *ptail_placement_rule, uint64_t olh_epoch,
       const std::string &unique_tag) override;
-};
+ };
 
 }  // namespace rgw::sal
