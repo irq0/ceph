@@ -988,6 +988,11 @@ void coll_t::encode(ceph::buffer::list& bl) const
     __u8 struct_v = 3;
     encode(struct_v, bl);
     encode(to_str(), bl);
+  } else if (is_rgw()) {
+    __u8 struct_v = 42;
+    encode(struct_v, bl);
+    encode((__u8)type, bl);
+    bucket->encode(bl);
   } else {
     __u8 struct_v = 2;
     encode(struct_v, bl);
@@ -1007,6 +1012,12 @@ size_t coll_t::encoded_size() const
     if (_str) {
       r += strlen(_str);
     }
+  } else if (is_rgw()) {
+    r += sizeof(__u32);
+    r += sizeof(__u8);
+    bufferlist bl;
+    bucket->encode(bl);
+    r += bl.length();
   } else {
       // v2
       // 1. type
@@ -1068,7 +1079,18 @@ void coll_t::decode(ceph::buffer::list::const_iterator& bl)
 	throw std::domain_error(std::string("unable to parse pg ") + str);
     }
     break;
-
+  case 42:
+    {
+      __u8 _type;
+      string str;
+      decode(_type, bl);
+      type = (type_t)_type;
+      if (type == TYPE_RGW_BUCKET) {
+        pgid = spg_t(pg_t(23, 42), shard_id_t::NO_SHARD);
+        bucket->decode(bl);
+      }
+    }
+    break;
   default:
     {
       CachedStackStringStream css;

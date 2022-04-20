@@ -45,6 +45,7 @@
 #include "common/bloom_filter.hpp"
 #include "common/hobject.h"
 #include "common/snap_types.h"
+#include "rgw/rgw_basic_types.h"
 #include "HitSet.h"
 #include "Watch.h"
 #include "include/cmp.h"
@@ -663,6 +664,7 @@ class coll_t {
     TYPE_LEGACY_TEMP = 1,  /* no longer used */
     TYPE_PG = 2,
     TYPE_PG_TEMP = 3,
+    TYPE_RGW_BUCKET = 4,
   };
   type_t type;
   spg_t pgid;
@@ -670,6 +672,8 @@ class coll_t {
 
   char _str_buff[spg_t::calc_name_buf_size];
   char *_str;
+
+  std::unique_ptr<rgw_bucket> bucket;
 
   void calc_str();
 
@@ -680,20 +684,26 @@ class coll_t {
 
   friend class denc_coll_t;
 public:
-  coll_t() : type(TYPE_META), removal_seq(0)
+  coll_t() : type(TYPE_META), removal_seq(0), bucket(nullptr)
   {
     calc_str();
   }
 
   coll_t(const coll_t& other)
-    : type(other.type), pgid(other.pgid), removal_seq(other.removal_seq) {
+      : type(other.type), pgid(other.pgid), removal_seq(other.removal_seq), bucket(new rgw_bucket(*other.bucket.get())) {
+    if (!is_rgw()) {
     calc_str();
+  }
   }
 
   explicit coll_t(spg_t pgid)
-    : type(TYPE_PG), pgid(pgid), removal_seq(0)
+      : type(TYPE_PG), pgid(pgid), removal_seq(0), bucket(nullptr)
   {
     calc_str();
+  }
+
+  explicit coll_t(const rgw_bucket& _bucket)
+      : type(TYPE_RGW_BUCKET), pgid(pg_t(23, 42), shard_id_t::NO_SHARD), removal_seq(0), bucket(new rgw_bucket(_bucket)) {
   }
 
   coll_t& operator=(const coll_t& rhs)
@@ -701,7 +711,11 @@ public:
     this->type = rhs.type;
     this->pgid = rhs.pgid;
     this->removal_seq = rhs.removal_seq;
+    if (is_rgw()) {
+      this->bucket = std::make_unique<rgw_bucket>(*rhs.bucket.get());
+    } else {
     this->calc_str();
+    }
     return *this;
   }
 
@@ -728,7 +742,7 @@ public:
   }
 
   bool is_meta() const {
-    return type == TYPE_META;
+    return type == TYPE_META || type == TYPE_RGW_BUCKET;
   }
   bool is_pg_prefix(spg_t *pgid_) const {
     if (type == TYPE_PG || type == TYPE_PG_TEMP) {
@@ -750,6 +764,11 @@ public:
   bool is_temp() const {
     return type == TYPE_PG_TEMP;
   }
+
+  bool is_rgw() const {
+    return type == TYPE_RGW_BUCKET;
+  }
+
   bool is_temp(spg_t *pgid_) const {
     if (type == TYPE_PG_TEMP) {
       *pgid_ = pgid;
