@@ -469,16 +469,10 @@ int SimpleFileBucket::load_bucket(const DoutPrefixProvider *dpp,
 
   std::map<std::string, bufferlist> omap_out;
   store.get_object_store()->omap_get_values(ch, rgw_bucket_metadata_gobject,
-					    {"RGWBucketInfo.json"},
+					    {"RGWBucketInfo"},
 					    &omap_out);
-  bufferlist& bl = omap_out["RGWBucketInfo.json"];
-  JSONParser bucket_meta_parser;
-  if (!bucket_meta_parser.parse(bl.c_str(), bl.length())) {
-    ldpp_dout(dpp, 10) << "Failed to parse bucket metadata from "
-                       << omap_out << ". Returing EINVAL" << dendl;
-    return -EINVAL;
-  }
-  info.decode_json(&bucket_meta_parser);
+  auto bl_iter = omap_out["RGWBucketInfo"].cbegin();
+  info.decode(bl_iter);
   return 0;
 }
 
@@ -537,7 +531,7 @@ SimpleFileBucket::SimpleFileBucket(const coll_t& _collection, const SimpleFileSt
 
 // }}}
 
- // Bucket: Boring Methods {{{
+// Bucket: Boring Methods {{{
 
 int SimpleFileBucket::try_refresh_info(const DoutPrefixProvider *dpp,
                                        ceph::real_time *pmtime) {
@@ -662,6 +656,9 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
   auto bucket = make_unique<SimpleFileBucket>(coll_t(spg_t(pg_t(0, 1337), shard_id_t::NO_SHARD)), *this);
   const int ret = bucket->load_bucket(dpp, y);
   ldpp_dout(dpp, 10) << __func__ << ": bucket: " << bucket->get_name() << dendl;
+  if (ret != 0) {
+    return ret;
+  }
   result->reset(bucket.release());
   return 0;
 }
@@ -956,18 +953,14 @@ SimpleFileStore::SimpleFileStore(CephContext *c,
 
   // add bucket metadata
   std::map<std::string, bufferlist> keys;
-  keys["RGWBucketInfo.json"].append(R"json(
-{
-    "bucket": {
-        "name": "testbucket",
-        "marker": "",
-        "bucket_id": 2342,
-        "tenant": "root"
-    },
-    "creation_time": "2022-02-22T22:22:22+00:00",
-    "owner": "test"
-}
-)json");
+  RGWBucketInfo bucket_info;
+  bucket_info.bucket.name = "testbucket";
+  bucket_info.bucket.bucket_id = "testbucket_id";
+  bucket_info.bucket.tenant = "root";
+  bucket_info.creation_time = real_clock::now();
+  bucket_info.owner = "test";
+  bucket_info.encode(keys["RGWBucketInfo"]);
+
   t.create(cid, rgw_bucket_metadata_gobject);
   t.omap_setkeys(cid, rgw_bucket_metadata_gobject, keys);
 
