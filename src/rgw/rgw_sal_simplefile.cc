@@ -936,8 +936,7 @@ SimpleFileStore::SimpleFileStore(CephContext *c,
   ldout(ctx(), 0) << "populating store with test data.." <<dendl;
 
   const auto hoid = ghobject_t(hobject_t(sobject_t(object_t("testobject"), 0)));
-  //  const auto cid = coll_t(spg_t(pg_t(0, 1337), shard_id_t::NO_SHARD));
-  const auto cid = coll_t(rgw_bucket("root", "testbucket", "2342"));
+  const auto cid = coll_t(spg_t(pg_t(0, 1337), shard_id_t::NO_SHARD));
   auto ch = object_store->create_new_collection(cid);
 
   ::ObjectStore::Transaction t;
