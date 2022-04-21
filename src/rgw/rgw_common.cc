@@ -2464,6 +2464,12 @@ void RGWBucketInfo::decode_json(JSONObj *obj) {
   }
 }
 
+std::ostream& operator<<(std::ostream& out, const RGWBucketInfo& info) {
+  out << "RGWBucketInfo{bucket=" << info.bucket << ", owner=" << info.owner
+      << "}";
+  return out;
+}
+
 void RGWUserInfo::generate_test_instances(list<RGWUserInfo*>& o)
 {
   RGWUserInfo *i = new RGWUserInfo;

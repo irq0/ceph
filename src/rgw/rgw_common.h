@@ -1127,6 +1127,8 @@ struct RGWBucketInfo {
 };
 WRITE_CLASS_ENCODER(RGWBucketInfo)
 
+std::ostream& operator<<(std::ostream& out, const RGWBucketInfo& info);
+
 struct RGWBucketEntryPoint
 {
   rgw_bucket bucket;
