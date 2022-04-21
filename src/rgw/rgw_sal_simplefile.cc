@@ -1,5 +1,5 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t; origami-fold-style: triple-braces -*-
-// vim: ts=8 sw=2 smarttab ft=cpp
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t;
+// origami-fold-style: triple-braces -*- vim: ts=8 sw=2 smarttab ft=cpp
 #include "rgw_sal_simplefile.h"
 
 #include <errno.h>
@@ -12,6 +12,7 @@
 #include "cls/rgw/cls_rgw_client.h"
 #include "common/Clock.h"
 #include "common/errno.h"
+#include "include/encoding.h"
 #include "rgw_acl_s3.h"
 #include "rgw_aio.h"
 #include "rgw_aio_throttle.h"
@@ -36,11 +37,13 @@ using namespace std;
 
 namespace rgw::sal {
 
-static const auto rgw_bucket_metadata_gobject =
-    ghobject_t(hobject_t(sobject_t(object_t("rgw_bucket_metadata"), 0)));
+static const object_t rgw_bucket_metadata_object_name("rgw_bucket_metadata");
+static const std::string rgw_bucket_metadata_nspace("rgw_metadata");
+static const std::string rgw_bucket_data_nspace("rgw_data");
 
 // Utilities {{{
 
+// Evil hack: Hash rgw_bucket. Use truncated hash to derive a pg_t
 static pg_t fake_bucket_pg_t(const rgw_bucket &bucket) {
   const auto bucket_name_hash = calc_hash_sha256(bucket.get_key());
   uint64_t pool = 0;
@@ -48,6 +51,28 @@ static pg_t fake_bucket_pg_t(const rgw_bucket &bucket) {
   std::memcpy(&pool, bucket_name_hash.v, sizeof(pool));
   std::memcpy(&seed, bucket_name_hash.v + sizeof(pool), sizeof(seed));
   return pg_t(pool, seed);
+}
+
+static coll_t rgw_bucket_coll_t(const rgw_bucket &bucket) {
+  return coll_t(spg_t(fake_bucket_pg_t(bucket)));
+}
+
+static ghobject_t rgw_bucket_metadata_ghobject_t(const rgw_bucket &bucket) {
+  const pg_t pg = fake_bucket_pg_t(bucket);
+  return ghobject_t(hobject_t(rgw_bucket_metadata_object_name,  // oid
+                              std::string(),                    // key
+                              snapid_t(0),                      // snap
+                              0,                                // hash
+                              pg.pool(),                        // pool
+                              rgw_bucket_metadata_nspace        // nspace
+                              ));
+}
+
+static ghobject_t rgw_ghobject_t(const rgw_bucket &bucket,
+                                 const rgw_obj_key &obj_key) {
+  const pg_t pg = fake_bucket_pg_t(bucket);
+  return ghobject_t(hobject_t(obj_key.get_oid(), std::string(), snapid_t(0),
+                              pg.ps(), pg.pool(), rgw_bucket_data_nspace));
 }
 
 // }}}
@@ -100,7 +125,7 @@ SimpleFileZone::SimpleFileZone(SimpleFileStore *_store) : store(_store) {
 }
 // }}}
 
-// Object {{{
+// Object > read {{{
 
 SimpleFileObject::SimpleFileReadOp::SimpleFileReadOp(SimpleFileObject *_source,
                                                      RGWObjectCtx *_rctx)
@@ -108,9 +133,11 @@ SimpleFileObject::SimpleFileReadOp::SimpleFileReadOp(SimpleFileObject *_source,
 
 int SimpleFileObject::SimpleFileReadOp::prepare(optional_yield y,
                                                 const DoutPrefixProvider *dpp) {
-  const auto cid = coll_t(spg_t(pg_t(0, 1337), shard_id_t::NO_SHARD));  // XXX get from bucket key
-  const auto hoid = ghobject_t(hobject_t(sobject_t(object_t(source->get_key().name), 0)));
-  auto ch = source->store.get_object_store()->open_collection(cid);
+  const rgw_bucket bucket(rgw_bucket(
+      "", "testbucket", ""));  // XXX add to SimpleFileObject on create
+  const auto hoid = rgw_ghobject_t(bucket, source->get_key());
+  auto ch = source->store.get_object_store()->open_collection(
+      rgw_bucket_coll_t(bucket));
 
   struct stat st;
   source->store.get_object_store()->stat(ch, hoid, &st);
@@ -149,9 +176,12 @@ int SimpleFileObject::SimpleFileReadOp::iterate(const DoutPrefixProvider *dpp,
                                                 int64_t ofs, int64_t end,
                                                 RGWGetDataCB *cb,
                                                 optional_yield y) {
-  const auto cid = coll_t(spg_t(pg_t(0, 1337), shard_id_t::NO_SHARD));  // XXX get from bucket key
-  const auto hoid = ghobject_t(hobject_t(sobject_t(object_t(source->get_key().name), 0)));
-  auto ch = source->store.get_object_store()->open_collection(cid);
+  const rgw_bucket bucket(rgw_bucket(
+      "", "testbucket", ""));  // XXX add to SimpleFileObject on create
+  const auto hoid = rgw_ghobject_t(bucket, source->get_key());
+  auto ch = source->store.get_object_store()->open_collection(
+      rgw_bucket_coll_t(bucket));
+
   // TODO bounds check, etc.
   const auto len = end + 1 - ofs;
   bufferlist bl;
@@ -168,6 +198,10 @@ int SimpleFileObject::SimpleFileReadOp::iterate(const DoutPrefixProvider *dpp,
   cb->handle_data(bl, ofs, len);
   return 0;
 }
+
+// }}}
+
+// Object > Delete {{{
 
 SimpleFileObject::SimpleFileDeleteOp::SimpleFileDeleteOp(
     SimpleFileObject *_source)
@@ -192,6 +226,10 @@ int SimpleFileObject::delete_obj_aio(const DoutPrefixProvider *dpp,
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
+
+// }}}
+
+// Object > misc {{{
 
 int SimpleFileObject::copy_object(
     User *user, req_info *info, const rgw_zone_id &source_zone,
@@ -238,7 +276,7 @@ int SimpleFileObject::delete_obj_attrs(const DoutPrefixProvider *dpp,
 
 MPSerializer *SimpleFileObject::get_serializer(const DoutPrefixProvider *dpp,
                                                const std::string &lock_name) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+  ldpp_dout(dpp, 10) << __func__ << ": TODO nullptr" << dendl;
   return nullptr;
 }
 
@@ -271,7 +309,8 @@ int SimpleFileObject::swift_versioning_restore(bool &restored, /* out */
 
 int SimpleFileObject::swift_versioning_copy(const DoutPrefixProvider *dpp,
                                             optional_yield y) {
-  return -ENOTSUP;
+  ldout(store.ceph_context(), 10) << __func__ << ": TODO return 0" << dendl;
+  return 0;
 }
 
 int SimpleFileObject::omap_get_vals(const DoutPrefixProvider *dpp,
@@ -305,7 +344,7 @@ int SimpleFileObject::omap_set_val_by_key(const DoutPrefixProvider *dpp,
 
 // }}}
 
-// User {{{
+// User > attrs, stats, usage {{{
 
 int SimpleFileUser::read_attrs(const DoutPrefixProvider *dpp,
                                optional_yield y) {
@@ -360,6 +399,10 @@ int SimpleFileUser::trim_usage(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
+// }}}
+
+// User > load, store, remove {{{
+
 int SimpleFileUser::load_user(const DoutPrefixProvider *dpp, optional_yield y) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO (0)" << dendl;
   return 0;
@@ -378,6 +421,10 @@ int SimpleFileUser::remove_user(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
+// }}}
+
+// User > Buckets (list, create) {{{
+
 int SimpleFileUser::list_buckets(const DoutPrefixProvider *dpp,
                                  const std::string &marker,
                                  const std::string &end_marker, uint64_t max,
@@ -386,7 +433,8 @@ int SimpleFileUser::list_buckets(const DoutPrefixProvider *dpp,
   std::vector<coll_t> collections;
   store.get_object_store()->list_collections(collections);
   for (const auto &collection : collections) {
-    ldpp_dout(dpp, 10) << __func__ << ": found collection " << collection << dendl;
+    ldpp_dout(dpp, 10) << __func__ << ": found collection " << collection
+                       << dendl;
     if (collection.is_pg()) {
       auto bucket =
           std::unique_ptr<Bucket>(new SimpleFileBucket{collection, store});
@@ -407,8 +455,61 @@ int SimpleFileUser::create_bucket(
     std::string &swift_ver_location, const RGWQuotaInfo *pquota_info,
     const RGWAccessControlPolicy &policy, Attrs &attrs, RGWBucketInfo &info,
     obj_version &ep_objv, bool exclusive, bool obj_lock_enabled, bool *existed,
-    req_info &req_info, std::unique_ptr<Bucket> *bucket, optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+    req_info &req_info, std::unique_ptr<Bucket> *bucket_out, optional_yield y) {
+  ldpp_dout(dpp, 10) << __func__ << ": TODO "
+                     << " b=" << b << " info=" << info << dendl;
+
+  // XXX ENOENT check?
+  const auto cid = rgw_bucket_coll_t(b);
+  std::unique_ptr<Bucket> bucket =
+      std::make_unique<SimpleFileBucket>(cid, store, b, nullptr);
+  *existed = false;
+  bucket->set_attrs(attrs);
+
+  placement_rule.name = "default";
+  placement_rule.storage_class = RGW_STORAGE_CLASS_STANDARD;
+
+  // XXX handle already existing bucket -> override and inc version
+
+  info.placement_rule = placement_rule;
+  info.creation_time = real_clock::now();
+  info.bucket = b;
+  info.owner = this->get_info().user_id;
+  info.zonegroup = zonegroup_id;
+  if (obj_lock_enabled) info.flags = BUCKET_VERSIONED | BUCKET_OBJ_LOCK_ENABLED;
+  bucket->set_version(ep_objv);
+  bucket->get_info() = info;
+
+  const auto hoid = rgw_bucket_metadata_ghobject_t(b);
+  auto ch = store.get_object_store()->create_new_collection(cid);
+
+  ::ObjectStore::Transaction t;
+  t.create_collection(cid, 0);
+
+  std::map<std::string, bufferlist> keys;
+  placement_rule.encode(keys["rgw_placement_rule"]);
+  if (pquota_info) {
+    pquota_info->encode(keys["RGWQuotoInfo"]);
+  }
+  policy.encode(keys["RGWAccessControlPolicy"]);
+  ceph::encode(attrs, keys["Attrs"]);
+  info.encode(keys["RGWBucketInfo"]);
+
+  t.create(cid, hoid);
+  t.omap_setkeys(cid, hoid, keys);
+
+  // transact
+  int ret = store.get_object_store()->queue_transaction(ch, std::move(t));
+  if (ret < 0) {
+    // does this cover EEXIST?
+    ldpp_dout(dpp, 10) << "error creating bucket" << cpp_strerror(ret) << dendl;
+    return ret;
+  }
+  ch->flush();
+  ldpp_dout(dpp, 10) << "bucket created: cid=" << cid << " hoid=" << hoid
+                     << " info=" << info << dendl;
+
+  bucket_out->swap(bucket);
   return 0;
 }
 
@@ -417,23 +518,24 @@ int SimpleFileUser::create_bucket(
 // Bucket {{{
 
 std::unique_ptr<Object> SimpleFileBucket::get_object(const rgw_obj_key &key) {
-  ldout(store.ceph_context(), 10) << __func__ << ": TODO" << dendl;
-  /** TODO Get an @a Object belonging to this bucket */
-  return nullptr;
+  ldout(store.ceph_context(), 10) << __func__ << ": " << key << dendl;
+  return std::make_unique<SimpleFileObject>(store, key);
 }
 
 int SimpleFileBucket::list(const DoutPrefixProvider *dpp, ListParams &, int,
                            ListResults &results, optional_yield y) {
-
   auto ch = store.get_object_store()->open_collection(get_collection());
 
   // TODO filter and "pagination" logic
   std::vector<ghobject_t> objects;
   ghobject_t next;
-  int r = store.get_object_store()->collection_list(ch,
-						    ghobject_t(),
-						    ghobject_t::get_max(), 100,
-						    &objects, &next);
+
+  const ghobject_t min_data_nspace(
+      hobject_t(object_t(), std::string(), snapid_t(0), 0,
+                get_collection().pool(), rgw_bucket_data_nspace));
+
+  int r = store.get_object_store()->collection_list(
+      ch, min_data_nspace, ghobject_t::get_max(), 100, &objects, &next);
   if (r < 0) {
     ldpp_dout(dpp, 10) << "Failed to get bucket list: " << cpp_strerror(r)
                        << dendl;
@@ -445,6 +547,7 @@ int SimpleFileBucket::list(const DoutPrefixProvider *dpp, ListParams &, int,
     struct stat st;
     store.get_object_store()->stat(ch, hoid, &st);
 
+    // TODO create sensible dentry
     rgw_bucket_dir_entry dentry;
     dentry.key.name = hoid.hobj.oid.name;
     dentry.key.instance = "foo";
@@ -478,18 +581,23 @@ int SimpleFileBucket::remove_bucket_bypass_gc(int concurrent_max,
 
 int SimpleFileBucket::load_bucket(const DoutPrefixProvider *dpp,
                                   optional_yield y, bool get_stats) {
+  ldpp_dout(dpp, 10) << __func__ << ": TODO: " << info.bucket
+                     << " coll=" << get_collection()
+                     << " ghobject=" << get_metadata_ghobject() << dendl;
   auto ch = store.get_object_store()->open_collection(get_collection());
+  if (!ch) {
+    return -ENOENT;
+  }
 
   std::map<std::string, bufferlist> omap_out;
-  const auto ret = store.get_object_store()->omap_get_values(ch, rgw_bucket_metadata_gobject,
-					    {"RGWBucketInfo"},
-					    &omap_out);
-  if (ret != 0) {
+  const auto ret = store.get_object_store()->omap_get_values(
+      ch, get_metadata_ghobject(), {"RGWBucketInfo"}, &omap_out);
+  if (ret < 0) {
     return ret;
   } else {
-  auto bl_iter = omap_out["RGWBucketInfo"].cbegin();
-  info.decode(bl_iter);
-  return 0;
+    auto bl_iter = omap_out["RGWBucketInfo"].cbegin();
+    info.decode(bl_iter);
+    return 0;
   }
 }
 
@@ -497,26 +605,26 @@ int SimpleFileBucket::load_bucket(const DoutPrefixProvider *dpp,
 int SimpleFileBucket::put_info(const DoutPrefixProvider *dpp, bool exclusive,
                                ceph::real_time mtime) {
   auto ch = store.get_object_store()->open_collection(get_collection());
-  const auto cid = coll_t(spg_t(fake_bucket_pg_t(info.bucket), shard_id_t::NO_SHARD));
+  const auto cid = rgw_bucket_coll_t(info.bucket);
 
   ::ObjectStore::Transaction t;
   t.create_collection(cid, 0);
 
   std::map<std::string, bufferlist> keys;
   info.encode(keys["RGWBucketInfo"]);
-  t.create(cid, rgw_bucket_metadata_gobject);
-  t.omap_setkeys(cid, rgw_bucket_metadata_gobject, keys);
+  t.create(cid, rgw_bucket_metadata_ghobject_t(info.bucket));
+  t.omap_setkeys(cid, rgw_bucket_metadata_ghobject_t(info.bucket), keys);
 
   auto ret = store.get_object_store()->queue_transaction(ch, std::move(t));
   if (ret) {
-    ldpp_dout(dpp, 0) << "error creating dummy object" << cpp_strerror(ret) << dendl;
+    ldpp_dout(dpp, 0) << "error creating dummy object" << cpp_strerror(ret)
+                      << dendl;
   }
   ch->flush();
 
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return 0;
 }
-
 
 int SimpleFileBucket::chown(const DoutPrefixProvider *dpp, User *new_user,
                             User *old_user, optional_yield y,
@@ -567,20 +675,50 @@ int SimpleFileBucket::abort_multiparts(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
-SimpleFileBucket::SimpleFileBucket(const coll_t& _collection, const SimpleFileStore& _store) : store(_store), collection(_collection), acls() {
+static ghobject_t make_ghobject_from_collection(const coll_t &collection) {
+  return ghobject_t(hobject_t(rgw_bucket_metadata_object_name,  // oid
+                              std::string(),                    // key
+                              snapid_t(0),                      // snap
+                              0,                                // hash
+                              collection.pool(),                // pool
+                              rgw_bucket_metadata_nspace        // nspace
+                              ));
+}
+
+SimpleFileBucket::SimpleFileBucket(const coll_t &_collection,
+                                   const SimpleFileStore &_store)
+    : store(_store),
+      collection(_collection),
+      acls(),
+      metadata_ghobject(make_ghobject_from_collection(_collection)) {
   ldout(store.ceph_context(), 10) << __func__ << ": TODO" << dendl;
 }
 
 SimpleFileBucket::SimpleFileBucket(const coll_t &_collection,
                                    const SimpleFileStore &_store,
                                    const RGWBucketInfo &_bucket, User *_user)
-    : Bucket(_bucket, _user), store(_store), collection(_collection), acls() {
+    : Bucket(_bucket, _user),
+      store(_store),
+      collection(_collection),
+      acls(),
+      metadata_ghobject(make_ghobject_from_collection(_collection)) {
+  ldout(store.ceph_context(), 10) << __func__ << ": TODO" << dendl;
+}
+
+SimpleFileBucket::SimpleFileBucket(const coll_t &_collection,
+                                   const SimpleFileStore &_store,
+                                   const rgw_bucket &_bucket, User *_user)
+    : Bucket(_bucket, _user),
+      store(_store),
+      collection(_collection),
+      acls(),
+      metadata_ghobject(make_ghobject_from_collection(_collection)) {
   ldout(store.ceph_context(), 10) << __func__ << ": TODO" << dendl;
 }
 
 // }}}
 
-// Bucket: Boring Methods {{{
+// Bucket > Boring  {{{
 
 int SimpleFileBucket::try_refresh_info(const DoutPrefixProvider *dpp,
                                        ceph::real_time *pmtime) {
@@ -610,8 +748,8 @@ int SimpleFileBucket::check_quota(const DoutPrefixProvider *dpp,
                                   RGWQuotaInfo &user_quota,
                                   RGWQuotaInfo &bucket_quota, uint64_t obj_size,
                                   optional_yield y, bool check_size_only) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  ldpp_dout(dpp, 10) << __func__ << ": TODO return 0" << dendl;
+  return 0;
 }
 
 int SimpleFileBucket::read_stats(
@@ -686,14 +824,13 @@ int SimpleFileStore::set_buckets_enabled(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
-// XXX is the "create_bucket"? - we don't need to load_bucket as we get the RGWBucketInfo
 int SimpleFileStore::get_bucket(User *u, const RGWBucketInfo &i,
                                 std::unique_ptr<Bucket> *result) {
   ldout(ctx(), 10) << __func__ << ": TODO get_bucket by RGWBucketInfo" << dendl;
 
-  auto bucket = make_unique<SimpleFileBucket>(coll_t(spg_t(fake_bucket_pg_t(i.bucket), shard_id_t::NO_SHARD)), *this,
-					      i, u);
-  result->reset(bucket.release());
+  std::unique_ptr<Bucket> bucket =
+      make_unique<SimpleFileBucket>(rgw_bucket_coll_t(i.bucket), *this, i, u);
+  result->swap(bucket);
   return 0;
 }
 
@@ -701,14 +838,17 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
                                 const rgw_bucket &b,
                                 std::unique_ptr<Bucket> *result,
                                 optional_yield y) {
-
-  auto bucket = make_unique<SimpleFileBucket>(coll_t(spg_t(fake_bucket_pg_t(b), shard_id_t::NO_SHARD)), *this);
-  ldpp_dout(dpp, 10) << __func__ << ": bucket: " << bucket->get_name() << dendl;
+  const auto coll = rgw_bucket_coll_t(b);
+  std::unique_ptr<Bucket> bucket =
+      make_unique<SimpleFileBucket>(coll, *this, b, u);
+  ldpp_dout(dpp, 10) << __func__
+                     << ": bucket by rgw_bucket: " << bucket->get_name()
+                     << " requested:" << b << " coll:" << coll << dendl;
   const int ret = bucket->load_bucket(dpp, y);
   if (ret != 0) {
     return ret;
   }
-  result->reset(bucket.release());
+  result->swap(bucket);
   return 0;
 }
 
@@ -726,11 +866,11 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
 
 // Lifecycle {{{
 std::unique_ptr<Lifecycle> SimpleFileStore::get_lifecycle(void) {
-  ldout(ctx(), 10) << __func__ << ": TODO" << dendl;
+  ldout(ctx(), 10) << __func__ << ": TODO nullptr" << dendl;
   return nullptr;
 }
 RGWLC *SimpleFileStore::get_rgwlc(void) {
-  ldout(ctx(), 10) << __func__ << ": TODO" << dendl;
+  ldout(ctx(), 10) << __func__ << ": TODO nullptr" << dendl;
   return nullptr;
 }
 
@@ -738,7 +878,7 @@ RGWLC *SimpleFileStore::get_rgwlc(void) {
 
 // Store > Completions {{{
 std::unique_ptr<Completions> SimpleFileStore::get_completions(void) {
-  ldout(ctx(), 10) << __func__ << ": TODO" << dendl;
+  ldout(ctx(), 10) << __func__ << ": TODO nullptr" << dendl;
   return nullptr;
 }
 // }}}
@@ -748,7 +888,7 @@ std::unique_ptr<Notification> SimpleFileStore::get_notification(
     rgw::sal::Object *obj, rgw::sal::Object *src_obj, struct req_state *s,
     rgw::notify::EventType event_type, const std::string *object_name) {
   ldout(ctx(), 10) << __func__ << ": TODO" << dendl;
-  return nullptr;
+  return std::make_unique<SimpleFileNotification>(obj, src_obj, event_type);
 }
 
 std::unique_ptr<Notification> SimpleFileStore::get_notification(
@@ -757,7 +897,7 @@ std::unique_ptr<Notification> SimpleFileStore::get_notification(
     rgw::sal::Bucket *_bucket, std::string &_user_id, std::string &_user_tenant,
     std::string &_req_id, optional_yield y) {
   ldout(ctx(), 10) << __func__ << ": TODO" << dendl;
-  return nullptr;
+  return std::make_unique<SimpleFileNotification>(obj, src_obj, event_type);
 }
 
 // }}}
@@ -769,7 +909,7 @@ std::unique_ptr<Writer> SimpleFileStore::get_append_writer(
     const rgw_placement_rule *ptail_placement_rule,
     const std::string &unique_tag, uint64_t position,
     uint64_t *cur_accounted_size) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+  ldpp_dout(dpp, 10) << __func__ << ": TODO nullptr" << dendl;
   return nullptr;
 }
 /** Get a Writer that atomically writes an entire object */
@@ -779,12 +919,43 @@ std::unique_ptr<Writer> SimpleFileStore::get_atomic_writer(
     const rgw_placement_rule *ptail_placement_rule, uint64_t olh_epoch,
     const std::string &unique_tag) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return nullptr;
+  return std::make_unique<SimpleFileAtomicWriter>(
+      dpp, y, std::move(_head_obj), *this);
 }
 
 // }}}
 
-// Store: Boring Methods {{{
+// Writer > Atomic {{{
+
+SimpleFileAtomicWriter::SimpleFileAtomicWriter(
+    const DoutPrefixProvider *dpp, optional_yield y,
+    std::unique_ptr<rgw::sal::Object> _head_obj, const SimpleFileStore &_store)
+    : Writer(dpp, y), store(_store), head_obj(std::move(_head_obj)) {
+  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+}
+int SimpleFileAtomicWriter::prepare(optional_yield y) {
+  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+
+  return 0;
+}
+int SimpleFileAtomicWriter::process(bufferlist &&data, uint64_t offset) {
+  ldpp_dout(dpp, 10) << __func__ << ": TODO " << data << dendl;
+  return 0;
+}
+
+int SimpleFileAtomicWriter::complete(
+    size_t accounted_size, const std::string &etag, ceph::real_time *mtime,
+    ceph::real_time set_mtime, std::map<std::string, bufferlist> &attrs,
+    ceph::real_time delete_at, const char *if_match, const char *if_nomatch,
+    const std::string *user_data, rgw_zone_set *zones_trace, bool *canceled,
+    optional_yield y) {
+  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+  return 0;
+}
+
+// }}}
+
+// Store > Boring Methods {{{
 std::unique_ptr<RGWOIDCProvider> SimpleFileStore::get_oidc_provider() {
   RGWOIDCProvider *p = nullptr;
   return std::unique_ptr<RGWOIDCProvider>(p);
@@ -973,8 +1144,11 @@ void SimpleFileStore::finalize(void) {
 
 SimpleFileStore::SimpleFileStore(CephContext *c,
                                  std::unique_ptr<::ObjectStore> _object_store)
-    : dummy_user(), sync_module(), zone(this), cctx(c), object_store(std::move(_object_store))  {
-
+    : dummy_user(),
+      sync_module(),
+      zone(this),
+      cctx(c),
+      object_store(std::move(_object_store)) {
   dummy_user.user_email = "simplefile@example.com";
   dummy_user.display_name = "Test User";
   dummy_user.max_buckets = 42;
@@ -982,21 +1156,13 @@ SimpleFileStore::SimpleFileStore(CephContext *c,
 
   dummy_user.access_keys.insert({"test", RGWAccessKey("test", "test")});
 
-  ldout(ctx(), 0) << "populating store with test data.." <<dendl;
+  ldout(ctx(), 0) << "populating store with test data.." << dendl;
 
-
-  // hack: use truncate hash of bucket name as pg_t pool and seed
-  const rgw_bucket bucket("root", "testbucket", "someid");
-  const auto hoid = ghobject_t(hobject_t(sobject_t(object_t("testobject"), 0)));
-  const auto cid = coll_t(spg_t(fake_bucket_pg_t(bucket), shard_id_t::NO_SHARD));
+  const rgw_bucket bucket("", "testbucket", "");
+  const auto hoid = rgw_ghobject_t(bucket, rgw_obj_key("testobject"));
+  const auto metadata_hoid = rgw_bucket_metadata_ghobject_t(bucket);
+  const auto cid = rgw_bucket_coll_t(bucket);
   auto ch = object_store->create_new_collection(cid);
-
-
-  // 256 bit
-  // uint64_t pg_t m_pool;
-  // uint32_t pg_t m_seed;
-  // int8_t spg_t shard_id_t
-  // coll_t
 
   ::ObjectStore::Transaction t;
 
@@ -1017,16 +1183,17 @@ SimpleFileStore::SimpleFileStore(CephContext *c,
   bucket_info.owner = "test";
   bucket_info.encode(keys["RGWBucketInfo"]);
 
-  t.create(cid, rgw_bucket_metadata_gobject);
-  t.omap_setkeys(cid, rgw_bucket_metadata_gobject, keys);
+  t.create(cid, metadata_hoid);
+  t.omap_setkeys(cid, metadata_hoid, keys);
 
   // transact
   auto ret = object_store->queue_transaction(ch, std::move(t));
   if (ret) {
-    ldout(ctx(), 0) << "error creating dummy object" << cpp_strerror(ret) << dendl;
+    ldout(ctx(), 0) << "error creating dummy object" << cpp_strerror(ret)
+                    << dendl;
   }
   ch->flush();
-  ldout(ctx(), 0) << "populating store with test data DONE" <<dendl;
+  ldout(ctx(), 0) << "populating store with test data DONE" << dendl;
 }
 
 }  // namespace rgw::sal
@@ -1039,7 +1206,8 @@ void *newSimpleFileStore(CephContext *cct) {
   // 							   "/tmp/filestore_journal",
   // 							   0);
 
-  // rgw::sal::SimpleFileStore *store = new rgw::sal::SimpleFileStore(cct, store);
+  // rgw::sal::SimpleFileStore *store = new rgw::sal::SimpleFileStore(cct,
+  // store);
   return nullptr;
 }
 }

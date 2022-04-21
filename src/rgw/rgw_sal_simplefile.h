@@ -15,8 +15,8 @@
  *
  */
 #include <filesystem>
-#include "os/ObjectStore.h"
 
+#include "os/ObjectStore.h"
 #include "rgw_multi.h"
 #include "rgw_notify.h"
 #include "rgw_oidc_provider.h"
@@ -32,15 +32,17 @@ class SimpleFileStore;
 
 class SimpleFileUser : public User {
  private:
-  const SimpleFileStore& store;
+  const SimpleFileStore &store;
 
  protected:
-  SimpleFileUser(SimpleFileUser&) = default;
-  SimpleFileUser& operator=(const SimpleFileUser&) = default;
+  SimpleFileUser(SimpleFileUser &) = default;
+  SimpleFileUser &operator=(const SimpleFileUser &) = default;
 
  public:
-  SimpleFileUser(const rgw_user &_u, const SimpleFileStore& _store) : User(_u), store(_store) {}
-  SimpleFileUser(const RGWUserInfo &_i, const SimpleFileStore& _store) : User(_i), store(_store) {}
+  SimpleFileUser(const rgw_user &_u, const SimpleFileStore &_store)
+      : User(_u), store(_store) {}
+  SimpleFileUser(const RGWUserInfo &_i, const SimpleFileStore &_store)
+      : User(_i), store(_store) {}
   virtual ~SimpleFileUser() = default;
 
   virtual std::unique_ptr<User> clone() override {
@@ -89,18 +91,24 @@ class SimpleFileUser : public User {
 
 class SimpleFileBucket : public Bucket {
  private:
-  const SimpleFileStore& store;
+  const SimpleFileStore &store;
   const coll_t collection;
   RGWAccessControlPolicy acls;
+  const ghobject_t metadata_ghobject;
+
  protected:
-  SimpleFileBucket(const SimpleFileBucket&) = default;
+  SimpleFileBucket(const SimpleFileBucket &) = default;
 
  public:
-  SimpleFileBucket(const coll_t& _collection, const SimpleFileStore& _store);
-  SimpleFileBucket(const coll_t& _collection, const SimpleFileStore& _store, const RGWBucketInfo& _bucket, User* _user);
-  SimpleFileBucket& operator=(const SimpleFileBucket&) = delete;
+  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store);
+  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store,
+                   const RGWBucketInfo &_bucket, User *_user);
+  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store,
+                   const rgw_bucket &_bucket, User *_user);
+  SimpleFileBucket &operator=(const SimpleFileBucket &) = delete;
 
-  const coll_t& get_collection() const { return collection; }
+  const coll_t &get_collection() const { return collection; }
+  const ghobject_t &get_metadata_ghobject() const { return metadata_ghobject; }
 
   virtual std::unique_ptr<Bucket> clone() override {
     return std::unique_ptr<Bucket>(new SimpleFileBucket{*this});
@@ -196,10 +204,11 @@ class SimpleFileBucket : public Bucket {
 
 class SimpleFileObject : public Object {
  private:
-  const SimpleFileStore& store;
+  const SimpleFileStore &store;
   RGWAccessControlPolicy acls;
+
  protected:
-  SimpleFileObject(SimpleFileObject&) = default;
+  SimpleFileObject(SimpleFileObject &) = default;
 
  public:
   struct SimpleFileReadOp : public ReadOp {
@@ -228,11 +237,12 @@ class SimpleFileObject : public Object {
     virtual int delete_obj(const DoutPrefixProvider *dpp,
                            optional_yield y) override;
   };
-  SimpleFileObject& operator=(const SimpleFileObject&) = delete;
+  SimpleFileObject &operator=(const SimpleFileObject &) = delete;
 
-  SimpleFileObject(const SimpleFileStore& _st, const rgw_obj_key &_k)
+  SimpleFileObject(const SimpleFileStore &_st, const rgw_obj_key &_k)
       : Object(_k), store(_st) {}
-  SimpleFileObject(const SimpleFileStore& _st, const rgw_obj_key &_k, Bucket *_b)
+  SimpleFileObject(const SimpleFileStore &_st, const rgw_obj_key &_k,
+                   Bucket *_b)
       : Object(_k, _b), store(_st) {}
 
   virtual std::unique_ptr<Object> clone() override {
@@ -324,8 +334,9 @@ class SimpleFileObject : public Object {
 class UnsupportedLuaScriptManager : public LuaScriptManager {
  public:
   UnsupportedLuaScriptManager() = default;
-  UnsupportedLuaScriptManager(const UnsupportedLuaScriptManager&) = delete;
-  UnsupportedLuaScriptManager& operator=(const UnsupportedLuaScriptManager&) = delete;
+  UnsupportedLuaScriptManager(const UnsupportedLuaScriptManager &) = delete;
+  UnsupportedLuaScriptManager &operator=(const UnsupportedLuaScriptManager &) =
+      delete;
   virtual ~UnsupportedLuaScriptManager() = default;
 
   virtual int get(const DoutPrefixProvider *dpp, optional_yield y,
@@ -342,6 +353,41 @@ class UnsupportedLuaScriptManager : public LuaScriptManager {
   }
 };
 
+class SimpleFileNotification : public Notification {
+  public:
+    SimpleFileNotification(Object* _obj, Object* _src_obj, rgw::notify::EventType _type) :
+        Notification(_obj, _src_obj, _type) {}
+    ~SimpleFileNotification() = default;
+
+    virtual int publish_reserve(const DoutPrefixProvider *dpp, RGWObjTags* obj_tags = nullptr) override { return 0;}
+    virtual int publish_commit(const DoutPrefixProvider* dpp, uint64_t size,
+			       const ceph::real_time& mtime, const std::string& etag, const std::string& version) override { return 0; }
+};
+
+class SimpleFileAtomicWriter : public Writer {
+  protected:
+  const SimpleFileStore& store;
+  std::unique_ptr<rgw::sal::Object> head_obj;
+  public:
+  SimpleFileAtomicWriter(const DoutPrefixProvider *dpp,
+			 optional_yield y,
+			 std::unique_ptr<rgw::sal::Object> _head_obj,
+			 const SimpleFileStore& store);
+  ~SimpleFileAtomicWriter() = default;
+
+  virtual int prepare(optional_yield y) override;
+  virtual int process(bufferlist&& data, uint64_t offset) override;
+  virtual int complete(size_t accounted_size, const std::string& etag,
+                       ceph::real_time *mtime, ceph::real_time set_mtime,
+                       std::map<std::string, bufferlist>& attrs,
+                       ceph::real_time delete_at,
+                       const char *if_match, const char *if_nomatch,
+                       const std::string *user_data,
+                       rgw_zone_set *zones_trace, bool *canceled,
+                       optional_yield y) override;
+};
+
+
 class SimpleFileZone : public Zone {
  protected:
   SimpleFileStore *store;
@@ -353,8 +399,8 @@ class SimpleFileZone : public Zone {
   rgw_zone_id cur_zone_id;
 
  public:
-  SimpleFileZone(const SimpleFileZone&) = delete;
-  SimpleFileZone& operator= (const SimpleFileZone&) = delete;
+  SimpleFileZone(const SimpleFileZone &) = delete;
+  SimpleFileZone &operator=(const SimpleFileZone &) = delete;
   SimpleFileZone(SimpleFileStore *_store);
   ~SimpleFileZone() = default;
 
@@ -382,12 +428,12 @@ class SimpleFileStore : public Store {
 
  public:
   SimpleFileStore(CephContext *c, std::unique_ptr<::ObjectStore> object_store);
-  SimpleFileStore(const SimpleFileStore&) = delete;
-  SimpleFileStore& operator=(const SimpleFileStore&) = delete;
+  SimpleFileStore(const SimpleFileStore &) = delete;
+  SimpleFileStore &operator=(const SimpleFileStore &) = delete;
   ~SimpleFileStore() {}
   virtual void finalize(void) override;
 
-  ::ObjectStore* get_object_store() const { return object_store.get(); }
+  ::ObjectStore *get_object_store() const { return object_store.get(); }
 
   virtual const char *get_name() const override { return "simplefile"; }
   virtual std::string get_cluster_id(const DoutPrefixProvider *dpp,
@@ -396,7 +442,7 @@ class SimpleFileStore : public Store {
   }
   virtual bool is_meta_master() override { return true; }
   virtual std::unique_ptr<Object> get_object(const rgw_obj_key &k) {
-    ldout(ctx(), 10) << __func__ << ": TODO obj_key=" << k << dendl;
+    ldout(ctx(), 10) << __func__ << ": obj_key=" << k << dendl;
     return std::make_unique<SimpleFileObject>(*this, k);
   }
   virtual RGWCoroutinesManagerRegistry *get_cr_registry() override {
@@ -550,6 +596,6 @@ class SimpleFileStore : public Store {
       std::unique_ptr<rgw::sal::Object> _head_obj, const rgw_user &owner,
       const rgw_placement_rule *ptail_placement_rule, uint64_t olh_epoch,
       const std::string &unique_tag) override;
- };
+};
 
 }  // namespace rgw::sal
