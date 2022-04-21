@@ -1,4 +1,4 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 /*
  * Ceph - scalable distributed file system
@@ -10,7 +10,7 @@
  *
  * This is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2.1, as published by the Free Software 
+ * License version 2.1, as published by the Free Software
  * Foundation.  See file COPYING.
  *
  */
@@ -233,7 +233,7 @@ inline bool operator!=(const osd_reqid_t& l, const osd_reqid_t& r) {
   return (l.name != r.name) || (l.inc != r.inc) || (l.tid != r.tid);
 }
 inline bool operator<(const osd_reqid_t& l, const osd_reqid_t& r) {
-  return (l.name < r.name) || (l.inc < r.inc) || 
+  return (l.name < r.name) || (l.inc < r.inc) ||
     (l.name == r.name && l.inc == r.inc && l.tid < r.tid);
 }
 inline bool operator<=(const osd_reqid_t& l, const osd_reqid_t& r) {
@@ -245,7 +245,7 @@ inline bool operator>=(const osd_reqid_t& l, const osd_reqid_t& r) { return !(l 
 
 namespace std {
   template<> struct hash<osd_reqid_t> {
-    size_t operator()(const osd_reqid_t &r) const { 
+    size_t operator()(const osd_reqid_t &r) const {
       static hash<uint64_t> H;
       return H(r.name.num() ^ r.tid ^ r.inc);
     }
@@ -566,7 +566,7 @@ struct spg_t {
   char *calc_name(char *buf, const char *suffix_backwords) const;
   // and a (limited) version that uses an internal buffer:
   std::string calc_name_sring() const;
- 
+
   bool parse(const char *s);
   bool parse(const std::string& s) {
     return parse(s.c_str());
@@ -819,7 +819,7 @@ inline std::ostream& operator<<(std::ostream& out, const coll_t& c) {
 
 namespace std {
   template<> struct hash<coll_t> {
-    size_t operator()(const coll_t &c) const { 
+    size_t operator()(const coll_t &c) const {
       size_t h = 0;
       std::string str(c.to_str());
       std::string::const_iterator end(str.end());
@@ -1051,7 +1051,7 @@ std::optional<uint64_t> pg_string_state(const std::string& state);
 /*
  * pool_snap_info_t
  *
- * attributes for a single pool snapshot.  
+ * attributes for a single pool snapshot.
  */
 struct pool_snap_info_t {
   snapid_t snapid;
@@ -1466,7 +1466,7 @@ public:
 
   /// metadata for the most recent PG merge
   pg_merge_meta_t last_pg_merge_meta;
-  
+
   snapid_t snap_seq = 0;        ///< seq for per-pool snapshot
   epoch_t snap_epoch = 0;       ///< osdmap epoch of last snap
   uint64_t auid = 0;            ///< who owns the pg
@@ -1572,9 +1572,9 @@ public:
 
   typedef enum {
     TYPE_FINGERPRINT_NONE = 0,
-    TYPE_FINGERPRINT_SHA1 = 1,     
-    TYPE_FINGERPRINT_SHA256 = 2,     
-    TYPE_FINGERPRINT_SHA512 = 3,     
+    TYPE_FINGERPRINT_SHA1 = 1,
+    TYPE_FINGERPRINT_SHA256 = 2,
+    TYPE_FINGERPRINT_SHA512 = 3,
   } fingerprint_t;
   static fingerprint_t get_fingerprint_from_str(const std::string& s) {
     if (s == "none")
@@ -1611,8 +1611,8 @@ public:
 
   typedef enum {
     TYPE_DEDUP_CHUNK_NONE = 0,
-    TYPE_DEDUP_CHUNK_FASTCDC = 1,     
-    TYPE_DEDUP_CHUNK_FIXEDCDC = 2,     
+    TYPE_DEDUP_CHUNK_FASTCDC = 1,
+    TYPE_DEDUP_CHUNK_FIXEDCDC = 2,
   } dedup_chunk_algo_t;
   static dedup_chunk_algo_t get_dedup_chunk_algorithm_from_str(const std::string& s) {
     if (s == "none")
@@ -1853,7 +1853,7 @@ public:
    * map a raw pg (with full precision ps) into an actual pg, for storage
    */
   pg_t raw_pg_to_pg(pg_t pg) const;
-  
+
   /*
    * map raw pg (full precision ps) into a placement seed.  include
    * pool id in that value so that different pools don't use the same
@@ -2687,7 +2687,7 @@ struct pool_stat_t {
   // collection method: new per-pool objectstore report or legacy PG
   // summation at OSD.
   // In legacy mode used and netto values are the same. But for new per-pool
-  // collection 'used' provides amount of space ALLOCATED at all related OSDs 
+  // collection 'used' provides amount of space ALLOCATED at all related OSDs
   // and 'netto' is amount of stored user data.
   uint64_t get_allocated_data_bytes(bool per_pool) const {
     if (per_pool) {
@@ -2867,7 +2867,7 @@ struct pg_history_t {
       last_scrub_stamp(stamp),
       last_deep_scrub_stamp(stamp),
       last_clean_scrub_stamp(stamp) {}
-  
+
   bool merge(const pg_history_t &other) {
     // Here, we only update the fields which cannot be calculated from the OSDmap.
     bool modified = false;
@@ -2907,7 +2907,7 @@ struct pg_history_t {
       modified = true;
     }
     if (last_epoch_split < other.last_epoch_split) {
-      last_epoch_split = other.last_epoch_split; 
+      last_epoch_split = other.last_epoch_split;
       modified = true;
     }
     if (last_epoch_marked_full < other.last_epoch_marked_full) {
@@ -2980,7 +2980,7 @@ inline std::ostream& operator<<(std::ostream& out, const pg_history_t& h) {
 /**
  * pg_info_t - summary of PG statistics.
  *
- * some notes: 
+ * some notes:
  *  - last_complete implies we have all objects that existed as of that
  *    stamp, OR a newer object, OR have already applied a later delete.
  *  - if last_complete >= log.tail, then we know pg contents thru log.head.
@@ -2992,7 +2992,7 @@ struct pg_info_t {
   eversion_t last_complete;    ///< last version pg was complete through.
   epoch_t last_epoch_started;  ///< last epoch at which this pg started on this osd
   epoch_t last_interval_started; ///< first epoch of last_epoch_started interval
-  
+
   version_t last_user_version; ///< last user object version applied to store
 
   eversion_t log_tail;         ///< oldest log entry.
@@ -3036,7 +3036,7 @@ struct pg_info_t {
       last_user_version(0),
       last_backfill(hobject_t::get_max())
   { }
-  
+
   void set_last_backfill(hobject_t pos) {
     last_backfill = pos;
   }
@@ -3054,7 +3054,7 @@ struct pg_info_t {
 };
 WRITE_CLASS_ENCODER(pg_info_t)
 
-inline std::ostream& operator<<(std::ostream& out, const pg_info_t& pgi) 
+inline std::ostream& operator<<(std::ostream& out, const pg_info_t& pgi)
 {
   out << pgi.pgid << "(";
   if (pgi.dne())
@@ -3764,7 +3764,7 @@ WRITE_CLASS_ENCODER(pg_notify_t)
 std::ostream &operator<<(std::ostream &lhs, const pg_notify_t &notify);
 
 
-/** 
+/**
  * pg_query_t - used to ask a peer for information about a pg.
  *
  * note: if version=0, type=LOG, then we just provide our full log.
@@ -3818,7 +3818,7 @@ struct pg_query_t {
       epoch_sent(epoch_sent), to(to), from(from) {
     ceph_assert(t == LOG);
   }
-  
+
   void encode(ceph::buffer::list &bl, uint64_t features) const;
   void decode(ceph::buffer::list::const_iterator &bl);
 
@@ -4332,7 +4332,7 @@ struct pg_log_entry_t {
      invalid_hash(false), invalid_pool(false) {
     snaps.reassign_to_mempool(mempool::mempool_osd_pglog);
   }
-      
+
   bool is_clone() const { return op == CLONE; }
   bool is_modify() const { return op == MODIFY; }
   bool is_promote() const { return op == PROMOTE; }
@@ -4453,7 +4453,7 @@ struct pg_log_t {
   /*
    *   head - newest entry (update|delete)
    *   tail - entry previous to oldest (update|delete) for which we have
-   *          complete negative information.  
+   *          complete negative information.
    * i.e. we can infer pg contents for any store whose last_update >= tail.
    */
   eversion_t head;    // newest entry
@@ -4689,7 +4689,7 @@ struct pg_missing_item {
       encode(eversion_t(), bl);
       encode(eversion_t(-1, -1), bl);
       encode(need, bl);
-      encode(have, bl);   
+      encode(have, bl);
       encode(static_cast<uint8_t>(flags), bl);
       encode(clean_regions, bl);
     } else {
@@ -4718,7 +4718,7 @@ struct pg_missing_item {
       decode(have, bl);
       uint8_t f;
       decode(f, bl);
-      flags = static_cast<missing_flags_t>(f); 
+      flags = static_cast<missing_flags_t>(f);
       clean_regions.mark_fully_dirty();
     }
   }
@@ -5263,7 +5263,7 @@ WRITE_CLASS_ENCODER(pg_nls_response_t)
 
 // For backwards compatibility with older OSD requests
 struct pg_ls_response_t {
-  collection_list_handle_t handle; 
+  collection_list_handle_t handle;
   std::list<std::pair<object_t, std::string> > entries;
 
   void encode(ceph::buffer::list& bl) const {
@@ -5443,7 +5443,7 @@ class ObjectExtent {
   object_locator_t oloc;   // object locator (pool etc)
 
   std::vector<std::pair<uint64_t,uint64_t> >  buffer_extents;  // off -> len.  extents in buffer being mapped (may be fragmented bc of striping!)
-  
+
   ObjectExtent() : objectno(0), offset(0), length(0), truncate_size(0) {}
   ObjectExtent(object_t o, uint64_t ono, uint64_t off, uint64_t l, uint64_t ts) :
     oid(o), objectno(ono), offset(off), length(l), truncate_size(ts) { }
@@ -5451,7 +5451,7 @@ class ObjectExtent {
 
 inline std::ostream& operator<<(std::ostream& out, const ObjectExtent &ex)
 {
-  return out << "extent(" 
+  return out << "extent("
              << ex.oid << " (" << ex.objectno << ") in " << ex.oloc
              << " " << ex.offset << "~" << ex.length
 	     << " -> " << ex.buffer_extents
@@ -5528,11 +5528,11 @@ struct SnapSet {
 
   /// get space accounted to clone
   uint64_t get_clone_bytes(snapid_t clone) const;
-    
+
   void encode(ceph::buffer::list& bl) const;
   void decode(ceph::buffer::list::const_iterator& bl);
   void dump(ceph::Formatter *f) const;
-  static void generate_test_instances(std::list<SnapSet*>& o);  
+  static void generate_test_instances(std::list<SnapSet*>& o);
 
   SnapContext get_ssc_as_of(snapid_t as_of) const {
     SnapContext out;
@@ -5650,7 +5650,7 @@ public:
 
 struct chunk_info_t {
   typedef enum {
-    FLAG_DIRTY = 1, 
+    FLAG_DIRTY = 1,
     FLAG_MISSING = 2,
     FLAG_HAS_REFERENCE = 4,
     FLAG_HAS_FINGERPRINT = 8,
@@ -5661,7 +5661,7 @@ struct chunk_info_t {
   cflag_t flags;   // FLAG_*
 
   chunk_info_t() : offset(0), length(0), flags((cflag_t)0) { }
-  chunk_info_t(uint32_t offset, uint32_t length, hobject_t oid) : 
+  chunk_info_t(uint32_t offset, uint32_t length, hobject_t oid) :
     offset(offset), length(length), oid(oid), flags((cflag_t)0) { }
 
   static std::string get_flag_string(uint64_t flags) {
@@ -5725,15 +5725,15 @@ struct object_info_t;
 struct object_manifest_t {
   enum {
     TYPE_NONE = 0,
-    TYPE_REDIRECT = 1, 
-    TYPE_CHUNKED = 2, 
+    TYPE_REDIRECT = 1,
+    TYPE_CHUNKED = 2,
   };
   uint8_t type;  // redirect, chunked, ...
   hobject_t redirect_target;
   std::map<uint64_t, chunk_info_t> chunk_map;
 
   object_manifest_t() : type(0) { }
-  object_manifest_t(uint8_t type, const hobject_t& redirect_target) 
+  object_manifest_t(uint8_t type, const hobject_t& redirect_target)
     : type(type), redirect_target(redirect_target) { }
 
   bool is_empty() const {
@@ -5768,7 +5768,7 @@ struct object_manifest_t {
    * Takes a manifest and returns the set of refs to
    * increment upon set-chunk
    *
-   * l should be nullptr if there are no clones, or 
+   * l should be nullptr if there are no clones, or
    * l and g may each be null if the corresponding clone does not exist.
    * *this contains the set of new references to set
    *
@@ -5783,14 +5783,14 @@ struct object_manifest_t {
    * calc_refs_to_drop_on_modify
    *
    * Takes a manifest and returns the set of refs to
-   * drop upon modification 
+   * drop upon modification
    *
-   * l should be nullptr if there are no clones, or 
+   * l should be nullptr if there are no clones, or
    * l may be null if the corresponding clone does not exist.
    *
    */
   void calc_refs_to_drop_on_modify(
-    const object_manifest_t* l, ///< [in] manifest for previous clone 
+    const object_manifest_t* l, ///< [in] manifest for previous clone
     const ObjectCleanRegions& clean_regions, ///< [in] clean regions
     object_ref_delta_t &delta    ///< [out] set of refs to drop
   ) const;
@@ -5891,7 +5891,7 @@ struct object_info_t {
   // opportunistic checksums; may or may not be present
   __u32 data_digest;  ///< data crc32c
   __u32 omap_digest;  ///< omap crc32c
-  
+
   // alloc hint attribute
   uint64_t expected_object_size, expected_write_size;
   uint32_t alloc_hint_flags;

@@ -3719,7 +3719,7 @@ int FileStore::_write(const coll_t& cid, const ghobject_t& oid,
     int rc = backend->_crc_update_write(**fd, offset, len, bl);
     ceph_assert(rc >= 0);
   }
- 
+
   if (replaying || m_disable_wbthrottle) {
     if (fadvise_flags & CEPH_OSD_OP_FLAG_FADVISE_DONTNEED) {
 #ifdef HAVE_POSIX_FADVISE
@@ -3730,7 +3730,7 @@ int FileStore::_write(const coll_t& cid, const ghobject_t& oid,
     wbthrottle.queue_wb(fd, oid, offset, len,
         fadvise_flags & CEPH_OSD_OP_FLAG_FADVISE_DONTNEED);
   }
- 
+
   lfn_close(fd);
 
  out:
@@ -3919,7 +3919,7 @@ int FileStore::_do_sparse_copy_range(int from, int to, uint64_t srcoff, uint64_t
     r = _do_fiemap(from, srcoff, len, &exomap);
   }
 
- 
+
  int64_t written = 0;
  if (r < 0)
     goto out;
@@ -6334,7 +6334,7 @@ uint64_t FileStore::estimate_objects_overhead(uint64_t num_objects)
 
 int FileStore::apply_layout_settings(const coll_t &cid, int target_level)
 {
-  dout(20) << __FUNC__ << ": " << cid << " target level: " 
+  dout(20) << __FUNC__ << ": " << cid << " target level: "
            << target_level << dendl;
   Index index;
   int r = get_index(cid, &index);

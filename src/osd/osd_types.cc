@@ -833,7 +833,7 @@ unsigned pg_t::get_split_bits(unsigned pg_num) const {
 
   // Find unique p such that pg_num \in [2^(p-1), 2^p)
   unsigned p = cbits(pg_num);
-  ceph_assert(p); // silence coverity #751330 
+  ceph_assert(p); // silence coverity #751330
 
   if ((m_seed % (1<<(p-1))) < (pg_num % (1<<(p-1))))
     return p;
@@ -1781,7 +1781,7 @@ SnapContext pg_pool_t::get_snap_context() const
 
 uint32_t pg_pool_t::hash_key(const string& key, const string& ns) const
 {
- if (ns.empty()) 
+ if (ns.empty())
     return ceph_str_hash(object_hash, key.data(), key.length());
   int nsl = ns.length();
   int len = key.length() + nsl + 1;
@@ -1805,7 +1805,7 @@ pg_t pg_pool_t::raw_pg_to_pg(pg_t pg) const
   pg.set_ps(ceph_stable_mod(pg.ps(), pg_num, pg_num_mask));
   return pg;
 }
-  
+
 /*
  * map raw pg (full precision ps) into a placement seed.  include
  * pool id in that value so that different pools don't use the same
@@ -4195,7 +4195,7 @@ bool PastIntervals::check_new_interval(
    *
    *  1: A B
    *  2:   B
-   *  3:       let's say B dies for good, too (say, from the power spike) 
+   *  3:       let's say B dies for good, too (say, from the power spike)
    *  4: A
    *
    * which makes it look like B may have applied updates to the PG
@@ -4219,7 +4219,7 @@ bool PastIntervals::check_new_interval(
    *  2:   B   up_thru[B]=0
    *  3:   B   up_thru[B]=2
    *  4:
-   *  5: A    
+   *  5: A
    *
    * -> we must wait for B, bc it was alive through 2, and could have
    *    written to the pg.
@@ -5155,7 +5155,7 @@ void pg_log_t::encode(ceph::buffer::list& bl) const
   encode(dups, bl);
   ENCODE_FINISH(bl);
 }
- 
+
 void pg_log_t::decode(ceph::buffer::list::const_iterator &bl, int64_t pool)
 {
   DECODE_START_LEGACY_COMPAT_LEN(7, 3, 3, bl);
@@ -6009,7 +6009,7 @@ bool chunk_info_t::operator==(const chunk_info_t& cit) const
 }
 
 bool operator==(const std::pair<const long unsigned int, chunk_info_t> & l,
-		const std::pair<const long unsigned int, chunk_info_t> & r) 
+		const std::pair<const long unsigned int, chunk_info_t> & r)
 {
   return l.first == r.first &&
 	 l.second == r.second;
@@ -6048,8 +6048,8 @@ void object_manifest_t::calc_refs_to_inc_on_set(
     return false;
   };
 
-  /* If at least a same chunk exists on either _g or _l, do not increment 
-   * the reference 
+  /* If at least a same chunk exists on either _g or _l, do not increment
+   * the reference
    *
    * head: [0, 2) ccc, [6, 2) bbb, [8, 2) ccc
    * 20:   [0, 2) aaa, <- set_chunk
@@ -6087,14 +6087,14 @@ void object_manifest_t::calc_refs_to_drop_on_modify(
     if (!clean_regions.is_clean_region(p.first, p.second.length)) {
       // has previous snapshot
       if (_l) {
-	/* 
+	/*
 	* Let's assume that there is a manifest snapshotted object which has three chunks
 	* head: [0, 2) aaa, [6, 2) bbb, [8, 2) ccc
 	* 20:   [0, 2) aaa, [6, 2) bbb, [8, 2) ccc
 	*
 	* If we modify [6, 2) at head, we shouldn't decrement bbb's refcount because
-	* 20 has the reference for bbb. Therefore, we only drop the reference if two chunks 
-	* (head: [6, 2) and 20: [6, 2)) are different. 
+	* 20 has the reference for bbb. Therefore, we only drop the reference if two chunks
+	* (head: [6, 2) and 20: [6, 2)) are different.
 	*
 	*/
 	auto c = _l->chunk_map.find(p.first);
@@ -6105,7 +6105,7 @@ void object_manifest_t::calc_refs_to_drop_on_modify(
 	}
 	refs.dec_ref(p.second.oid);
       } else {
-	// decrement the reference of the updated chunks if the manifest object has no snapshot 
+	// decrement the reference of the updated chunks if the manifest object has no snapshot
 	refs.dec_ref(p.second.oid);
       }
     }
@@ -6197,7 +6197,7 @@ void object_manifest_t::encode(ceph::buffer::list& bl) const
   encode(type, bl);
   switch (type) {
     case TYPE_NONE: break;
-    case TYPE_REDIRECT: 
+    case TYPE_REDIRECT:
       encode(redirect_target, bl);
       break;
     case TYPE_CHUNKED:
@@ -6215,7 +6215,7 @@ void object_manifest_t::decode(ceph::buffer::list::const_iterator& bl)
   decode(type, bl);
   switch (type) {
     case TYPE_NONE: break;
-    case TYPE_REDIRECT: 
+    case TYPE_REDIRECT:
       decode(redirect_target, bl);
       break;
     case TYPE_CHUNKED:
@@ -6458,7 +6458,7 @@ void object_info_t::dump(Formatter *f) const
 void object_info_t::generate_test_instances(list<object_info_t*>& o)
 {
   o.push_back(new object_info_t());
-  
+
   // fixme
 }
 
@@ -6872,7 +6872,7 @@ void ScrubMap::merge_incr(const ScrubMap &l)
       objects[p->first] = p->second;
     }
   }
-}          
+}
 
 void ScrubMap::encode(ceph::buffer::list& bl) const
 {

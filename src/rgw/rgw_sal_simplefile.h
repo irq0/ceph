@@ -97,6 +97,7 @@ class SimpleFileBucket : public Bucket {
 
  public:
   SimpleFileBucket(const coll_t& _collection, const SimpleFileStore& _store);
+  SimpleFileBucket(const coll_t& _collection, const SimpleFileStore& _store, const RGWBucketInfo& _bucket, User* _user);
   SimpleFileBucket& operator=(const SimpleFileBucket&) = delete;
 
   const coll_t& get_collection() const { return collection; }
