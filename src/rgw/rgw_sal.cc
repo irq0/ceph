@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <sstream>
 
+#include "os/ObjectStore.h"
 #include "common/errno.h"
 
 #include "rgw_sal.h"
@@ -140,9 +141,46 @@ rgw::sal::Store* StoreManager::init_storage_provider(const DoutPrefixProvider* d
     return store;
   }
   else if (svc.compare("simplefile") == 0) {
-    const auto& data_path = g_conf().get_val<std::string>("rgw_simplefile_data_path");
+    const std::filesystem::path data_root_path(g_conf().get_val<std::string>("rgw_simplefile_data_path"));
+    const auto data_path = data_root_path / "data";
+    const auto journal_path = data_root_path / "journal";
+
+    std::filesystem::create_directories(data_path);
     ldpp_dout(dpp, 0) << "simplefile store init!" << dendl;
-    rgw::sal::SimpleFileStore *store = new rgw::sal::SimpleFileStore(cct, data_path);
+
+    std::unique_ptr<ObjectStore> object_store = ObjectStore::create(cct,
+							     "filestore",
+							     data_path.string(),
+							     journal_path.string(),
+							     0);
+    if (!object_store) {
+      ldpp_dout(dpp, 0) << "ERROR: failed to create object store" << dendl;
+      return nullptr;
+    }
+    int ret = object_store->mkfs();
+    if (ret) {
+      ldpp_dout(dpp, 0) << "mkfs failed with error "
+		<< cpp_strerror(ret) << dendl;
+      return nullptr;
+    }
+
+    int err = object_store->mkjournal();
+    if (err < 0) {
+      ldpp_dout(dpp, 0) << " ** ERROR: error creating fresh journal "
+		<< journal_path << " for object store " << data_path << ": "
+		<< cpp_strerror(-err) << dendl;
+      return nullptr;
+    }
+
+    object_store->mount();
+
+    object_store->write_meta("magic", "RGW");
+    object_store->write_meta("whoami", "RGW SAL");
+
+    ldpp_dout(dpp, 0) << "SimpleFileStore: journal " << journal_path
+	 << " for object store " << data_path << dendl;
+
+    rgw::sal::SimpleFileStore *store = new rgw::sal::SimpleFileStore(cct, std::move(object_store));
     return store;
   }
 

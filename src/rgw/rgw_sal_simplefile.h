@@ -16,6 +16,7 @@
  */
 #include <filesystem>
 
+#include "os/ObjectStore.h"
 #include "rgw_multi.h"
 #include "rgw_notify.h"
 #include "rgw_oidc_provider.h"
@@ -93,16 +94,29 @@ class SimpleFileUser : public User {
 class SimpleFileBucket : public Bucket {
  private:
   const SimpleFileStore &store;
-  const std::filesystem::path path;
+  const coll_t collection;
   RGWAccessControlPolicy acls;
+  const ghobject_t metadata_ghobject;
 
  protected:
   SimpleFileBucket(const SimpleFileBucket &) = default;
 
  public:
-  SimpleFileBucket(const std::filesystem::path &_path,
-                   const SimpleFileStore &_store);
+  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store);
+  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store,
+                   const RGWBucketInfo &_bucket, User *_user);
+  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store,
+                   const rgw_bucket &_bucket, User *_user);
   SimpleFileBucket &operator=(const SimpleFileBucket &) = delete;
+
+  const coll_t &get_os_collection() const {
+    return collection;
+  }
+  const ghobject_t &get_os_metadata_ghobject() const {
+    return metadata_ghobject;
+  }
+
+  ::ObjectStore::CollectionHandle open_os_collection() const;
 
   virtual std::unique_ptr<Bucket> clone() override {
     return std::unique_ptr<Bucket>(new SimpleFileBucket{*this});
@@ -214,10 +228,11 @@ class SimpleFileObject : public Object {
   struct SimpleFileReadOp : public ReadOp {
    private:
     SimpleFileObject *source;
-    RGWObjectCtx *rctx;
+    ::ObjectStore::CollectionHandle ch;
+    const ghobject_t oid;
 
    public:
-    SimpleFileReadOp(SimpleFileObject *_source, RGWObjectCtx *_rctx);
+    SimpleFileReadOp(SimpleFileObject *_source);
 
     virtual int prepare(optional_yield y,
                         const DoutPrefixProvider *dpp) override;
@@ -231,6 +246,9 @@ class SimpleFileObject : public Object {
   struct SimpleFileDeleteOp : public DeleteOp {
    private:
     SimpleFileObject *source;
+    const coll_t cid;
+    const ghobject_t oid;
+    ::ObjectStore::Transaction os_transaction;
 
    public:
     SimpleFileDeleteOp(SimpleFileObject *_source);
@@ -243,9 +261,14 @@ class SimpleFileObject : public Object {
       : Object(_k), store(_st) {
   }
   SimpleFileObject(const SimpleFileStore &_st, const rgw_obj_key &_k,
-                   Bucket *_b)
+                   SimpleFileBucket *_b)
       : Object(_k, _b), store(_st) {
+    ceph_assert(_b != nullptr);
   }
+
+  const coll_t &get_os_collection() const;
+  ghobject_t get_os_oid();
+  ::ObjectStore::CollectionHandle open_os_collection() const;
 
   virtual std::unique_ptr<Object> clone() override {
     return std::unique_ptr<Object>(new SimpleFileObject{*this});
@@ -315,7 +338,7 @@ class SimpleFileObject : public Object {
   virtual int swift_versioning_copy(const DoutPrefixProvider *dpp,
                                     optional_yield y) override;
   virtual std::unique_ptr<ReadOp> get_read_op() override {
-    return std::make_unique<SimpleFileObject::SimpleFileReadOp>(this, nullptr);
+    return std::make_unique<SimpleFileObject::SimpleFileReadOp>(this);
   }
   virtual std::unique_ptr<DeleteOp> get_delete_op() override {
     return std::make_unique<SimpleFileObject::SimpleFileDeleteOp>(this);
@@ -334,11 +357,8 @@ class SimpleFileObject : public Object {
   virtual int omap_set_val_by_key(const DoutPrefixProvider *dpp,
                                   const std::string &key, bufferlist &val,
                                   bool must_exist, optional_yield y) override;
-  // will be removed in the future..
   virtual int get_obj_state(const DoutPrefixProvider *dpp, RGWObjState **state,
-                            optional_yield y, bool follow_olh = true) override {
-    return 0;
-  }
+                            optional_yield y, bool follow_olh = true) override;
   virtual int set_obj_attrs(const DoutPrefixProvider *dpp, Attrs *setattrs,
                             Attrs *delattrs, optional_yield y) override {
     return 0;
@@ -365,6 +385,51 @@ class UnsupportedLuaScriptManager : public LuaScriptManager {
                   const std::string &key) override {
     return -ENOENT;
   }
+};
+
+class SimpleFileNotification : public Notification {
+ public:
+  SimpleFileNotification(Object *_obj, Object *_src_obj,
+                         rgw::notify::EventType _type)
+      : Notification(_obj, _src_obj, _type) {
+  }
+  ~SimpleFileNotification() = default;
+
+  virtual int publish_reserve(const DoutPrefixProvider *dpp,
+                              RGWObjTags *obj_tags = nullptr) override {
+    return 0;
+  }
+  virtual int publish_commit(const DoutPrefixProvider *dpp, uint64_t size,
+                             const ceph::real_time &mtime,
+                             const std::string &etag,
+                             const std::string &version) override {
+    return 0;
+  }
+};
+
+class SimpleFileAtomicWriter : public Writer {
+ protected:
+  const SimpleFileStore &store;
+  const coll_t cid;
+  const ghobject_t oid;
+  std::unique_ptr<SimpleFileObject> head_obj;
+  ::ObjectStore::Transaction os_transaction;
+
+ public:
+  SimpleFileAtomicWriter(const DoutPrefixProvider *dpp, optional_yield y,
+                         std::unique_ptr<SimpleFileObject> _head_obj,
+                         const SimpleFileStore &_store);
+  ~SimpleFileAtomicWriter() = default;
+
+  virtual int prepare(optional_yield y) override;
+  virtual int process(bufferlist &&data, uint64_t offset) override;
+  virtual int complete(size_t accounted_size, const std::string &etag,
+                       ceph::real_time *mtime, ceph::real_time set_mtime,
+                       std::map<std::string, bufferlist> &attrs,
+                       ceph::real_time delete_at, const char *if_match,
+                       const char *if_nomatch, const std::string *user_data,
+                       rgw_zone_set *zones_trace, bool *canceled,
+                       optional_yield y) override;
 };
 
 class SimpleFileZoneGroup : public ZoneGroup {
@@ -457,12 +522,12 @@ class SimpleFileStore : public Store {
   RGWUserInfo dummy_user;
   RGWSyncModuleInstanceRef sync_module;
   SimpleFileZone zone;
-  const std::filesystem::path data_path;
   std::string luarocks_path = "";
   CephContext *const cctx;
+  std::unique_ptr<::ObjectStore> object_store;
 
  public:
-  SimpleFileStore(CephContext *c, const std::filesystem::path &data_path);
+  SimpleFileStore(CephContext *c, std::unique_ptr<::ObjectStore> object_store);
   SimpleFileStore(const SimpleFileStore &) = delete;
   SimpleFileStore &operator=(const SimpleFileStore &) = delete;
   ~SimpleFileStore() {
@@ -471,6 +536,12 @@ class SimpleFileStore : public Store {
   virtual int initialize(CephContext *cct,
                          const DoutPrefixProvider *dpp) override;
   virtual void finalize(void) override;
+
+  ::ObjectStore *get_object_store() const {
+    return object_store.get();
+  }
+
+  int transact(const rgw_bucket &bucket, ::ObjectStore::Transaction &&t) const;
 
   virtual const std::string get_name() const override {
     return "simplefile";
@@ -482,9 +553,9 @@ class SimpleFileStore : public Store {
   virtual bool is_meta_master() override {
     return true;
   }
-  virtual std::unique_ptr<Object> get_object(const rgw_obj_key &k) {
-    return std::make_unique<SimpleFileObject>(*this, k);
-  }
+
+  virtual std::unique_ptr<Object> get_object(const rgw_obj_key &k) override;
+
   virtual RGWCoroutinesManagerRegistry *get_cr_registry() override {
     return nullptr;
   }

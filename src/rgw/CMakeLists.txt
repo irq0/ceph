@@ -200,6 +200,7 @@ endif()
 target_link_libraries(rgw_common
   PRIVATE
     ceph-common
+    os
     cls_2pc_queue_client
     cls_cmpomap_client
     cls_lock_client
