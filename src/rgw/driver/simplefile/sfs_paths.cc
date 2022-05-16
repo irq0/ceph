@@ -79,20 +79,4 @@ std::filesystem::path SimpleFileStore::object_metadata_path(
   return object_path(bucket, obj) / metadata_fn;
 }
 
-// bucket_path returns the path containing bucket metadata and objects
-std::filesystem::path SimpleFileBucket::bucket_path() const {
-  return path;
-}
-
-// bucket_metadata_path returns the path to the metadata file metadata_fn
-std::filesystem::path SimpleFileBucket::bucket_metadata_path(
-    const std::string &metadata_fn) const {
-  return path / metadata_fn;
-}
-// objects_path returns the path to the buckets objects. Each
-// subdirectory points to an object
-std::filesystem::path SimpleFileBucket::objects_path() const {
-  return path / "objects";
-}
-
 } // ns rgw::sal
