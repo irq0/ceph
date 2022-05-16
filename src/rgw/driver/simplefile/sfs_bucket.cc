@@ -59,8 +59,21 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
                                 std::unique_ptr<Bucket> *bucket,
                                 optional_yield y) {
   // TODO implement get_bucket by name
-  ldpp_dout(dpp, 10) << __func__ << ": TODO get_bucket by name" << dendl;
-  return -ENOTSUP;
+  ldpp_dout(dpp, 10) << __func__ << ": get_bucket by name: " << name << dendl;
+  const auto path = buckets_path() / name;
+  if (!std::filesystem::exists(path)) {
+    ldpp_dout(dpp, 10) << __func__ << ": bucket " << name
+                       << " does not exist" << dendl;
+    return -ENOENT;
+  }
+  auto b = make_unique<SimpleFileBucket>(path, *this);
+  const int ret = b->load_bucket(dpp, y);
+  if (ret < 0) {
+    return ret;
+  }
+  ldpp_dout(dpp, 10) << __func__ << ": bucket: " << b->get_name() << dendl;
+  bucket->reset(b.release());
+  return 0;
 }
 
 } // ns rgw::sal

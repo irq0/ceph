@@ -94,11 +94,15 @@ int SimpleFileUser::remove_user(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
-static void populate_buckets_from_path(const SimpleFileStore& store,
-                                       const DoutPrefixProvider* dpp,
-                                       std::filesystem::path path,
-                                       BucketList& buckets) {
-  for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
+static void populate_buckets_from_path(
+  const SimpleFileStore& store,
+  const DoutPrefixProvider *dpp,
+  std::filesystem::path path,
+  BucketList& buckets
+) {
+  ldpp_dout(dpp, 10) << __func__ << ": from path " << path << dendl;
+  for (auto const &dir_entry : std::filesystem::directory_iterator{path}) {
+    ldpp_dout(dpp, 10) << __func__ << ": bucket: " << dir_entry.path() << dendl;
     auto bucket =
         std::unique_ptr<Bucket>(new SimpleFileBucket{dir_entry.path(), store});
     bucket->load_bucket(dpp, null_yield);
@@ -113,22 +117,56 @@ int SimpleFileUser::list_buckets(const DoutPrefixProvider* dpp,
                                  optional_yield y) {
   // TODO this should list buckets assigned to a user. for now we just get every
   // bucket
+  ldpp_dout(dpp, 10) << __func__
+                     << ": marker (" << marker << ", " << end_marker
+                     << "), max=" << max << dendl;
   populate_buckets_from_path(store, dpp, store.buckets_path(), buckets);
-  ldpp_dout(dpp, 10) << __func__ << ": TODO " << marker << ", " << end_marker
-                     << ", "
-                     << "max=" << max << ", "
-                     << "buckets=" << buckets.get_buckets() << dendl;
+  ldpp_dout(dpp, 10) << __func__ << ": buckets=" << buckets.get_buckets()
+                     << dendl;
   return 0;
 }
 
 int SimpleFileUser::create_bucket(
-    const DoutPrefixProvider *dpp, const rgw_bucket &b,
-    const std::string &zonegroup_id, rgw_placement_rule &placement_rule,
-    std::string &swift_ver_location, const RGWQuotaInfo *pquota_info,
-    const RGWAccessControlPolicy &policy, Attrs &attrs, RGWBucketInfo &info,
-    obj_version &ep_objv, bool exclusive, bool obj_lock_enabled, bool *existed,
-    req_info &req_info, std::unique_ptr<Bucket> *bucket, optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+    const DoutPrefixProvider *dpp,
+    const rgw_bucket &b,
+    const std::string &zonegroup_id,
+    rgw_placement_rule &placement_rule,
+    std::string &swift_ver_location,
+    const RGWQuotaInfo *pquota_info,
+    const RGWAccessControlPolicy &policy,
+    Attrs &attrs,
+    RGWBucketInfo &info,
+    obj_version &ep_objv,
+    bool exclusive,
+    bool obj_lock_enabled,
+    bool *existed,
+    req_info &req_info,
+    std::unique_ptr<Bucket> *bucket,
+    optional_yield y
+) {
+  ceph_assert(bucket != nullptr);
+
+  auto f = new JSONFormatter(true);
+  info.dump(f);
+  ldpp_dout(dpp, 10) << __func__ << ": bucket: " << b
+                     << ", attrs: " << attrs << ", info: ";
+  f->flush(*_dout);
+  *_dout << dendl;
+
+  const auto path = store.bucket_path(b);
+  if (std::filesystem::exists(path)) {
+    return -EEXIST;
+  }
+
+  if (!std::filesystem::create_directory(path)) {
+    ldpp_dout(dpp, 0) << __func__
+                      << ": error creating bucket '" << b
+                      << "' at '" << path << "'" << dendl;
+    return -EINVAL;
+  }
+  auto new_bucket = new SimpleFileBucket{path, store};
+  new_bucket->init(dpp, b);
+  bucket->reset(new_bucket);
   return 0;
 }
 
