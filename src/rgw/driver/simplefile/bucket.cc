@@ -35,7 +35,10 @@ void SimpleFileBucket::init(
   ldpp_dout(dpp, 10) << __func__ << ": init bucket: "
                      << get_name() << "[" << path << "]" << dendl;
   auto meta_path = bucket_metadata_path();
+  auto obj_path = objects_path();
   ceph_assert(!std::filesystem::exists(meta_path));
+  ceph_assert(!std::filesystem::exists(obj_path));
+  std::filesystem::create_directory(obj_path);
 
   info.bucket = b;
   info.creation_time = ceph::real_clock::now();
