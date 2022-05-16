@@ -329,9 +329,35 @@ void SimpleFileStore::finalize(void) {
   return;
 }
 
-SimpleFileStore::SimpleFileStore(CephContext *c,
-                                 const std::filesystem::path &data_path)
-    : dummy_user(), sync_module(), zone(this), data_path(data_path), cctx(c) {
+void SimpleFileStore::maybe_init_store() {
+
+  auto meta = meta_path();
+  if (std::filesystem::exists(meta)) {
+    // store must have been inited, so let's just return.
+    return;
+  }
+  ldout(ctx(), 10) << __func__ << ": creating store layout." << dendl;
+  // init store.
+  try {
+    std::filesystem::create_directories(meta);
+    std::filesystem::create_directories(buckets_path());
+    std::filesystem::create_directories(users_path());
+  } catch (std::filesystem::filesystem_error &e) {
+    lderr(ctx()) << __func__ << ": creating store layout: "
+                 << e.what() << dendl;
+    throw e;
+  }
+
+}
+
+
+SimpleFileStore::SimpleFileStore(
+  CephContext *c,
+  const std::filesystem::path &data_path
+) : dummy_user(), sync_module(), zone(this), data_path(data_path), cctx(c) {
+
+  maybe_init_store();
+
   dummy_user.user_email = "simplefile@example.com";
   dummy_user.display_name = "Test User";
   dummy_user.max_buckets = 42;

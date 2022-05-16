@@ -19,6 +19,12 @@ using namespace std;
 
 namespace rgw::sal {
 
+/**
+ * Returns path to meta directory.
+ */
+std::filesystem::path SimpleFileStore::meta_path() const {
+  return data_path / "meta";
+}
 
 // buckets_path returns the directory where every subdirectory contains a bucket
 std::filesystem::path SimpleFileStore::buckets_path() const {
