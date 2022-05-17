@@ -17,5 +17,6 @@
 
 extern bool get_env_bool(const char *key);
 extern int get_env_int(const char *key);
+extern const char* get_env_char(const char *key, const char *def=nullptr);
 
 #endif

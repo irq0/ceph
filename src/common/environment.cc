@@ -41,3 +41,9 @@ int get_env_int(const char *key)
   int v = atoi(val);
   return v;
 }
+
+const char* get_env_char(const char *key, const char *def)
+{
+  const char *val = getenv(key);
+  return val ? val : def;
+}
