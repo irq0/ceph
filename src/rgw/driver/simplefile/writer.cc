@@ -14,6 +14,7 @@
 #include <memory>
 #include "rgw_sal.h"
 #include "rgw_sal_simplefile.h"
+#include "driver/simplefile/bucket.h"
 #include "driver/simplefile/writer.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -31,19 +32,45 @@ SimpleFileAtomicWriter::SimpleFileAtomicWriter(
   const rgw_placement_rule *_ptail_placement_rule,
   uint64_t _olh_epoch,
   const std::string &_unique_tag
-) :
-  StoreWriter(_dpp, _y) { }
+) : StoreWriter(_dpp, _y), store(_store),
+    obj(_store, _head_obj->get_key(), _head_obj->get_bucket()),
+    owner(_owner),
+    placement_rule(_ptail_placement_rule), olh_epoch(_olh_epoch),
+    unique_tag(_unique_tag), bytes_written(0) {
+
+  lsfs_dout(dpp, 10) << "head_obj: " << _head_obj->get_key()
+                     << ", bucket: " << _head_obj->get_bucket()->get_name()
+                     << dendl;
+}
 
 int SimpleFileAtomicWriter::prepare(optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": unimplemented, return success." << dendl;
+  lsfs_dout(dpp, 10) << ": unimplemented, return success." << dendl;
+  // TODO: create meta file for this new object
   return 0;
 }
 
 int SimpleFileAtomicWriter::process(bufferlist &&data, uint64_t offset) {
-  ldpp_dout(dpp, 10) << "atomic_writer::" << __func__ << ": data len: "
-                     << data.length() << ", offset: " << offset << dendl;
-  ldpp_dout(dpp, 10) << "atomic_writer::" << __func__
-                     << ": unimplemented, return success." << dendl;
+  lsfs_dout(dpp, 10) << "data len: " << data.length()
+                     << ", offset: " << offset << dendl;
+
+  SimpleFileBucket *b = static_cast<SimpleFileBucket*>(obj.get_bucket());
+  std::filesystem::path object_path = b->objects_path() / obj.get_name();
+
+  lsfs_dout(dpp, 10) << "write to object at " << object_path << dendl;
+
+  auto mode = std::ofstream::binary|std::ofstream::out|std::ofstream::app;
+  std::ofstream ofs(object_path, mode);
+  ofs.seekp(offset);
+  data.write_stream(ofs);
+  ofs.flush();
+  ofs.close();
+  bytes_written += data.length();
+
+  if (data.length() == 0) {
+    lsfs_dout(dpp, 10) << "final piece, wrote " << bytes_written << " bytes"
+                       << dendl;
+  }
+  
   return 0;
 }
 
@@ -61,7 +88,16 @@ int SimpleFileAtomicWriter::complete(
   bool *canceled,
   optional_yield y
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": unimplemented, return success." << dendl;
+  lsfs_dout(dpp, 10) << "accounted_size: " << accounted_size
+                     << ", etag: " << etag
+                     << ", mtime: " << to_iso_8601(*mtime)
+                     << ", set_mtime: " << to_iso_8601(set_mtime)
+                     << ", attrs: " << attrs
+                     << ", delete_at: " << to_iso_8601(delete_at)
+                     << ", if_match: " << if_match
+                     << ", if_nomatch: " << if_nomatch
+                     << dendl;
+  lsfs_dout(dpp, 10) << "unimplemented, return success." << dendl;
   return 0;
 }
 
