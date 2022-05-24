@@ -31,6 +31,8 @@
 #include "services/svc_zone_utils.h"
 
 #include "driver/simplefile/notification.h"
+#include "driver/simplefile/writer.h"
+
 #define dout_subsys ceph_subsys_rgw
 
 using namespace std;
@@ -91,12 +93,20 @@ std::unique_ptr<Writer> SimpleFileStore::get_append_writer(
 }
 /** Get a Writer that atomically writes an entire object */
 std::unique_ptr<Writer> SimpleFileStore::get_atomic_writer(
-    const DoutPrefixProvider *dpp, optional_yield y,
-    rgw::sal::Object* _head_obj, const rgw_user &owner,
-    const rgw_placement_rule *ptail_placement_rule, uint64_t olh_epoch,
-    const std::string &unique_tag) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return nullptr;
+    const DoutPrefixProvider *dpp,
+    optional_yield y,
+    rgw::sal::Object* _head_obj,
+    const rgw_user &owner,
+    const rgw_placement_rule *ptail_placement_rule,
+    uint64_t olh_epoch,
+    const std::string &unique_tag
+) {
+  ldpp_dout(dpp, 10) << __func__ << ": return basic atomic writer" << dendl;
+  return std::make_unique<SimpleFileAtomicWriter>(
+      dpp, y, _head_obj, this,
+      owner, ptail_placement_rule,
+      olh_epoch, unique_tag
+  );
 }
 
 // }}}
