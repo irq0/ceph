@@ -43,7 +43,7 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
                        << " path does not exist: " << path << dendl;
     return -ENOENT;
   }
-  auto bucket = make_unique<SimpleFileBucket>(path, *this);
+  auto bucket = make_unique<SimpleFileBucket>(path, this);
   const int ret = bucket->load_bucket(dpp, y);
   if (ret < 0) {
     return ret;
@@ -66,7 +66,7 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
                        << " does not exist" << dendl;
     return -ENOENT;
   }
-  auto b = make_unique<SimpleFileBucket>(path, *this);
+  auto b = make_unique<SimpleFileBucket>(path, this);
   const int ret = b->load_bucket(dpp, y);
   if (ret < 0) {
     return ret;

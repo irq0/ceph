@@ -25,9 +25,11 @@ SimpleFileObject::SimpleFileReadOp::SimpleFileReadOp(SimpleFileObject *_source,
     : source(_source), rctx(_rctx) {}
 
 int SimpleFileObject::SimpleFileReadOp::prepare(optional_yield y,
-                                                const DoutPrefixProvider* dpp) {
-  const std::filesystem::path data_path = source->store.object_data_path(
-      source->bucket->get_key(), source->get_key());
+                                                const DoutPrefixProvider *dpp) {
+  const std::filesystem::path data_path =
+    source->store->object_data_path(
+      source->bucket->get_key(), source->get_key()
+    );
 
   ldpp_dout(dpp, 10) << __func__
                      << ": TODO bucket_key=" << source->bucket->get_key().name
@@ -66,8 +68,10 @@ int SimpleFileObject::SimpleFileReadOp::read(int64_t ofs, int64_t end,
   ldpp_dout(dpp, 10) << __func__ << ": TODO offset=" << ofs << " end=" << end
                      << " len=" << len << dendl;
 
-  const std::filesystem::path object_data_path = source->store.object_data_path(
-      source->bucket->get_key(), source->get_key());
+  const std::filesystem::path object_data_path =
+    source->store->object_data_path(
+      source->bucket->get_key(), source->get_key()
+    );
 
   std::string error;
   int ret = bl.pread_file(object_data_path.c_str(), ofs, len, &error);
@@ -89,8 +93,10 @@ int SimpleFileObject::SimpleFileReadOp::iterate(const DoutPrefixProvider* dpp,
 
   ldpp_dout(dpp, 10) << __func__ << ": TODO offset=" << ofs << " end=" << end
                      << " len=" << len << dendl;
-  const std::filesystem::path object_data_path = source->store.object_data_path(
-      source->bucket->get_key(), source->get_key());
+  const std::filesystem::path object_data_path =
+    source->store->object_data_path(
+      source->bucket->get_key(), source->get_key()
+    );
   // TODO chunk the read
   bufferlist bl;
   std::string error;
@@ -139,8 +145,7 @@ int SimpleFileObject::copy_object(
 
 /** TODO Create a randomized instance ID for this object */
 void SimpleFileObject::gen_rand_obj_instance_name() {
-  store.ceph_context();
-  ldout(store.ceph_context(), 10) << __func__ << ": TODO" << dendl;
+  ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
   return;
 }
 
@@ -195,25 +200,26 @@ int SimpleFileObject::transition_to_cloud(
 
 bool SimpleFileObject::placement_rules_match(rgw_placement_rule &r1,
                                              rgw_placement_rule &r2) {
-  ldout(store.ceph_context(), 10) << __func__ << ": TODO" << dendl;
+  ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
   return true;
 }
 
 int SimpleFileObject::dump_obj_layout(const DoutPrefixProvider *dpp,
                                       optional_yield y, Formatter *f) {
-  ldout(store.ceph_context(), 10) << __func__ << ": TODO" << dendl;
+  ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
 int SimpleFileObject::swift_versioning_restore(bool &restored, /* out */
                                                const DoutPrefixProvider *dpp) {
-  ldout(store.ceph_context(), 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  ldpp_dout(dpp, 10) << __func__ << ": do nothing." << dendl;
+  return 0;
 }
 
 int SimpleFileObject::swift_versioning_copy(const DoutPrefixProvider *dpp,
                                             optional_yield y) {
-  return -ENOTSUP;
+  ldpp_dout(dpp, 10) << __func__ << ": do nothing." << dendl;
+  return 0;
 }
 
 int SimpleFileObject::omap_get_vals_by_keys(const DoutPrefixProvider *dpp,

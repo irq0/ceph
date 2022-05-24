@@ -27,14 +27,17 @@ namespace rgw::sal {
 class SimpleFileStore;
 class SimpleFileBucket : public StoreBucket {
  private:
-  const SimpleFileStore& store;
+  SimpleFileStore *store;
   const std::filesystem::path path;
   RGWAccessControlPolicy acls;
  protected:
   SimpleFileBucket(const SimpleFileBucket&) = default;
 
  public:
-  SimpleFileBucket(const std::filesystem::path& _path, const SimpleFileStore& _store);
+  SimpleFileBucket(
+    const std::filesystem::path& _path,
+    SimpleFileStore *_store
+  );
   SimpleFileBucket& operator=(const SimpleFileBucket&) = delete;
 
   void init(
@@ -147,6 +150,7 @@ class SimpleFileBucket : public StoreBucket {
   virtual int purge_instance(const DoutPrefixProvider *dpp) override {
     return -ENOTSUP;
   }
+  inline std::string get_cls_name() { return "bucket"; }
 };
 
 } // ns rgw::sal

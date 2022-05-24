@@ -20,14 +20,14 @@ using namespace std;
 namespace rgw::sal {
 
 std::unique_ptr<User> SimpleFileStore::get_user(const rgw_user &u) {
-  return std::make_unique<SimpleFileUser>(u, *this);
+  return std::make_unique<SimpleFileUser>(u, this);
 }
 int SimpleFileStore::get_user_by_access_key(const DoutPrefixProvider *dpp,
                                             const std::string &key,
                                             optional_yield y,
                                             std::unique_ptr<User> *user) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO (returning dummy user)" << dendl;
-  user->reset(new SimpleFileUser(dummy_user, *this));
+  user->reset(new SimpleFileUser(dummy_user, this));
   return 0;
 }
 
@@ -36,7 +36,7 @@ int SimpleFileStore::get_user_by_email(const DoutPrefixProvider *dpp,
                                        optional_yield y,
                                        std::unique_ptr<User> *user) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  user->reset(new SimpleFileUser(dummy_user, *this));
+  user->reset(new SimpleFileUser(dummy_user, this));
   return 0;
 }
 
