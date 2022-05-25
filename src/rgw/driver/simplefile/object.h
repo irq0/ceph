@@ -26,8 +26,43 @@ class SimpleFileObject : public StoreObject {
   RGWAccessControlPolicy acls;
  protected:
   SimpleFileObject(SimpleFileObject&) = default;
+  void init() {
+    load_meta();
+  }
 
  public:
+
+  struct Meta {
+    size_t size;
+    std::string etag;
+    ceph::real_time mtime;
+    ceph::real_time set_mtime;
+    ceph::real_time delete_at;
+    std::map<std::string, bufferlist> attrs;
+
+    Meta() { }
+    ~Meta() = default;
+
+    void dump(Formatter *f) const {
+      encode_json("size", size, f);
+      encode_json("etag", etag, f);
+      encode_json("mtime", mtime, f);
+      encode_json("set_mtime", set_mtime, f);
+      encode_json("delete_at", delete_at, f);
+      encode_json("attrs", attrs, f);
+    }
+
+    void decode_json(JSONObj *obj) {
+      JSONDecoder::decode_json("size", size, obj);
+      JSONDecoder::decode_json("etag", etag, obj);
+      JSONDecoder::decode_json("mtime", mtime, obj);
+      JSONDecoder::decode_json("set_mtime", set_mtime, obj);
+      JSONDecoder::decode_json("delete_at", delete_at, obj);
+      JSONDecoder::decode_json("attrs", attrs, obj);
+    }
+  };
+  SimpleFileObject::Meta meta;
+
   struct SimpleFileReadOp : public ReadOp {
    private:
     SimpleFileObject *source;
@@ -59,7 +94,10 @@ class SimpleFileObject : public StoreObject {
   SimpleFileObject(SimpleFileStore *_st, const rgw_obj_key &_k)
       : StoreObject(_k), store(_st) {}
   SimpleFileObject(SimpleFileStore *_st, const rgw_obj_key &_k, Bucket *_b)
-      : StoreObject(_k, _b), store(_st) {}
+      : StoreObject(_k, _b), store(_st) {
+
+    init();
+  }
 
   virtual std::unique_ptr<Object> clone() override {
     return std::unique_ptr<Object>(new SimpleFileObject{*this});
@@ -150,6 +188,9 @@ class SimpleFileObject : public StoreObject {
                             Attrs *delattrs, optional_yield y) override {
     return 0;
   }
+
+  void write_meta();
+  void load_meta();
 };
 
 } // ns rgw::sal

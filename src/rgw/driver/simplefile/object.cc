@@ -245,4 +245,44 @@ int SimpleFileObject::chown(rgw::sal::User &new_user,
   return -ENOTSUP;
 }
 
+void SimpleFileObject::write_meta() {
+  auto b = static_cast<SimpleFileBucket*>(bucket);
+  std::string metafn = "_meta." + get_name();
+  auto metapath = b->objects_path() / metafn;
+
+  ofstream ofs(metapath);
+  JSONFormatter f(true);
+  f.open_object_section("meta");
+  encode_json("meta", meta, &f);
+  f.close_section();  // meta
+  f.flush(ofs);
+  ofs.close();
+}
+
+void SimpleFileObject::load_meta() {
+  auto b = static_cast<SimpleFileBucket*>(bucket);
+  std::string metafn = "_meta." + get_name();
+  auto metapath = b->objects_path() / metafn;
+
+  ldout(store->ctx(), 10) << "load metadata for " << get_name() << dendl;
+
+  if (!std::filesystem::exists(metapath)) {
+    ldout(store->ctx(), 10) << "unable to find meta for object " << get_name()
+                       << " at " << metapath << dendl;
+    return;
+  }
+
+  JSONParser parser;
+  bool res = parser.parse(metapath.c_str());
+  ceph_assert(res);
+
+  auto it = parser.find("meta");
+  ceph_assert(!it.end());
+
+  JSONDecoder::decode_json("meta", meta, &parser);
+
+  set_obj_size(meta.size);
+  set_attrs(meta.attrs);
+}
+
 } // ns rgw::sal

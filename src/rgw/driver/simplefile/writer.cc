@@ -97,7 +97,19 @@ int SimpleFileAtomicWriter::complete(
                      << ", if_match: " << if_match
                      << ", if_nomatch: " << if_nomatch
                      << dendl;
-  lsfs_dout(dpp, 10) << "unimplemented, return success." << dendl;
+
+  ceph_assert(bytes_written == accounted_size);
+
+  SimpleFileObject::Meta &meta = obj.meta;
+  meta.size = accounted_size;
+  meta.etag = etag;
+  meta.mtime = ceph::real_clock::now();
+  meta.set_mtime = set_mtime;
+  meta.delete_at = delete_at;
+  meta.attrs = attrs;
+  obj.write_meta();
+
+  *mtime = meta.mtime;
   return 0;
 }
 
