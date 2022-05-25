@@ -73,7 +73,7 @@ void SimpleFileBucket::write_meta(const DoutPrefixProvider *dpp) {
 std::unique_ptr<Object> SimpleFileBucket::get_object(const rgw_obj_key &key) {
   ldout(store->ceph_context(), 10) << "bucket::" << __func__
                                    << ": key" << key << dendl;
-  return make_unique<SimpleFileObject>(this->store, key);
+  return make_unique<SimpleFileObject>(this->store, key, this);
 }
 
 int SimpleFileBucket::list(const DoutPrefixProvider *dpp, ListParams &, int,

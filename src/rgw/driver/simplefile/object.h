@@ -63,6 +63,9 @@ class SimpleFileObject : public StoreObject {
   };
   SimpleFileObject::Meta meta;
 
+  /**
+   * reads an object's contents.
+   */
   struct SimpleFileReadOp : public ReadOp {
    private:
     SimpleFileObject *source;
@@ -79,7 +82,13 @@ class SimpleFileObject : public StoreObject {
                         RGWGetDataCB *cb, optional_yield y) override;
     virtual int get_attr(const DoutPrefixProvider *dpp, const char *name,
                          bufferlist &dest, optional_yield y) override;
+
+    const std::string get_cls_name() { return "object_read"; }
   };
+
+  /**
+   * deletes an object.
+   */
   struct SimpleFileDeleteOp : public DeleteOp {
    private:
     SimpleFileObject *source;
@@ -93,9 +102,11 @@ class SimpleFileObject : public StoreObject {
 
   SimpleFileObject(SimpleFileStore *_st, const rgw_obj_key &_k)
       : StoreObject(_k), store(_st) {}
-  SimpleFileObject(SimpleFileStore *_st, const rgw_obj_key &_k, Bucket *_b)
-      : StoreObject(_k, _b), store(_st) {
-
+  SimpleFileObject(
+    SimpleFileStore *_st,
+    const rgw_obj_key &_k,
+    Bucket *_b
+  ) : StoreObject(_k, _b), store(_st) {
     init();
   }
 
@@ -164,9 +175,16 @@ class SimpleFileObject : public StoreObject {
                                        const DoutPrefixProvider *dpp) override;
   virtual int swift_versioning_copy(const DoutPrefixProvider *dpp,
                                     optional_yield y) override;
+  
+  /**
+   * Obtain a Read Operation.
+   */
   virtual std::unique_ptr<ReadOp> get_read_op() override {
     return std::make_unique<SimpleFileObject::SimpleFileReadOp>(this, nullptr);
   }
+  /**
+   * Obtain a Delete Operation.
+   */
   virtual std::unique_ptr<DeleteOp> get_delete_op() override {
     return std::make_unique<SimpleFileObject::SimpleFileDeleteOp>(this);
   }
@@ -189,8 +207,12 @@ class SimpleFileObject : public StoreObject {
     return 0;
   }
 
+  const std::string get_cls_name() { return "object"; }
   void write_meta();
   void load_meta();
+  void refresh_meta() {
+    load_meta();
+  }
 };
 
 } // ns rgw::sal
