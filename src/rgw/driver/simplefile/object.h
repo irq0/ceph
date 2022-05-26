@@ -198,12 +198,18 @@ class SimpleFileObject : public StoreObject {
   virtual int chown(rgw::sal::User &new_user, const DoutPrefixProvider *dpp,
                     optional_yield y) override;
   // will be removed in the future..
-  virtual int get_obj_state(const DoutPrefixProvider *dpp, RGWObjState **state,
-                            optional_yield y, bool follow_olh = true) override {
+  virtual int get_obj_state(
+    const DoutPrefixProvider *dpp,
+    RGWObjState **_state,
+    optional_yield y,
+    bool follow_olh = true
+  ) override {
+    *_state = &state;
     return 0;
   }
   virtual int set_obj_attrs(const DoutPrefixProvider *dpp, Attrs *setattrs,
                             Attrs *delattrs, optional_yield y) override {
+                              
     return 0;
   }
 
