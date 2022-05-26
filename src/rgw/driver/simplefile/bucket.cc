@@ -78,26 +78,30 @@ std::unique_ptr<Object> SimpleFileBucket::get_object(const rgw_obj_key &key) {
 
 int SimpleFileBucket::list(const DoutPrefixProvider *dpp, ListParams &, int,
                            ListResults &results, optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": iterating " << objects_path() << dendl;
+  lsfs_dout(dpp, 10) << "iterate bucket " << get_name() << dendl;
   for (auto const &dir_entry :
        std::filesystem::directory_iterator{objects_path()}) {
-    ldpp_dout(dpp, 10) << __func__ << ": adding object from " << dir_entry
-                       << dendl;
-    if (dir_entry.is_directory()) {
-      JSONParser object_meta_parser;
-      const auto object_meta_path =
-          dir_entry.path() / "rgw_bucket_dir_entry.json";
-      if (!object_meta_parser.parse(object_meta_path.c_str())) {
-        ldpp_dout(dpp, 10) << "Failed to parse object metadata from "
-                           << object_meta_path << ". Skipping" << dendl;
-      }
-      rgw_bucket_dir_entry rgw_dir;
-      rgw_dir.decode_json(&object_meta_parser);
-      results.objs.push_back(rgw_dir);
+    if (!dir_entry.is_regular_file()) {
+      lsfs_dout(dpp, 10) << "skipping " << dir_entry << dendl;
+      continue;
     }
-  }
 
-  ldpp_dout(dpp, 10) << __func__ << ": TODO " << dendl;
+    auto fn = dir_entry.path().filename();
+    if (fn.c_str()[0] == '_') {
+      lsfs_dout(dpp, 10) << "skipping meta entry " << fn << dendl;
+      continue;
+    }
+
+    lsfs_dout(dpp, 10) << "adding " << fn << dendl;
+    auto obj = get_object(rgw_obj_key(fn.string()));
+
+    rgw_bucket_dir_entry entry;
+    entry.key = cls_rgw_obj_key(fn.string());
+    entry.meta.accounted_size = obj->get_obj_size();
+    entry.meta.mtime = obj->get_mtime();
+    results.objs.push_back(entry);
+  }
+  lsfs_dout(dpp, 10) << "found " << results.objs.size() << " objects" << dendl;
   return 0;
 }
 
