@@ -130,15 +130,33 @@ SimpleFileObject::SimpleFileDeleteOp::SimpleFileDeleteOp(
     : source(_source) {}
 
 int SimpleFileObject::SimpleFileDeleteOp::delete_obj(
-    const DoutPrefixProvider *dpp, optional_yield y) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+    const DoutPrefixProvider *dpp,
+    optional_yield y
+) {
+  lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
+                     << ", object: " << source->get_name() << dendl;
+
+  auto path = source->store->objects_path(source->bucket->get_key());
+  auto objpath = path / source->get_name();
+  std::string metafn = "_meta." + source->get_name();
+  auto metapath = path / metafn;
+
+  if (!std::filesystem::exists(objpath)) {
+    return 0;  // no-op; succeed.
+  }
+  std::filesystem::remove(metapath);
+  std::filesystem::remove(objpath);
+  return 0;
 }
 
-int SimpleFileObject::delete_object(const DoutPrefixProvider *dpp,
-                                    optional_yield y, bool prevent_versioning) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+int SimpleFileObject::delete_object(
+  const DoutPrefixProvider *dpp,
+  optional_yield y,
+  bool prevent_versioning
+) {
+  lsfs_dout(dpp, 10) << "prevent_versioning: " << prevent_versioning << dendl;
+  SimpleFileObject::SimpleFileDeleteOp del(this);
+  return del.delete_obj(dpp, y);
 }
 
 int SimpleFileObject::copy_object(

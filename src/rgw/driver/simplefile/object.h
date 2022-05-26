@@ -97,6 +97,8 @@ class SimpleFileObject : public StoreObject {
     SimpleFileDeleteOp(SimpleFileObject *_source);
     virtual int delete_obj(const DoutPrefixProvider *dpp,
                            optional_yield y) override;
+
+    const std::string get_cls_name() { return "object_delete"; }
   };
   SimpleFileObject& operator=(const SimpleFileObject&) = delete;
 
