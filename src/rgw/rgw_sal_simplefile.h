@@ -286,21 +286,86 @@ class SimpleFileStore : public StoreDriver {
 
   virtual void register_admin_apis(RGWRESTMgr * mgr) override;
 
-  // TODO make proper bucket path
-  std::filesystem::path meta_path() const;
-  std::filesystem::path buckets_path() const;
-  std::filesystem::path users_path() const;
-  std::filesystem::path bucket_path(const rgw_bucket &bucket) const;
-  std::filesystem::path bucket_metadata_path(
-      const rgw_bucket &bucket, const std::string &metadata_fn) const;
-  std::filesystem::path objects_path(const rgw_bucket &bucket) const;
-  std::filesystem::path object_path(const rgw_bucket &bucket,
-                                    const rgw_obj_key &obj) const;
-  std::filesystem::path object_data_path(const rgw_bucket &bucket,
-                                         const rgw_obj_key &obj) const;
+  /**
+   * Returns path to meta directory.
+   */
+  std::filesystem::path meta_path() const {
+    return data_path / "meta";
+  }
+  /**
+   * Returns path to buckets directory, where buckets are kept as directories.
+   */
+  std::filesystem::path buckets_path() const {
+    return data_path / "buckets";
+  }
+  /**
+   * Returns path to users directory.
+   */
+  std::filesystem::path users_path() const {
+    return data_path / "users";
+  }
+  /**
+   * Returns path to a specific bucket's directory.
+   */
+  std::filesystem::path bucket_path(const rgw_bucket &bucket) const {
+    return buckets_path() / bucket.name;
+  }
+  /**
+   * Returns path to a specific bucket's directory.
+   */
+  std::filesystem::path bucket_path(const std::string &bucket) const {
+    return buckets_path() / bucket;
+  }
+  /**
+   * Returns path to a specific bucket's metadata file.
+   */
+  std::filesystem::path bucket_metadata_path(const rgw_bucket &bucket) const {
+    return bucket_path(bucket) / "_meta.json";
+  }
+  /**
+   * Returns path to a bucket's objects directory.
+   */
+  std::filesystem::path objects_path(const rgw_bucket &bucket) const {
+    return bucket_path(bucket) / "objects";
+  }
+
+  /**
+   * Returns the path for a given object's data location.
+   */
+  std::filesystem::path object_path(
+    const rgw_bucket &bucket,
+    const std::string &obj
+  ) const {
+    return objects_path(bucket) / obj;
+  }
+
+  /**
+   * Returns the path for a given object's data location.
+   */
+  std::filesystem::path object_path(
+    const rgw_bucket &bucket,
+    const rgw_obj_key &obj
+  ) const {
+    return object_path(bucket, obj.name);
+  }
+
+  /**
+   * Returns the path for a given object's metadata file.
+   */
   std::filesystem::path object_metadata_path(
-      const rgw_bucket &bucket, const rgw_obj_key &obj,
-      const std::string &metadata_fn) const;
+      const rgw_bucket &bucket,
+      const rgw_obj_key &obj
+  ) const {
+    const std::string metafn = "_meta." + obj.name;
+    return object_path(bucket, metafn);
+  }
 };
+
+// not currently used, but keep it in the namespace.
+inline std::string hash_rgw_obj_key(const rgw_obj_key &obj) {
+  const std::string_view in{obj.name};
+  const auto hash = calc_hash_sha256(in);
+  return hash.to_str();
+}
 
 }  // namespace rgw::sal
