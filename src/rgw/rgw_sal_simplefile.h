@@ -262,18 +262,35 @@ class SimpleFileStore : public StoreDriver {
     return 0;
   }
 
+  /**
+   * Unsure what this does.
+   */
   virtual std::unique_ptr<Writer> get_append_writer(
-      const DoutPrefixProvider *dpp, optional_yield y,
-      rgw::sal::Object* _head_obj, const rgw_user &owner,
-      const rgw_placement_rule *ptail_placement_rule,
-      const std::string &unique_tag, uint64_t position,
-      uint64_t *cur_accounted_size) override;
+    const DoutPrefixProvider *dpp,
+    optional_yield y,
+    rgw::sal::Object* _head_obj,
+    const rgw_user &owner,
+    const rgw_placement_rule *ptail_placement_rule,
+    const std::string &unique_tag,
+    uint64_t position,
+    uint64_t *cur_accounted_size
+  ) override;
 
+  /**
+   * Obtain a writer to write an object in one go. The writer may be called
+   * several times by us, but should become available to the user as a whole
+   * once finished, and will not be a multipart upload. This is usually for
+   * smaller objects (up to ~10MiB).
+   */
   virtual std::unique_ptr<Writer> get_atomic_writer(
-      const DoutPrefixProvider *dpp, optional_yield y,
-      rgw::sal::Object* _head_obj, const rgw_user &owner,
-      const rgw_placement_rule *ptail_placement_rule, uint64_t olh_epoch,
-      const std::string &unique_tag) override;
+    const DoutPrefixProvider *dpp,
+    optional_yield y,
+    rgw::sal::Object* _head_obj,
+    const rgw_user &owner,
+    const rgw_placement_rule *ptail_placement_rule,
+    uint64_t olh_epoch,
+    const std::string &unique_tag
+  ) override;
 
   virtual const std::string& get_compression_type(
     const rgw_placement_rule& rule

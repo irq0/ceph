@@ -146,18 +146,36 @@ class SimpleFileBucket : public StoreBucket {
   virtual int trim_usage(const DoutPrefixProvider *dpp, uint64_t start_epoch,
                          uint64_t end_epoch) override;
   virtual int rebuild_index(const DoutPrefixProvider *dpp) override;
+
+  /**
+   * Obtain multipart upload, which may or may not previously exist.
+   */
   virtual std::unique_ptr<MultipartUpload> get_multipart_upload(
-      const std::string &oid,
-      std::optional<std::string> upload_id = std::nullopt, ACLOwner owner = {},
-      ceph::real_time mtime = real_clock::now()) override;
+    const std::string &oid,
+    std::optional<std::string> upload_id = std::nullopt,
+    ACLOwner owner = {},
+    ceph::real_time mtime = real_clock::now()
+  ) override;
+  /**
+   * List multipart uploads. These are on-going and unfinished.
+   */
   virtual int list_multiparts(
-      const DoutPrefixProvider *dpp, const std::string &prefix,
-      std::string &marker, const std::string &delim, const int &max_uploads,
-      std::vector<std::unique_ptr<MultipartUpload>> &uploads,
-      std::map<std::string, bool> *common_prefixes,
-      bool *is_truncated) override;
-  virtual int abort_multiparts(const DoutPrefixProvider *dpp,
-                               CephContext *cct) override;
+    const DoutPrefixProvider *dpp,
+    const std::string &prefix,
+    std::string &marker,
+    const std::string &delim,
+    const int &max_uploads,
+    std::vector<std::unique_ptr<MultipartUpload>> &uploads,
+    std::map<std::string, bool> *common_prefixes,
+    bool *is_truncated
+  ) override;
+  /**
+   * Abort all multipart uploads.
+   */
+  virtual int abort_multiparts(
+    const DoutPrefixProvider *dpp,
+    CephContext *cct
+  ) override;
 
   // maybe removed from api..
   virtual int remove_objs_from_index(
