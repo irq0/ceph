@@ -379,14 +379,16 @@ class SimpleFileStore : public StoreDriver {
     const std::string metafn = "_meta." + obj.name;
     return object_path(bucket, metafn);
   }
+
+  inline std::string hash_rgw_obj_key(const rgw_obj_key &obj) const {
+    const std::string_view in{obj.name};
+    const auto hash = calc_hash_sha256(in);
+    return hash.to_str();
+  }
+
+  std::string get_cls_name() const { return "simplefile"; }
 };
 
-// not currently used, but keep it in the namespace.
-inline std::string hash_rgw_obj_key(const rgw_obj_key &obj) {
-  const std::string_view in{obj.name};
-  const auto hash = calc_hash_sha256(in);
-  return hash.to_str();
-}
 
 }  // namespace rgw::sal
 
