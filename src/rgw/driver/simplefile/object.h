@@ -100,6 +100,10 @@ class SimpleFileObject : public StoreObject {
 
     const std::string get_cls_name() { return "object_delete"; }
   };
+
+  // SimpleFileObject continues here.
+  //
+
   SimpleFileObject& operator=(const SimpleFileObject&) = delete;
 
   SimpleFileObject(SimpleFileStore *_st, const rgw_obj_key &_k)

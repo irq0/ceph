@@ -81,12 +81,30 @@ class SimpleFileBucket : public StoreBucket {
     return std::unique_ptr<Bucket>(new SimpleFileBucket{*this});
   }
 
+  /**
+   * Obtain an object by its key.
+   */
   virtual std::unique_ptr<Object> get_object(const rgw_obj_key &key) override;
-  virtual int list(const DoutPrefixProvider *dpp, ListParams &, int,
-                   ListResults &, optional_yield y) override;
-  virtual int remove_bucket(const DoutPrefixProvider *dpp, bool delete_children,
-                            bool forward_to_master, req_info *req_info,
-                            optional_yield y) override;
+  /**
+   * List existing objects in this bucket.
+   */
+  virtual int list(
+    const DoutPrefixProvider *dpp,
+    ListParams &,
+    int,
+    ListResults &,
+    optional_yield y
+  ) override;
+  /**
+   * Remove this bucket.
+   */
+  virtual int remove_bucket(
+    const DoutPrefixProvider *dpp,
+    bool delete_children,
+    bool forward_to_master,
+    req_info *req_info,
+    optional_yield y
+  ) override;
   virtual int remove_bucket_bypass_gc(int concurrent_max,
                                       bool keep_index_consistent,
                                       optional_yield y,
@@ -98,6 +116,9 @@ class SimpleFileBucket : public StoreBucket {
     acls = acl;
     return 0;
   }
+  /**
+   * Load this bucket from disk.
+   */
   virtual int load_bucket(const DoutPrefixProvider *dpp, optional_yield y,
                           bool get_stats = false) override;
   virtual int read_stats(
