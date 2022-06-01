@@ -14,6 +14,9 @@
  * Foundation. See file COPYING.
  *
  */
+#ifndef RGW_STORE_SIMPLEFILE_H
+#define RGW_STORE_SIMPLEFILE_H
+
 #include <filesystem>
 
 #include "rgw_multi.h"
@@ -386,3 +389,5 @@ inline std::string hash_rgw_obj_key(const rgw_obj_key &obj) {
 }
 
 }  // namespace rgw::sal
+
+#endif // RGW_STORE_SIMPLEFILE_H
