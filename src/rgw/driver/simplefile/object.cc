@@ -31,10 +31,8 @@ int SimpleFileObject::SimpleFileReadOp::prepare(
 
   source->refresh_meta();
 
-  auto objspath = source->store->objects_path(source->bucket->get_key());
-  auto objdata = objspath / source->get_name();
-  const std::string metafn = "_meta." + source->get_name();
-  auto objmeta = objspath / metafn;
+  auto objdata = source->get_data_path();
+  auto objmeta = source->get_metadata_path();
 
   if (!std::filesystem::exists(objmeta)) {
     lsfs_dout(dpp, 10) << "object metadata not found at " << objmeta << dendl;
@@ -79,8 +77,7 @@ int SimpleFileObject::SimpleFileReadOp::read(int64_t ofs, int64_t end,
                      << ", end: " << end
                      << ", len: " << len << dendl;
 
-  auto objpath =
-    source->store->objects_path(source->bucket->get_key()) / source->get_name();
+  auto objpath = source->get_data_path();
   ceph_assert(std::filesystem::exists(objpath));
 
   std::string error;
@@ -107,8 +104,7 @@ int SimpleFileObject::SimpleFileReadOp::iterate(const DoutPrefixProvider* dpp,
                      << ", end: " << end
                      << ", len: " << len << dendl;
 
-  auto objpath =
-    source->store->objects_path(source->bucket->get_key()) / source->get_name();
+  auto objpath = source->get_data_path();
   ceph_assert(std::filesystem::exists(objpath));
 
   // TODO chunk the read
@@ -136,10 +132,8 @@ int SimpleFileObject::SimpleFileDeleteOp::delete_obj(
   lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
                      << ", object: " << source->get_name() << dendl;
 
-  auto path = source->store->objects_path(source->bucket->get_key());
-  auto objpath = path / source->get_name();
-  std::string metafn = "_meta." + source->get_name();
-  auto metapath = path / metafn;
+  auto objpath = source->get_data_path();
+  auto metapath = source->get_metadata_path();
 
   if (!std::filesystem::exists(objpath)) {
     return 0;  // no-op; succeed.
@@ -278,9 +272,7 @@ int SimpleFileObject::chown(rgw::sal::User &new_user,
 }
 
 void SimpleFileObject::write_meta() {
-  auto b = static_cast<SimpleFileBucket*>(bucket);
-  std::string metafn = "_meta." + get_name();
-  auto metapath = b->objects_path() / metafn;
+  auto metapath = get_metadata_path();
 
   ofstream ofs(metapath);
   JSONFormatter f(true);
@@ -292,9 +284,7 @@ void SimpleFileObject::write_meta() {
 }
 
 void SimpleFileObject::load_meta() {
-  auto b = static_cast<SimpleFileBucket*>(bucket);
-  std::string metafn = "_meta." + get_name();
-  auto metapath = b->objects_path() / metafn;
+  auto metapath = get_metadata_path();
 
   ldout(store->ctx(), 10) << "load metadata for " << get_name() << dendl;
 
@@ -317,5 +307,13 @@ void SimpleFileObject::load_meta() {
   set_attrs(meta.attrs);
   state.mtime = meta.mtime;
 }
+
+
+std::filesystem::path SimpleFileObject::get_data_path() {
+  return store->object_path(get_bucket()->get_key(), get_key());
+}
+std::filesystem::path SimpleFileObject::get_metadata_path() {
+  return store->object_metadata_path(get_bucket()->get_key(), get_key());
+};
 
 } // ns rgw::sal
