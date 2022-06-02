@@ -30,6 +30,7 @@
 #include "services/svc_zone.h"
 #include "services/svc_zone_utils.h"
 
+#include "driver/simplefile/bucket_mgr.h"
 #include "driver/simplefile/notification.h"
 #include "driver/simplefile/writer.h"
 
@@ -102,8 +103,11 @@ std::unique_ptr<Writer> SimpleFileStore::get_atomic_writer(
     const std::string &unique_tag
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": return basic atomic writer" << dendl;
+  std::string bucketname = _head_obj->get_bucket()->get_name();
+  ceph_assert(buckets_map.count(bucketname) > 0);
+  auto mgr = buckets_map[bucketname];
   return std::make_unique<SimpleFileAtomicWriter>(
-      dpp, y, _head_obj, this,
+      dpp, y, _head_obj, this, mgr,
       owner, ptail_placement_rule,
       olh_epoch, unique_tag
   );
@@ -371,13 +375,28 @@ void SimpleFileStore::maybe_init_store() {
 
 }
 
+void SimpleFileStore::init_buckets() {
+  ldout(cctx, 10) << "init buckets" << dendl;
+  auto p = buckets_path();
+  for (auto const &entry : std::filesystem::directory_iterator{p}) {
+    auto name = entry.path().filename().string();
+    auto mgr = get_bucket_mgr(name);
+    ldout(cctx, 10) << "init buckets > bucket: " << name << ", objects: "
+                    << mgr->size() << dendl;
+  }
+}
 
 SimpleFileStore::SimpleFileStore(
   CephContext *c,
   const std::filesystem::path &data_path
-) : dummy_user(), sync_module(), zone(this), data_path(data_path), cctx(c) {
+) : dummy_user(),
+    sync_module(),
+    zone(this),
+    data_path(data_path),
+    cctx(c) {
 
   maybe_init_store();
+  init_buckets();
 
   dummy_user.user_email = "simplefile@example.com";
   dummy_user.display_name = "Test User";

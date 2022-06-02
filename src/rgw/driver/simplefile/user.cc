@@ -102,9 +102,12 @@ static void populate_buckets_from_path(
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": from path " << path << dendl;
   for (auto const &dir_entry : std::filesystem::directory_iterator{path}) {
-    ldpp_dout(dpp, 10) << __func__ << ": bucket: " << dir_entry.path() << dendl;
+    auto p = dir_entry.path();
+    ldpp_dout(dpp, 10) << __func__ << ": bucket: " << p << dendl;
+    std::string bucketname = p.filename();
+    auto mgr = store->get_bucket_mgr(bucketname);
     auto bucket =
-        std::unique_ptr<Bucket>(new SimpleFileBucket{dir_entry.path(), store});
+        std::unique_ptr<Bucket>(new SimpleFileBucket{p, store, mgr});
     bucket->load_bucket(dpp, null_yield);
     buckets.add(std::move(bucket));
   }
@@ -164,8 +167,10 @@ int SimpleFileUser::create_bucket(
                       << "' at '" << path << "'" << dendl;
     return -EINVAL;
   }
-  auto new_bucket = new SimpleFileBucket{path, store};
+  auto mgr = store->get_bucket_mgr(b.name);
+  auto new_bucket = new SimpleFileBucket{path, store, mgr};
   new_bucket->init(dpp, b);
+  mgr->new_bucket(dpp, new_bucket);
   bucket->reset(new_bucket);
   return 0;
 }

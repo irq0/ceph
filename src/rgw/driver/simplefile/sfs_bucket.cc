@@ -43,7 +43,8 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
                        << " path does not exist: " << path << dendl;
     return -ENOENT;
   }
-  auto bucket = make_unique<SimpleFileBucket>(path, this);
+  auto mgr = get_bucket_mgr(b.name);
+  auto bucket = make_unique<SimpleFileBucket>(path, this, mgr);
   const int ret = bucket->load_bucket(dpp, y);
   if (ret < 0) {
     return ret;
@@ -66,7 +67,8 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
                        << " does not exist" << dendl;
     return -ENOENT;
   }
-  auto b = make_unique<SimpleFileBucket>(path, this);
+  auto mgr = get_bucket_mgr(name);
+  auto b = make_unique<SimpleFileBucket>(path, this, mgr);
   const int ret = b->load_bucket(dpp, y);
   if (ret < 0) {
     return ret;
@@ -74,17 +76,6 @@ int SimpleFileStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
   ldpp_dout(dpp, 10) << __func__ << ": bucket: " << b->get_name() << dendl;
   bucket->reset(b.release());
   return 0;
-}
-
-bool SimpleFileStore::object_written(
-  const DoutPrefixProvider *dpp,
-  SimpleFileObject *obj
-) {
-  lsfs_dout(dpp, 10) << "bucket: " << obj->get_bucket()->get_name()
-                     << ", object: " << obj->get_name() << dendl;
-
-  SimpleFileBucket *bucket = static_cast<SimpleFileBucket*>(obj->get_bucket());
-  return bucket->maybe_add_object(dpp, obj);
 }
 
 } // ns rgw::sal

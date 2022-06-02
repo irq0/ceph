@@ -218,6 +218,7 @@ if(WITH_RADOSGW_SIMPLEFILE)
   list(APPEND librgw_common_srcs
     rgw_sal_simplefile.cc
     driver/simplefile/bucket.cc
+    driver/simplefile/bucket_mgr.cc
     driver/simplefile/multipart.cc
     driver/simplefile/object.cc
     driver/simplefile/user.cc
