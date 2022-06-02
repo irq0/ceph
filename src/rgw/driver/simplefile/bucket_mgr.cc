@@ -50,6 +50,12 @@ void BucketMgr::write_object_map() {
     new_map.insert(make_pair(obj->get_name(), hash));
   }
 
+  for (auto const &obj : rm_objects) {
+    ldout(cct, 10) << "bucket_mgr::write_object_map > remove object name: "
+                   << obj->get_name() << ", key: " << obj->get_key() << dendl;
+    new_map.erase(obj->get_name());
+  }
+
   bufferlist bl;
   ceph::encode(new_version, bl);
   ceph::encode(new_map, bl);

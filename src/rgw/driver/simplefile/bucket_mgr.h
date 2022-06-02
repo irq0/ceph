@@ -31,6 +31,7 @@ class BucketMgr {
   SimpleFileStore *store;
   std::string bucket_name;
   std::list<SimpleFileObject*> new_objects;
+  std::list<SimpleFileObject*> rm_objects;
   std::map<std::string, std::string> objects_map;
   version_t object_map_version;
   ceph::mutex commit_lock = ceph::make_mutex("commit_lock");
@@ -55,6 +56,13 @@ class BucketMgr {
   void add_object(SimpleFileObject *obj) {
     std::lock_guard l1{commit_lock};
     new_objects.push_back(obj);
+    write_object_map();
+    load_object_map();
+  }
+
+  void remove_object(SimpleFileObject *obj) {
+    std::lock_guard l{commit_lock};
+    rm_objects.push_back(obj);
     write_object_map();
     load_object_map();
   }

@@ -122,8 +122,9 @@ int SimpleFileObject::SimpleFileReadOp::iterate(const DoutPrefixProvider* dpp,
 }
 
 SimpleFileObject::SimpleFileDeleteOp::SimpleFileDeleteOp(
-    SimpleFileObject *_source)
-    : source(_source) {}
+  SimpleFileObject *_source,
+  BucketMgrRef _mgr
+) : source(_source), mgr(_mgr) { }
 
 int SimpleFileObject::SimpleFileDeleteOp::delete_obj(
     const DoutPrefixProvider *dpp,
@@ -131,6 +132,8 @@ int SimpleFileObject::SimpleFileDeleteOp::delete_obj(
 ) {
   lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
                      << ", object: " << source->get_name() << dendl;
+
+  mgr->remove_object(source);
 
   auto objpath = source->get_data_path();
   auto metapath = source->get_metadata_path();
@@ -149,7 +152,8 @@ int SimpleFileObject::delete_object(
   bool prevent_versioning
 ) {
   lsfs_dout(dpp, 10) << "prevent_versioning: " << prevent_versioning << dendl;
-  SimpleFileObject::SimpleFileDeleteOp del(this);
+  auto mgr = store->get_bucket_mgr(get_bucket()->get_name());
+  SimpleFileObject::SimpleFileDeleteOp del(this, mgr);
   return del.delete_obj(dpp, y);
 }
 
@@ -269,6 +273,12 @@ int SimpleFileObject::chown(rgw::sal::User &new_user,
                             optional_yield y) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
+}
+
+std::unique_ptr<rgw::sal::Object::DeleteOp> SimpleFileObject::get_delete_op() {
+  ceph_assert(bucket != nullptr);
+  auto mgr = store->get_bucket_mgr(bucket->get_name());
+  return std::make_unique<SimpleFileObject::SimpleFileDeleteOp>(this, mgr);
 }
 
 void SimpleFileObject::write_meta() {
