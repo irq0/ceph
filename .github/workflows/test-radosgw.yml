@@ -31,21 +31,19 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-
-      - name: Generate Artifact Identifier
-        id: artifact_id
-        run: |
-          ARTIFACT_ID=radosgw-$GITHUB_SHA
-          echo "::set-output name=artifact_id::$ARTIFACT_ID"
-
-      - name: Download Radogw Artifacts
-        id: download_artifact
-        uses: actions/download-artifact@v3
         with:
-          name: ${{ steps.artifact_id.outputs.artifact_id }}
+          driver-opts: |
+            network=host
 
-      - name: Unpack Artifacts
+      - name: Run Tests
         run: |
-          tar -xvf build-results.tar.gz
-          ls -la
+          mkdir storage
+          docker run \
+            -v ./storage:/data \
+            -p 7480:7480 \
+            mrohrich/s3gw:${{ needs.call-build-workflow.outputs.short_sha }}
+
+          echo "Running Tests:\n"
+
+          curl -vk http://localhost:7480
           # TODO: Run tests here
