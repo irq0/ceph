@@ -6,16 +6,20 @@ on:
       - "s3gw"
 
 jobs:
-  call-build-workflow:
+  build:
     uses: ./.github/workflows/build-radosgw.yml
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   test:
     runs-on: ubuntu-latest
     needs:
-      - call-build-workflow
+      - build
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    outputs:
+      short_sha: ${{ steps.short_sha.outputs.short_sha }}
 
     steps:
       - name: Checkout s3gw-core
@@ -34,17 +38,44 @@ jobs:
           driver-opts: |
             network=host
 
+      - name: Download Radogw Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.build.outputs.artifact_id }}
+
+      - name: Unpack Artifacts
+        run: |
+          tar -xvf build-results.tar.gz
+
+      - name: Build S3GW Container
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: |
+            localhost:5000/s3gw:latest
+          file: s3gw-core/build/Dockerfile.build-container
+          context: ceph/build
+
+      - name: Install S3cmd
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y s3cmd
+
       - name: Run Tests
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           mkdir storage
-          docker run \
-            -v ./storage:/data \
+          docker run -d \
+            -v $GITHUB_WORKSPACE/storage:/data \
             -p 7480:7480 \
-            $DOCKERHUB_USERNAME/s3gw:${{ needs.call-build-workflow.outputs.short_sha }}
+            localhost:5000/s3gw:latest \
+              --rgw-backend-store simplefile \
+              --debug-rgw 1
+
+          sleep 5
+          # ^ This is needed to give the gateway some time to boot up.
+          # It also serves to make sure the gateway takes no more than 5 seconds
+          # to boot up.
 
           echo "Running Tests:\n"
-
-          curl -vk http://localhost:7480
+          s3gw-core/tests/s3gw-smoke-test.sh localhost:7480
           # TODO: Run tests here
