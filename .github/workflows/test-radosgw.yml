@@ -1,10 +1,6 @@
 ---
 name: Test Radosgw
 on:
-  push:
-    branches:
-      - '*'  # TODO: remove this trigger once the pipeline is merged.
-
   pull_request:
     branches:
       - "s3gw"
@@ -12,6 +8,9 @@ on:
 jobs:
   call-build-workflow:
     uses: ./.github/workflows/build-radosgw.yml
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   test:
     runs-on: ubuntu-latest
@@ -36,12 +35,14 @@ jobs:
             network=host
 
       - name: Run Tests
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           mkdir storage
           docker run \
             -v ./storage:/data \
             -p 7480:7480 \
-            mrohrich/s3gw:${{ needs.call-build-workflow.outputs.short_sha }}
+            $DOCKERHUB_USERNAME/s3gw:${{ needs.call-build-workflow.outputs.short_sha }}
 
           echo "Running Tests:\n"
 
