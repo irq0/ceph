@@ -19,7 +19,7 @@
 #include <unistd.h>
 #include <sstream>
 
-#include "os/ObjectStore.h"
+#include "store/simplefile/filestore/ObjectStore.h"
 #include "common/errno.h"
 
 #include "rgw_sal.h"
@@ -149,7 +149,6 @@ rgw::sal::Store* StoreManager::init_storage_provider(const DoutPrefixProvider* d
     ldpp_dout(dpp, 0) << "simplefile store init!" << dendl;
 
     std::unique_ptr<ObjectStore> object_store = ObjectStore::create(cct,
-							     "filestore",
 							     data_path.string(),
 							     journal_path.string(),
 							     0);

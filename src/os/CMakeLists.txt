@@ -71,7 +71,7 @@ target_link_libraries(os blk)
 target_link_libraries(os heap_profiler kv)
 
 if(WITH_BLUEFS)
-  add_library(bluefs SHARED 
+  add_library(bluefs SHARED
     bluestore/BlueRocksEnv.cc)
   target_include_directories(bluefs SYSTEM PUBLIC
     $<TARGET_PROPERTY:RocksDB::RocksDB,INTERFACE_INCLUDE_DIRECTORIES>)

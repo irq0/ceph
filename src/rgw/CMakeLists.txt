@@ -178,6 +178,7 @@ if(WITH_RADOSGW_DBSTORE)
   list(APPEND librgw_common_srcs rgw_sal_dbstore.cc)
 endif()
 if(WITH_RADOSGW_SIMPLEFILE)
+  add_subdirectory(store/simplefile)
   list(APPEND librgw_common_srcs rgw_sal_simplefile.cc)
 endif()
 if(WITH_RADOSGW_MOTR)
@@ -200,7 +201,7 @@ endif()
 target_link_libraries(rgw_common
   PRIVATE
     ceph-common
-    os
+    rgwfilestore
     cls_2pc_queue_client
     cls_cmpomap_client
     cls_lock_client
