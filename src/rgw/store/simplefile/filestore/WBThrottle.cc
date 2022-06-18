@@ -1,35 +1,37 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#include "acconfig.h"
-
 #include "WBThrottle.h"
-#include "common/perf_counters.h"
+
+#include "acconfig.h"
 #include "common/errno.h"
+#include "common/perf_counters.h"
 
 using std::pair;
 using std::string;
 
-WBThrottle::WBThrottle(CephContext *cct) :
-  cur_ios(0), cur_size(0),
-  cct(cct),
-  logger(NULL),
-  stopping(true),
-  fs(XFS)
-{
+WBThrottle::WBThrottle(CephContext *cct)
+    : cur_ios(0),
+      cur_size(0),
+      cct(cct),
+      logger(nullptr),
+      stopping(true),
+      fs(XFS) {
   {
     std::lock_guard l{lock};
     set_from_conf();
   }
   ceph_assert(cct);
-  PerfCountersBuilder b(
-    cct, string("WBThrottle"),
-    l_wbthrottle_first, l_wbthrottle_last);
-  b.add_u64(l_wbthrottle_bytes_dirtied, "bytes_dirtied", "Dirty data", NULL, 0, unit_t(UNIT_BYTES));
-  b.add_u64(l_wbthrottle_bytes_wb, "bytes_wb", "Written data", NULL, 0, unit_t(UNIT_BYTES));
+  PerfCountersBuilder b(cct, std::string("WBThrottle"), l_wbthrottle_first,
+                        l_wbthrottle_last);
+  b.add_u64(l_wbthrottle_bytes_dirtied, "bytes_dirtied", "Dirty data", nullptr,
+            0, unit_t(UNIT_BYTES));
+  b.add_u64(l_wbthrottle_bytes_wb, "bytes_wb", "Written data", nullptr, 0,
+            unit_t(UNIT_BYTES));
   b.add_u64(l_wbthrottle_ios_dirtied, "ios_dirtied", "Dirty operations");
   b.add_u64(l_wbthrottle_ios_wb, "ios_wb", "Written operations");
-  b.add_u64(l_wbthrottle_inodes_dirtied, "inodes_dirtied", "Entries waiting for write");
+  b.add_u64(l_wbthrottle_inodes_dirtied, "inodes_dirtied",
+            "Entries waiting for write");
   b.add_u64(l_wbthrottle_inodes_wb, "inodes_wb", "Written entries");
   logger = b.create_perf_counters();
   cct->get_perfcounters_collection()->add(logger);
@@ -46,8 +48,7 @@ WBThrottle::~WBThrottle() {
   cct->_conf.remove_observer(this);
 }
 
-void WBThrottle::start()
-{
+void WBThrottle::start() {
   {
     std::lock_guard l{lock};
     stopping = false;
@@ -55,8 +56,7 @@ void WBThrottle::start()
   create("wb_throttle");
 }
 
-void WBThrottle::stop()
-{
+void WBThrottle::stop() {
   {
     std::lock_guard l{lock};
     stopping = true;
@@ -66,66 +66,54 @@ void WBThrottle::stop()
   join();
 }
 
-const char** WBThrottle::get_tracked_conf_keys() const
-{
-  static const char* KEYS[] = {
-    "filestore_wbthrottle_btrfs_bytes_start_flusher",
-    "filestore_wbthrottle_btrfs_bytes_hard_limit",
-    "filestore_wbthrottle_btrfs_ios_start_flusher",
-    "filestore_wbthrottle_btrfs_ios_hard_limit",
-    "filestore_wbthrottle_btrfs_inodes_start_flusher",
-    "filestore_wbthrottle_btrfs_inodes_hard_limit",
-    "filestore_wbthrottle_xfs_bytes_start_flusher",
-    "filestore_wbthrottle_xfs_bytes_hard_limit",
-    "filestore_wbthrottle_xfs_ios_start_flusher",
-    "filestore_wbthrottle_xfs_ios_hard_limit",
-    "filestore_wbthrottle_xfs_inodes_start_flusher",
-    "filestore_wbthrottle_xfs_inodes_hard_limit",
-    NULL
-  };
+const char **WBThrottle::get_tracked_conf_keys() const {
+  static const char *KEYS[] = {
+      "filestore_wbthrottle_btrfs_bytes_start_flusher",
+      "filestore_wbthrottle_btrfs_bytes_hard_limit",
+      "filestore_wbthrottle_btrfs_ios_start_flusher",
+      "filestore_wbthrottle_btrfs_ios_hard_limit",
+      "filestore_wbthrottle_btrfs_inodes_start_flusher",
+      "filestore_wbthrottle_btrfs_inodes_hard_limit",
+      "filestore_wbthrottle_xfs_bytes_start_flusher",
+      "filestore_wbthrottle_xfs_bytes_hard_limit",
+      "filestore_wbthrottle_xfs_ios_start_flusher",
+      "filestore_wbthrottle_xfs_ios_hard_limit",
+      "filestore_wbthrottle_xfs_inodes_start_flusher",
+      "filestore_wbthrottle_xfs_inodes_hard_limit",
+      nullptr};
   return KEYS;
 }
 
-void WBThrottle::set_from_conf()
-{
+void WBThrottle::set_from_conf() {
   ceph_assert(ceph_mutex_is_locked(lock));
   if (fs == BTRFS) {
     size_limits.first =
-      cct->_conf->filestore_wbthrottle_btrfs_bytes_start_flusher;
+        cct->_conf->filestore_wbthrottle_btrfs_bytes_start_flusher;
     size_limits.second =
-      cct->_conf->filestore_wbthrottle_btrfs_bytes_hard_limit;
-    io_limits.first =
-      cct->_conf->filestore_wbthrottle_btrfs_ios_start_flusher;
-    io_limits.second =
-      cct->_conf->filestore_wbthrottle_btrfs_ios_hard_limit;
+        cct->_conf->filestore_wbthrottle_btrfs_bytes_hard_limit;
+    io_limits.first = cct->_conf->filestore_wbthrottle_btrfs_ios_start_flusher;
+    io_limits.second = cct->_conf->filestore_wbthrottle_btrfs_ios_hard_limit;
     fd_limits.first =
-      cct->_conf->filestore_wbthrottle_btrfs_inodes_start_flusher;
-    fd_limits.second =
-      cct->_conf->filestore_wbthrottle_btrfs_inodes_hard_limit;
+        cct->_conf->filestore_wbthrottle_btrfs_inodes_start_flusher;
+    fd_limits.second = cct->_conf->filestore_wbthrottle_btrfs_inodes_hard_limit;
   } else if (fs == XFS) {
     size_limits.first =
-      cct->_conf->filestore_wbthrottle_xfs_bytes_start_flusher;
-    size_limits.second =
-      cct->_conf->filestore_wbthrottle_xfs_bytes_hard_limit;
-    io_limits.first =
-      cct->_conf->filestore_wbthrottle_xfs_ios_start_flusher;
-    io_limits.second =
-      cct->_conf->filestore_wbthrottle_xfs_ios_hard_limit;
-    fd_limits.first =
-      cct->_conf->filestore_wbthrottle_xfs_inodes_start_flusher;
-    fd_limits.second =
-      cct->_conf->filestore_wbthrottle_xfs_inodes_hard_limit;
+        cct->_conf->filestore_wbthrottle_xfs_bytes_start_flusher;
+    size_limits.second = cct->_conf->filestore_wbthrottle_xfs_bytes_hard_limit;
+    io_limits.first = cct->_conf->filestore_wbthrottle_xfs_ios_start_flusher;
+    io_limits.second = cct->_conf->filestore_wbthrottle_xfs_ios_hard_limit;
+    fd_limits.first = cct->_conf->filestore_wbthrottle_xfs_inodes_start_flusher;
+    fd_limits.second = cct->_conf->filestore_wbthrottle_xfs_inodes_hard_limit;
   } else {
     ceph_abort_msg("invalid value for fs");
   }
   cond.notify_all();
 }
 
-void WBThrottle::handle_conf_change(const ConfigProxy& conf,
-				    const std::set<std::string> &changed)
-{
+void WBThrottle::handle_conf_change(const ConfigProxy &conf,
+                                    const std::set<std::string> &changed) {
   std::lock_guard l{lock};
-  for (const char** i = get_tracked_conf_keys(); *i; ++i) {
+  for (const char **i = get_tracked_conf_keys(); *i; ++i) {
     if (changed.count(*i)) {
       set_from_conf();
       return;
@@ -134,9 +122,8 @@ void WBThrottle::handle_conf_change(const ConfigProxy& conf,
 }
 
 bool WBThrottle::get_next_should_flush(
-  std::unique_lock<ceph::mutex>& locker,
-  boost::tuple<ghobject_t, FDRef, PendingWB> *next)
-{
+    std::unique_lock<ceph::mutex> &locker,
+    boost::tuple<rgw_saloid_t, FDRef, PendingWB> *next) {
   ceph_assert(ceph_mutex_is_locked(lock));
   ceph_assert(next);
   {
@@ -144,23 +131,20 @@ bool WBThrottle::get_next_should_flush(
       return stopping || (beyond_limit() && !pending_wbs.empty());
     });
   }
-  if (stopping)
-    return false;
+  if (stopping) return false;
   ceph_assert(!pending_wbs.empty());
-  ghobject_t obj(pop_object());
+  rgw_saloid_t obj(pop_object());
 
-  ceph::unordered_map<ghobject_t, pair<PendingWB, FDRef> >::iterator i =
-    pending_wbs.find(obj);
+  ceph::unordered_map<rgw_saloid_t, pair<PendingWB, FDRef> >::iterator i =
+      pending_wbs.find(obj);
   *next = boost::make_tuple(obj, i->second.second, i->second.first);
   pending_wbs.erase(i);
   return true;
 }
 
-
-void *WBThrottle::entry()
-{
+void *WBThrottle::entry() {
   std::unique_lock l{lock};
-  boost::tuple<ghobject_t, FDRef, PendingWB> wb;
+  boost::tuple<rgw_saloid_t, FDRef, PendingWB> wb;
   while (get_next_should_flush(l, &wb)) {
     clearing = wb.get<0>();
     cur_ios -= wb.get<2>().ios;
@@ -188,26 +172,21 @@ void *WBThrottle::entry()
     }
 #endif
     l.lock();
-    clearing = ghobject_t();
+    clearing = rgw_saloid_t();
     cond.notify_all();
-    wb = boost::tuple<ghobject_t, FDRef, PendingWB>();
+    wb = boost::tuple<rgw_saloid_t, FDRef, PendingWB>();
   }
   return 0;
 }
 
-void WBThrottle::queue_wb(
-  FDRef fd, const ghobject_t &hoid, uint64_t offset, uint64_t len,
-  bool nocache)
-{
+void WBThrottle::queue_wb(FDRef fd, const rgw_saloid_t &hoid, uint64_t offset,
+                          uint64_t len, bool nocache) {
   std::lock_guard l{lock};
-  ceph::unordered_map<ghobject_t, pair<PendingWB, FDRef> >::iterator wbiter =
-    pending_wbs.find(hoid);
+  ceph::unordered_map<rgw_saloid_t, pair<PendingWB, FDRef> >::iterator wbiter =
+      pending_wbs.find(hoid);
   if (wbiter == pending_wbs.end()) {
-    wbiter = pending_wbs.insert(
-      make_pair(hoid,
-	make_pair(
-	  PendingWB(),
-	  fd))).first;
+    wbiter =
+        pending_wbs.insert(make_pair(hoid, make_pair(PendingWB(), fd))).first;
     logger->inc(l_wbthrottle_inodes_dirtied);
   } else {
     remove_object(hoid);
@@ -220,24 +199,20 @@ void WBThrottle::queue_wb(
 
   wbiter->second.first.add(nocache, len, 1);
   insert_object(hoid);
-  if (beyond_limit())
-    cond.notify_all();
+  if (beyond_limit()) cond.notify_all();
 }
 
-void WBThrottle::clear()
-{
+void WBThrottle::clear() {
   std::lock_guard l{lock};
-  for (ceph::unordered_map<ghobject_t, pair<PendingWB, FDRef> >::iterator i =
-	 pending_wbs.begin();
-       i != pending_wbs.end();
-       ++i) {
+  for (ceph::unordered_map<rgw_saloid_t, pair<PendingWB, FDRef> >::iterator i =
+           pending_wbs.begin();
+       i != pending_wbs.end(); ++i) {
 #ifdef HAVE_POSIX_FADVISE
     if (cct->_conf->filestore_fadvise && i->second.first.nocache) {
       int fa_r = posix_fadvise(**i->second.second, 0, 0, POSIX_FADV_DONTNEED);
       ceph_assert(fa_r == 0);
     }
 #endif
-
   }
   cur_ios = cur_size = 0;
   logger->set(l_wbthrottle_ios_dirtied, 0);
@@ -249,14 +224,12 @@ void WBThrottle::clear()
   cond.notify_all();
 }
 
-void WBThrottle::clear_object(const ghobject_t &hoid)
-{
+void WBThrottle::clear_object(const rgw_saloid_t &hoid) {
   std::unique_lock l{lock};
   cond.wait(l, [hoid, this] { return clearing != hoid; });
-  ceph::unordered_map<ghobject_t, pair<PendingWB, FDRef> >::iterator i =
-    pending_wbs.find(hoid);
-  if (i == pending_wbs.end())
-    return;
+  ceph::unordered_map<rgw_saloid_t, pair<PendingWB, FDRef> >::iterator i =
+      pending_wbs.find(hoid);
+  if (i == pending_wbs.end()) return;
 
   cur_ios -= i->second.first.ios;
   logger->dec(l_wbthrottle_ios_dirtied, i->second.first.ios);
@@ -269,8 +242,7 @@ void WBThrottle::clear_object(const ghobject_t &hoid)
   cond.notify_all();
 }
 
-void WBThrottle::throttle()
-{
+void WBThrottle::throttle() {
   std::unique_lock l{lock};
   cond.wait(l, [this] { return stopping || !need_flush(); });
 }

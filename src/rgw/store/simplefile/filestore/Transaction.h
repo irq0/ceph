@@ -6,16 +6,16 @@
 #include <map>
 
 #include "include/Context.h"
-#include "include/int_types.h"
 #include "include/buffer.h"
-
-#include "osd/osd_types.h"
+#include "include/int_types.h"
+#include "rgw_filestore_types.h"
 
 #define OPS_PER_PTR 32
 
-void decode_str_str_map_to_bl(ceph::buffer::list::const_iterator& p, ceph::buffer::list *out);
-void decode_str_set_to_bl(ceph::buffer::list::const_iterator& p, ceph::buffer::list *out);
-
+void decode_str_str_map_to_bl(ceph::buffer::list::const_iterator& p,
+                              ceph::buffer::list* out);
+void decode_str_set_to_bl(ceph::buffer::list::const_iterator& p,
+                          ceph::buffer::list* out);
 
 /*********************************
  * transaction
@@ -105,54 +105,46 @@ void decode_str_set_to_bl(ceph::buffer::list::const_iterator& p, ceph::buffer::l
  */
 namespace ceph::os {
 class Transaction {
-public:
+ public:
   enum {
-    OP_NOP =          0,
-    OP_CREATE =       7,   // cid, oid
-    OP_TOUCH =        9,   // cid, oid
-    OP_WRITE =        10,  // cid, oid, offset, len, bl
-    OP_ZERO =         11,  // cid, oid, offset, len
-    OP_TRUNCATE =     12,  // cid, oid, len
-    OP_REMOVE =       13,  // cid, oid
-    OP_SETATTR =      14,  // cid, oid, attrname, bl
-    OP_SETATTRS =     15,  // cid, oid, attrset
-    OP_RMATTR =       16,  // cid, oid, attrname
-    OP_CLONE =        17,  // cid, oid, newoid
-    OP_CLONERANGE =   18,  // cid, oid, newoid, offset, len
-    OP_CLONERANGE2 =  30,  // cid, oid, newoid, srcoff, len, dstoff
+    OP_NOP = 0,
+    OP_CREATE = 7,        // cid, oid
+    OP_TOUCH = 9,         // cid, oid
+    OP_WRITE = 10,        // cid, oid, offset, len, bl
+    OP_ZERO = 11,         // cid, oid, offset, len
+    OP_TRUNCATE = 12,     // cid, oid, len
+    OP_REMOVE = 13,       // cid, oid
+    OP_CLONE = 17,        // cid, oid, newoid
+    OP_CLONERANGE = 18,   // cid, oid, newoid, offset, len
+    OP_CLONERANGE2 = 30,  // cid, oid, newoid, srcoff, len, dstoff
 
-    OP_TRIMCACHE =    19,  // cid, oid, offset, len  **DEPRECATED**
+    OP_TRIMCACHE = 19,  // cid, oid, offset, len  **DEPRECATED**
 
-    OP_MKCOLL =       20,  // cid
-    OP_RMCOLL =       21,  // cid
-    OP_COLL_ADD =     22,  // cid, oldcid, oid
-    OP_COLL_REMOVE =  23,  // cid, oid
-    OP_COLL_SETATTR = 24,  // cid, attrname, bl
-    OP_COLL_RMATTR =  25,  // cid, attrname
+    OP_MKCOLL = 20,         // cid
+    OP_RMCOLL = 21,         // cid
+    OP_COLL_ADD = 22,       // cid, oldcid, oid
+    OP_COLL_REMOVE = 23,    // cid, oid
+    OP_COLL_SETATTR = 24,   // cid, attrname, bl
+    OP_COLL_RMATTR = 25,    // cid, attrname
     OP_COLL_SETATTRS = 26,  // cid, attrset
-    OP_COLL_MOVE =    8,   // newcid, oldcid, oid
+    OP_COLL_MOVE = 8,       // newcid, oldcid, oid
 
-    OP_RMATTRS =      28,  // cid, oid
-    OP_COLL_RENAME =       29,  // cid, newcid
+    OP_RMATTRS = 28,      // cid, oid
+    OP_COLL_RENAME = 29,  // cid, newcid
 
-    OP_OMAP_CLEAR = 31,   // cid
-    OP_OMAP_SETKEYS = 32, // cid, attrset
-    OP_OMAP_RMKEYS = 33,  // cid, keyset
-    OP_OMAP_SETHEADER = 34, // cid, header
-    OP_SPLIT_COLLECTION = 35, // cid, bits, destination
+    OP_SPLIT_COLLECTION = 35,  // cid, bits, destination
     OP_SPLIT_COLLECTION2 = 36, /* cid, bits, destination
 				    doesn't create the destination */
-    OP_OMAP_RMKEYRANGE = 37,  // cid, oid, firstkey, lastkey
-    OP_COLL_MOVE_RENAME = 38,   // oldcid, oldoid, newcid, newoid
+    OP_COLL_MOVE_RENAME = 38,  // oldcid, oldoid, newcid, newoid
 
     OP_SETALLOCHINT = 39,  // cid, oid, object_size, write_size
-    OP_COLL_HINT = 40, // cid, type, bl
+    OP_COLL_HINT = 40,     // cid, type, bl
 
-    OP_TRY_RENAME = 41,   // oldcid, oldoid, newoid
+    OP_TRY_RENAME = 41,  // oldcid, oldoid, newoid
 
-    OP_COLL_SET_BITS = 42, // cid, bits
+    OP_COLL_SET_BITS = 42,  // cid, bits
 
-    OP_MERGE_COLLECTION = 43, // cid, destination
+    OP_MERGE_COLLECTION = 43,  // cid, destination
   };
 
   // Transaction hint type
@@ -167,15 +159,15 @@ public:
     ceph_le64 off;
     ceph_le64 len;
     ceph_le32 dest_cid;
-    ceph_le32 dest_oid;               //OP_CLONE, OP_CLONERANGE
-    ceph_le64 dest_off;               //OP_CLONERANGE
-    ceph_le32 hint;                   //OP_COLL_HINT,OP_SETALLOCHINT
-    ceph_le64 expected_object_size;   //OP_SETALLOCHINT
-    ceph_le64 expected_write_size;    //OP_SETALLOCHINT
-    ceph_le32 split_bits;             //OP_SPLIT_COLLECTION2,OP_COLL_SET_BITS,
-                                      //OP_MKCOLL
-    ceph_le32 split_rem;              //OP_SPLIT_COLLECTION2
-  } __attribute__ ((packed)) ;
+    ceph_le32 dest_oid;              //OP_CLONE, OP_CLONERANGE
+    ceph_le64 dest_off;              //OP_CLONERANGE
+    ceph_le32 hint;                  //OP_COLL_HINT,OP_SETALLOCHINT
+    ceph_le64 expected_object_size;  //OP_SETALLOCHINT
+    ceph_le64 expected_write_size;   //OP_SETALLOCHINT
+    ceph_le32 split_bits;            //OP_SPLIT_COLLECTION2,OP_COLL_SET_BITS,
+                                     //OP_MKCOLL
+    ceph_le32 split_rem;             //OP_SPLIT_COLLECTION2
+  } __attribute__((packed));
 
   struct TransactionData {
     ceph_le64 ops;
@@ -184,20 +176,21 @@ public:
     ceph_le32 largest_data_off_in_data_bl;
     ceph_le32 fadvise_flags;
 
-    TransactionData() noexcept :
-      ops(0),
-      largest_data_len(0),
-      largest_data_off(0),
-      largest_data_off_in_data_bl(0),
-      fadvise_flags(0) { }
+    TransactionData() noexcept
+        : ops(0),
+          largest_data_len(0),
+          largest_data_off(0),
+          largest_data_off_in_data_bl(0),
+          fadvise_flags(0) {
+    }
 
     // override default move operations to reset default values
-    TransactionData(TransactionData&& other) noexcept :
-      ops(other.ops),
-      largest_data_len(other.largest_data_len),
-      largest_data_off(other.largest_data_off),
-      largest_data_off_in_data_bl(other.largest_data_off_in_data_bl),
-      fadvise_flags(other.fadvise_flags) {
+    TransactionData(TransactionData&& other) noexcept
+        : ops(other.ops),
+          largest_data_len(other.largest_data_len),
+          largest_data_off(other.largest_data_off),
+          largest_data_off_in_data_bl(other.largest_data_off_in_data_bl),
+          fadvise_flags(other.fadvise_flags) {
       other.ops = 0;
       other.largest_data_len = 0;
       other.largest_data_off = 0;
@@ -224,16 +217,16 @@ public:
     void encode(ceph::buffer::list& bl) const {
       bl.append((char*)this, sizeof(TransactionData));
     }
-    void decode(ceph::buffer::list::const_iterator &bl) {
+    void decode(ceph::buffer::list::const_iterator& bl) {
       bl.copy(sizeof(TransactionData), (char*)this);
     }
-  } __attribute__ ((packed)) ;
+  } __attribute__((packed));
 
-private:
+ private:
   TransactionData data;
 
-  std::map<coll_t, uint32_t> coll_index;
-  std::map<ghobject_t, uint32_t> object_index;
+  std::map<rgw_salcoll_t, uint32_t> coll_index;
+  std::map<rgw_saloid_t, uint32_t> object_index;
 
   uint32_t coll_id = 0;
   uint32_t object_id = 0;
@@ -241,33 +234,33 @@ private:
   ceph::buffer::list data_bl;
   ceph::buffer::list op_bl;
 
-  std::list<Context *> on_applied;
-  std::list<Context *> on_commit;
-  std::list<Context *> on_applied_sync;
+  std::list<Context*> on_applied;
+  std::list<Context*> on_commit;
+  std::list<Context*> on_applied_sync;
 
-public:
+ public:
   Transaction() = default;
 
-  explicit Transaction(ceph::buffer::list::const_iterator &dp) {
+  explicit Transaction(ceph::buffer::list::const_iterator& dp) {
     decode(dp);
   }
-  explicit Transaction(ceph::buffer::list &nbl) {
+  explicit Transaction(ceph::buffer::list& nbl) {
     auto dp = nbl.cbegin();
     decode(dp);
   }
 
   // override default move operations to reset default values
-  Transaction(Transaction&& other) noexcept :
-    data(std::move(other.data)),
-    coll_index(std::move(other.coll_index)),
-    object_index(std::move(other.object_index)),
-    coll_id(other.coll_id),
-    object_id(other.object_id),
-    data_bl(std::move(other.data_bl)),
-    op_bl(std::move(other.op_bl)),
-    on_applied(std::move(other.on_applied)),
-    on_commit(std::move(other.on_commit)),
-    on_applied_sync(std::move(other.on_applied_sync)) {
+  Transaction(Transaction&& other) noexcept
+      : data(std::move(other.data)),
+        coll_index(std::move(other.coll_index)),
+        object_index(std::move(other.object_index)),
+        coll_id(other.coll_id),
+        object_id(other.object_id),
+        data_bl(std::move(other.data_bl)),
+        op_bl(std::move(other.op_bl)),
+        on_applied(std::move(other.on_applied)),
+        on_commit(std::move(other.on_commit)),
+        on_applied_sync(std::move(other.on_applied_sync)) {
     other.coll_id = 0;
     other.object_id = 0;
   }
@@ -292,71 +285,66 @@ public:
   Transaction& operator=(const Transaction& other) = default;
 
   // expose object_index for FileStore::Op's benefit
-  const std::map<ghobject_t, uint32_t>& get_object_index() const {
+  const std::map<rgw_saloid_t, uint32_t>& get_object_index() const {
     return object_index;
   }
 
   /* Operations on callback contexts */
-  void register_on_applied(Context *c) {
+  void register_on_applied(Context* c) {
     if (!c) return;
     on_applied.push_back(c);
   }
-  void register_on_commit(Context *c) {
+  void register_on_commit(Context* c) {
     if (!c) return;
     on_commit.push_back(c);
   }
-  void register_on_applied_sync(Context *c) {
+  void register_on_applied_sync(Context* c) {
     if (!c) return;
     on_applied_sync.push_back(c);
   }
-  void register_on_complete(Context *c) {
+  void register_on_complete(Context* c) {
     if (!c) return;
-    RunOnDeleteRef _complete (std::make_shared<RunOnDelete>(c));
+    RunOnDeleteRef _complete(std::make_shared<RunOnDelete>(c));
     register_on_applied(new ContainerContext<RunOnDeleteRef>(_complete));
     register_on_commit(new ContainerContext<RunOnDeleteRef>(_complete));
   }
   bool has_contexts() const {
-    return
-	!on_commit.empty() ||
-	!on_applied.empty() ||
-	!on_applied_sync.empty();
+    return !on_commit.empty() || !on_applied.empty() ||
+           !on_applied_sync.empty();
   }
 
-  static void collect_contexts(
-    std::vector<Transaction>& t,
-    Context **out_on_applied,
-    Context **out_on_commit,
-    Context **out_on_applied_sync) {
+  static void collect_contexts(std::vector<Transaction>& t,
+                               Context** out_on_applied,
+                               Context** out_on_commit,
+                               Context** out_on_applied_sync) {
     ceph_assert(out_on_applied);
     ceph_assert(out_on_commit);
     ceph_assert(out_on_applied_sync);
-    std::list<Context *> on_applied, on_commit, on_applied_sync;
+    std::list<Context*> on_applied, on_commit, on_applied_sync;
     for (auto& i : t) {
-	on_applied.splice(on_applied.end(), i.on_applied);
-	on_commit.splice(on_commit.end(), i.on_commit);
-	on_applied_sync.splice(on_applied_sync.end(), i.on_applied_sync);
+      on_applied.splice(on_applied.end(), i.on_applied);
+      on_commit.splice(on_commit.end(), i.on_commit);
+      on_applied_sync.splice(on_applied_sync.end(), i.on_applied_sync);
     }
     *out_on_applied = C_Contexts::list_to_context(on_applied);
     *out_on_commit = C_Contexts::list_to_context(on_commit);
     *out_on_applied_sync = C_Contexts::list_to_context(on_applied_sync);
   }
-  static void collect_contexts(
-    std::vector<Transaction>& t,
-    std::list<Context*> *out_on_applied,
-    std::list<Context*> *out_on_commit,
-    std::list<Context*> *out_on_applied_sync) {
+  static void collect_contexts(std::vector<Transaction>& t,
+                               std::list<Context*>* out_on_applied,
+                               std::list<Context*>* out_on_commit,
+                               std::list<Context*>* out_on_applied_sync) {
     ceph_assert(out_on_applied);
     ceph_assert(out_on_commit);
     ceph_assert(out_on_applied_sync);
     for (auto& i : t) {
-	out_on_applied->splice(out_on_applied->end(), i.on_applied);
-	out_on_commit->splice(out_on_commit->end(), i.on_commit);
-	out_on_applied_sync->splice(out_on_applied_sync->end(),
-				    i.on_applied_sync);
+      out_on_applied->splice(out_on_applied->end(), i.on_applied);
+      out_on_commit->splice(out_on_commit->end(), i.on_commit);
+      out_on_applied_sync->splice(out_on_applied_sync->end(),
+                                  i.on_applied_sync);
     }
   }
-  static Context *collect_all_contexts(
-    Transaction& t) {
+  static Context* collect_all_contexts(Transaction& t) {
     std::list<Context*> contexts;
     contexts.splice(contexts.end(), t.on_applied);
     contexts.splice(contexts.end(), t.on_commit);
@@ -364,13 +352,13 @@ public:
     return C_Contexts::list_to_context(contexts);
   }
 
-  Context *get_on_applied() {
+  Context* get_on_applied() {
     return C_Contexts::list_to_context(on_applied);
   }
-  Context *get_on_commit() {
+  Context* get_on_commit() {
     return C_Contexts::list_to_context(on_commit);
   }
-  Context *get_on_applied_sync() {
+  Context* get_on_applied_sync() {
     return C_Contexts::list_to_context(on_applied_sync);
   }
 
@@ -380,7 +368,9 @@ public:
   void set_fadvise_flag(uint32_t flag) {
     data.fadvise_flags = data.fadvise_flags | flag;
   }
-  uint32_t get_fadvise_flags() { return data.fadvise_flags; }
+  uint32_t get_fadvise_flags() {
+    return data.fadvise_flags;
+  }
 
   void swap(Transaction& other) noexcept {
     std::swap(data, other.data);
@@ -396,109 +386,96 @@ public:
     data_bl.swap(other.data_bl);
   }
 
-  void _update_op(Op* op,
-    std::vector<uint32_t> &cm,
-    std::vector<uint32_t> &om) {
-
+  void _update_op(Op* op, std::vector<uint32_t>& cm,
+                  std::vector<uint32_t>& om) {
     switch (op->op) {
-    case OP_NOP:
-      break;
+      case OP_NOP:
+        break;
 
-    case OP_CREATE:
-    case OP_TOUCH:
-    case OP_REMOVE:
-    case OP_SETATTR:
-    case OP_SETATTRS:
-    case OP_RMATTR:
-    case OP_RMATTRS:
-    case OP_COLL_REMOVE:
-    case OP_OMAP_CLEAR:
-    case OP_OMAP_SETKEYS:
-    case OP_OMAP_RMKEYS:
-    case OP_OMAP_RMKEYRANGE:
-    case OP_OMAP_SETHEADER:
-    case OP_WRITE:
-    case OP_ZERO:
-    case OP_TRUNCATE:
-    case OP_SETALLOCHINT:
-      ceph_assert(op->cid < cm.size());
-      ceph_assert(op->oid < om.size());
-      op->cid = cm[op->cid];
-      op->oid = om[op->oid];
-      break;
+      case OP_CREATE:
+      case OP_TOUCH:
+      case OP_REMOVE:
+      case OP_COLL_REMOVE:
+      case OP_WRITE:
+      case OP_ZERO:
+      case OP_TRUNCATE:
+      case OP_SETALLOCHINT:
+        ceph_assert(op->cid < cm.size());
+        ceph_assert(op->oid < om.size());
+        op->cid = cm[op->cid];
+        op->oid = om[op->oid];
+        break;
 
-    case OP_CLONERANGE2:
-    case OP_CLONE:
-      ceph_assert(op->cid < cm.size());
-      ceph_assert(op->oid < om.size());
-      ceph_assert(op->dest_oid < om.size());
-      op->cid = cm[op->cid];
-      op->oid = om[op->oid];
-      op->dest_oid = om[op->dest_oid];
-      break;
+      case OP_CLONERANGE2:
+      case OP_CLONE:
+        ceph_assert(op->cid < cm.size());
+        ceph_assert(op->oid < om.size());
+        ceph_assert(op->dest_oid < om.size());
+        op->cid = cm[op->cid];
+        op->oid = om[op->oid];
+        op->dest_oid = om[op->dest_oid];
+        break;
 
-    case OP_MKCOLL:
-    case OP_RMCOLL:
-    case OP_COLL_SETATTR:
-    case OP_COLL_RMATTR:
-    case OP_COLL_SETATTRS:
-    case OP_COLL_HINT:
-    case OP_COLL_SET_BITS:
-      ceph_assert(op->cid < cm.size());
-      op->cid = cm[op->cid];
-      break;
+      case OP_MKCOLL:
+      case OP_RMCOLL:
+      case OP_COLL_SETATTR:
+      case OP_COLL_RMATTR:
+      case OP_COLL_SETATTRS:
+      case OP_COLL_HINT:
+      case OP_COLL_SET_BITS:
+        ceph_assert(op->cid < cm.size());
+        op->cid = cm[op->cid];
+        break;
 
-    case OP_COLL_ADD:
-      ceph_assert(op->cid < cm.size());
-      ceph_assert(op->oid < om.size());
-      ceph_assert(op->dest_cid < om.size());
-      op->cid = cm[op->cid];
-      op->dest_cid = cm[op->dest_cid];
-      op->oid = om[op->oid];
-      break;
+      case OP_COLL_ADD:
+        ceph_assert(op->cid < cm.size());
+        ceph_assert(op->oid < om.size());
+        ceph_assert(op->dest_cid < om.size());
+        op->cid = cm[op->cid];
+        op->dest_cid = cm[op->dest_cid];
+        op->oid = om[op->oid];
+        break;
 
-    case OP_COLL_MOVE_RENAME:
-      ceph_assert(op->cid < cm.size());
-      ceph_assert(op->oid < om.size());
-      ceph_assert(op->dest_cid < cm.size());
-      ceph_assert(op->dest_oid < om.size());
-      op->cid = cm[op->cid];
-      op->oid = om[op->oid];
-      op->dest_cid = cm[op->dest_cid];
-      op->dest_oid = om[op->dest_oid];
-      break;
+      case OP_COLL_MOVE_RENAME:
+        ceph_assert(op->cid < cm.size());
+        ceph_assert(op->oid < om.size());
+        ceph_assert(op->dest_cid < cm.size());
+        ceph_assert(op->dest_oid < om.size());
+        op->cid = cm[op->cid];
+        op->oid = om[op->oid];
+        op->dest_cid = cm[op->dest_cid];
+        op->dest_oid = om[op->dest_oid];
+        break;
 
-    case OP_TRY_RENAME:
-      ceph_assert(op->cid < cm.size());
-      ceph_assert(op->oid < om.size());
-      ceph_assert(op->dest_oid < om.size());
-      op->cid = cm[op->cid];
-      op->oid = om[op->oid];
-      op->dest_oid = om[op->dest_oid];
-	break;
+      case OP_TRY_RENAME:
+        ceph_assert(op->cid < cm.size());
+        ceph_assert(op->oid < om.size());
+        ceph_assert(op->dest_oid < om.size());
+        op->cid = cm[op->cid];
+        op->oid = om[op->oid];
+        op->dest_oid = om[op->dest_oid];
+        break;
 
-    case OP_SPLIT_COLLECTION2:
-      ceph_assert(op->cid < cm.size());
-	ceph_assert(op->dest_cid < cm.size());
-      op->cid = cm[op->cid];
-      op->dest_cid = cm[op->dest_cid];
-      break;
+      case OP_SPLIT_COLLECTION2:
+        ceph_assert(op->cid < cm.size());
+        ceph_assert(op->dest_cid < cm.size());
+        op->cid = cm[op->cid];
+        op->dest_cid = cm[op->dest_cid];
+        break;
 
-    case OP_MERGE_COLLECTION:
-      ceph_assert(op->cid < cm.size());
-	ceph_assert(op->dest_cid < cm.size());
-      op->cid = cm[op->cid];
-      op->dest_cid = cm[op->dest_cid];
-      break;
+      case OP_MERGE_COLLECTION:
+        ceph_assert(op->cid < cm.size());
+        ceph_assert(op->dest_cid < cm.size());
+        op->cid = cm[op->cid];
+        op->dest_cid = cm[op->dest_cid];
+        break;
 
-    default:
-      ceph_abort_msg("Unknown OP");
+      default:
+        ceph_abort_msg("Unknown OP");
     }
   }
-  void _update_op_bl(
-    ceph::buffer::list& bl,
-    std::vector<uint32_t> &cm,
-    std::vector<uint32_t> &om) {
+  void _update_op_bl(ceph::buffer::list& bl, std::vector<uint32_t>& cm,
+                     std::vector<uint32_t>& om) {
     for (auto& bp : bl.buffers()) {
       ceph_assert(bp.length() % sizeof(Op) == 0);
 
@@ -512,12 +489,12 @@ public:
   }
   /// Append the operations of the parameter to this Transaction. Those operations are removed from the parameter Transaction
   void append(Transaction& other) {
-
     data.ops = data.ops + other.data.ops;
     if (other.data.largest_data_len > data.largest_data_len) {
-	data.largest_data_len = other.data.largest_data_len;
-	data.largest_data_off = other.data.largest_data_off;
-	data.largest_data_off_in_data_bl = data_bl.length() + other.data.largest_data_off_in_data_bl;
+      data.largest_data_len = other.data.largest_data_len;
+      data.largest_data_off = other.data.largest_data_off;
+      data.largest_data_off_in_data_bl =
+          data_bl.length() + other.data.largest_data_off_in_data_bl;
     }
     data.fadvise_flags = data.fadvise_flags | other.data.fadvise_flags;
     on_applied.splice(on_applied.end(), other.on_applied);
@@ -526,18 +503,16 @@ public:
 
     //append coll_index & object_index
     std::vector<uint32_t> cm(other.coll_index.size());
-    std::map<coll_t, uint32_t>::iterator coll_index_p;
+    std::map<rgw_salcoll_t, uint32_t>::iterator coll_index_p;
     for (coll_index_p = other.coll_index.begin();
-         coll_index_p != other.coll_index.end();
-         ++coll_index_p) {
+         coll_index_p != other.coll_index.end(); ++coll_index_p) {
       cm[coll_index_p->second] = _get_coll_id(coll_index_p->first);
     }
 
     std::vector<uint32_t> om(other.object_index.size());
-    std::map<ghobject_t, uint32_t>::iterator object_index_p;
+    std::map<rgw_saloid_t, uint32_t>::iterator object_index_p;
     for (object_index_p = other.object_index.begin();
-         object_index_p != other.object_index.end();
-         ++object_index_p) {
+         object_index_p != other.object_index.end(); ++object_index_p) {
       om[object_index_p->second] = _get_object_id(object_index_p->first);
     }
 
@@ -577,17 +552,15 @@ public:
 
     // coll_index first
     for (auto p = coll_index.begin(); p != coll_index.end(); ++p) {
-	final_size += p->first.encoded_size();
+      final_size += p->first.encoded_size();
     }
 
     // object_index first
     for (auto p = object_index.begin(); p != object_index.end(); ++p) {
-	final_size += p->first.encoded_size();
+      final_size += p->first.encoded_size();
     }
 
-    return data_bl.length() +
-	op_bl.length() +
-	final_size;
+    return data_bl.length() + op_bl.length() + final_size;
   }
 
   /// Retain old version for regression testing purposes
@@ -598,10 +571,7 @@ public:
     encode(coll_index, bl);
     encode(object_index, bl);
 
-    return data_bl.length() +
-	op_bl.length() +
-	bl.length() +
-	sizeof(data);
+    return data_bl.length() + op_bl.length() + bl.length() + sizeof(data);
   }
 
   uint64_t get_num_bytes() {
@@ -614,18 +584,17 @@ public:
   /// offset within the encoded buffer to the start of the largest data buffer that's encoded
   uint32_t get_data_offset() {
     if (data.largest_data_off_in_data_bl) {
-	return data.largest_data_off_in_data_bl +
-	  sizeof(__u8) +      // encode struct_v
-	  sizeof(__u8) +      // encode compat_v
-	  sizeof(__u32) +     // encode len
-	  sizeof(__u32);      // data_bl len
+      return data.largest_data_off_in_data_bl +
+             sizeof(__u8) +   // encode struct_v
+             sizeof(__u8) +   // encode compat_v
+             sizeof(__u32) +  // encode len
+             sizeof(__u32);   // data_bl len
     }
     return 0;  // none
   }
   /// offset of buffer as aligned to destination within object.
   int get_data_alignment() {
-    if (!data.largest_data_len)
-	return 0;
+    if (!data.largest_data_len) return 0;
     return (0 - get_data_offset()) & ~CEPH_PAGE_MASK;
   }
   /// Is the Transaction empty (no operations)
@@ -647,46 +616,42 @@ public:
    *
    */
   class iterator {
-    Transaction *t;
+    Transaction* t;
 
     uint64_t ops;
     char* op_buffer_p;
 
     ceph::buffer::list::const_iterator data_bl_p;
 
-  public:
-    std::vector<coll_t> colls;
-    std::vector<ghobject_t> objects;
+   public:
+    std::vector<rgw_salcoll_t> colls;
+    std::vector<rgw_saloid_t> objects;
 
-  private:
-    explicit iterator(Transaction *t)
-      : t(t),
-	  data_bl_p(t->data_bl.cbegin()),
-        colls(t->coll_index.size()),
-        objects(t->object_index.size()) {
-
+   private:
+    explicit iterator(Transaction* t)
+        : t(t),
+          data_bl_p(t->data_bl.cbegin()),
+          colls(t->coll_index.size()),
+          objects(t->object_index.size()) {
       ops = t->data.ops;
       op_buffer_p = t->op_bl.c_str();
 
-      std::map<coll_t, uint32_t>::iterator coll_index_p;
+      std::map<rgw_salcoll_t, uint32_t>::iterator coll_index_p;
       for (coll_index_p = t->coll_index.begin();
-           coll_index_p != t->coll_index.end();
-           ++coll_index_p) {
+           coll_index_p != t->coll_index.end(); ++coll_index_p) {
         colls[coll_index_p->second] = coll_index_p->first;
       }
 
-      std::map<ghobject_t, uint32_t>::iterator object_index_p;
+      std::map<rgw_saloid_t, uint32_t>::iterator object_index_p;
       for (object_index_p = t->object_index.begin();
-           object_index_p != t->object_index.end();
-           ++object_index_p) {
+           object_index_p != t->object_index.end(); ++object_index_p) {
         objects[object_index_p->second] = object_index_p->first;
       }
     }
 
     friend class Transaction;
 
-  public:
-
+   public:
     bool have_op() {
       return ops > 0;
     }
@@ -700,60 +665,60 @@ public:
       return op;
     }
     std::string decode_string() {
-	using ceph::decode;
+      using ceph::decode;
       std::string s;
       decode(s, data_bl_p);
       return s;
     }
     void decode_bp(ceph::buffer::ptr& bp) {
-	using ceph::decode;
+      using ceph::decode;
       decode(bp, data_bl_p);
     }
     void decode_bl(ceph::buffer::list& bl) {
-	using ceph::decode;
+      using ceph::decode;
       decode(bl, data_bl_p);
     }
-    void decode_attrset(std::map<std::string,ceph::buffer::ptr>& aset) {
-	using ceph::decode;
+    void decode_attrset(std::map<std::string, ceph::buffer::ptr>& aset) {
+      using ceph::decode;
       decode(aset, data_bl_p);
     }
-    void decode_attrset(std::map<std::string,ceph::buffer::list>& aset) {
-	using ceph::decode;
+    void decode_attrset(std::map<std::string, ceph::buffer::list>& aset) {
+      using ceph::decode;
       decode(aset, data_bl_p);
     }
-    void decode_attrset_bl(ceph::buffer::list *pbl) {
-	decode_str_str_map_to_bl(data_bl_p, pbl);
+    void decode_attrset_bl(ceph::buffer::list* pbl) {
+      decode_str_str_map_to_bl(data_bl_p, pbl);
     }
-    void decode_keyset(std::set<std::string> &keys){
-	using ceph::decode;
+    void decode_keyset(std::set<std::string>& keys) {
+      using ceph::decode;
       decode(keys, data_bl_p);
     }
-    void decode_keyset_bl(ceph::buffer::list *pbl){
+    void decode_keyset_bl(ceph::buffer::list* pbl) {
       decode_str_set_to_bl(data_bl_p, pbl);
     }
 
-    const ghobject_t &get_oid(uint32_t oid_id) {
+    const rgw_saloid_t& get_oid(uint32_t oid_id) {
       ceph_assert(oid_id < objects.size());
       return objects[oid_id];
     }
-    const coll_t &get_cid(uint32_t cid_id) {
+    const rgw_salcoll_t& get_cid(uint32_t cid_id) {
       ceph_assert(cid_id < colls.size());
       return colls[cid_id];
     }
     uint32_t get_fadvise_flags() const {
-	return t->get_fadvise_flags();
+      return t->get_fadvise_flags();
     }
 
-    const std::vector<ghobject_t> &get_objects() const {
+    const std::vector<rgw_saloid_t>& get_objects() const {
       return objects;
     }
   };
 
   iterator begin() {
-     return iterator(this);
+    return iterator(this);
   }
 
-private:
+ private:
   void _build_actions_from_tbl();
 
   /**
@@ -774,26 +739,24 @@ private:
     memset(p, 0, sizeof(Op));
     return reinterpret_cast<Op*>(p);
   }
-  uint32_t _get_coll_id(const coll_t& coll) {
-    std::map<coll_t, uint32_t>::iterator c = coll_index.find(coll);
-    if (c != coll_index.end())
-      return c->second;
+  uint32_t _get_coll_id(const rgw_salcoll_t& coll) {
+    std::map<rgw_salcoll_t, uint32_t>::iterator c = coll_index.find(coll);
+    if (c != coll_index.end()) return c->second;
 
     uint32_t index_id = coll_id++;
     coll_index[coll] = index_id;
     return index_id;
   }
-  uint32_t _get_object_id(const ghobject_t& oid) {
-    std::map<ghobject_t, uint32_t>::iterator o = object_index.find(oid);
-    if (o != object_index.end())
-      return o->second;
+  uint32_t _get_object_id(const rgw_saloid_t& oid) {
+    std::map<rgw_saloid_t, uint32_t>::iterator o = object_index.find(oid);
+    if (o != object_index.end()) return o->second;
 
     uint32_t index_id = object_id++;
     object_index[oid] = index_id;
     return index_id;
   }
 
-public:
+ public:
   /// noop. 'nuf said
   void nop() {
     Op* _op = _get_next_op();
@@ -806,7 +769,7 @@ public:
    * create an object that does not yet exist
    * (behavior is undefined if the object already exists)
    */
-  void create(const coll_t& cid, const ghobject_t& oid) {
+  void create(const rgw_salcoll_t& cid, const rgw_saloid_t& oid) {
     Op* _op = _get_next_op();
     _op->op = OP_CREATE;
     _op->cid = _get_coll_id(cid);
@@ -819,7 +782,7 @@ public:
    * Ensure the existance of an object in a collection. Create an
    * empty object if necessary
    */
-  void touch(const coll_t& cid, const ghobject_t& oid) {
+  void touch(const rgw_salcoll_t& cid, const rgw_saloid_t& oid) {
     Op* _op = _get_next_op();
     _op->op = OP_TOUCH;
     _op->cid = _get_coll_id(cid);
@@ -838,8 +801,9 @@ public:
    *
    * Note that a 0-length write does not affect the size of the object.
    */
-  void write(const coll_t& cid, const ghobject_t& oid, uint64_t off, uint64_t len,
-	       const ceph::buffer::list& write_data, uint32_t flags = 0) {
+  void write(const rgw_salcoll_t& cid, const rgw_saloid_t& oid, uint64_t off,
+             uint64_t len, const ceph::buffer::list& write_data,
+             uint32_t flags = 0) {
     using ceph::encode;
     uint32_t orig_len = data_bl.length();
     Op* _op = _get_next_op();
@@ -853,9 +817,10 @@ public:
     ceph_assert(len == write_data.length());
     data.fadvise_flags = data.fadvise_flags | flags;
     if (write_data.length() > data.largest_data_len) {
-	data.largest_data_len = write_data.length();
-	data.largest_data_off = off;
-	data.largest_data_off_in_data_bl = orig_len + sizeof(__u32);  // we are about to
+      data.largest_data_len = write_data.length();
+      data.largest_data_off = off;
+      data.largest_data_off_in_data_bl =
+          orig_len + sizeof(__u32);  // we are about to
     }
     data.ops = data.ops + 1;
   }
@@ -869,7 +834,8 @@ public:
    * EXCEPT if the length is 0, in which case (just like a 0-length write)
    * we do not adjust the object size.
    */
-  void zero(const coll_t& cid, const ghobject_t& oid, uint64_t off, uint64_t len) {
+  void zero(const rgw_salcoll_t& cid, const rgw_saloid_t& oid, uint64_t off,
+            uint64_t len) {
     Op* _op = _get_next_op();
     _op->op = OP_ZERO;
     _op->cid = _get_coll_id(cid);
@@ -879,7 +845,8 @@ public:
     data.ops = data.ops + 1;
   }
   /// Discard all data in the object beyond the specified size.
-  void truncate(const coll_t& cid, const ghobject_t& oid, uint64_t off) {
+  void truncate(const rgw_salcoll_t& cid, const rgw_saloid_t& oid,
+                uint64_t off) {
     Op* _op = _get_next_op();
     _op->op = OP_TRUNCATE;
     _op->cid = _get_coll_id(cid);
@@ -888,72 +855,9 @@ public:
     data.ops = data.ops + 1;
   }
   /// Remove an object. All four parts of the object are removed.
-  void remove(const coll_t& cid, const ghobject_t& oid) {
+  void remove(const rgw_salcoll_t& cid, const rgw_saloid_t& oid) {
     Op* _op = _get_next_op();
     _op->op = OP_REMOVE;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    data.ops = data.ops + 1;
-  }
-  /// Set an xattr of an object
-  void setattr(const coll_t& cid, const ghobject_t& oid, const char* name, ceph::buffer::list& val) {
-    std::string n(name);
-    setattr(cid, oid, n, val);
-  }
-  /// Set an xattr of an object
-  void setattr(const coll_t& cid, const ghobject_t& oid, const std::string& s, ceph::buffer::list& val) {
-    using ceph::encode;
-    Op* _op = _get_next_op();
-    _op->op = OP_SETATTR;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    encode(s, data_bl);
-    encode(val, data_bl);
-    data.ops = data.ops + 1;
-  }
-  /// Set multiple xattrs of an object
-  void setattrs(const coll_t& cid,
-		const ghobject_t& oid,
-		const std::map<std::string,ceph::buffer::ptr,std::less<>>& attrset) {
-    using ceph::encode;
-    Op* _op = _get_next_op();
-    _op->op = OP_SETATTRS;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    encode(attrset, data_bl);
-    data.ops = data.ops + 1;
-  }
-  /// Set multiple xattrs of an object
-  void setattrs(const coll_t& cid,
-		const ghobject_t& oid,
-		const std::map<std::string,ceph::buffer::list,std::less<>>& attrset) {
-    using ceph::encode;
-    Op* _op = _get_next_op();
-    _op->op = OP_SETATTRS;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    encode(attrset, data_bl);
-    data.ops = data.ops + 1;
-  }
-  /// remove an xattr from an object
-  void rmattr(const coll_t& cid, const ghobject_t& oid, const char *name) {
-    std::string n(name);
-    rmattr(cid, oid, n);
-  }
-  /// remove an xattr from an object
-  void rmattr(const coll_t& cid, const ghobject_t& oid, const std::string& s) {
-    using ceph::encode;
-    Op* _op = _get_next_op();
-    _op->op = OP_RMATTR;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    encode(s, data_bl);
-    data.ops = data.ops + 1;
-  }
-  /// remove all xattrs from an object
-  void rmattrs(const coll_t& cid, const ghobject_t& oid) {
-    Op* _op = _get_next_op();
-    _op->op = OP_RMATTRS;
     _op->cid = _get_coll_id(cid);
     _op->oid = _get_object_id(oid);
     data.ops = data.ops + 1;
@@ -969,8 +873,8 @@ public:
    * The destination named object may already exist, in
    * which case its previous contents are discarded.
    */
-  void clone(const coll_t& cid, const ghobject_t& oid,
-	       const ghobject_t& noid) {
+  void clone(const rgw_salcoll_t& cid, const rgw_saloid_t& oid,
+             const rgw_saloid_t& noid) {
     Op* _op = _get_next_op();
     _op->op = OP_CLONE;
     _op->cid = _get_coll_id(cid);
@@ -990,9 +894,9 @@ public:
    * The source range *must* overlap with the source object data. If it does
    * not the result is undefined.
    */
-  void clone_range(const coll_t& cid, const ghobject_t& oid,
-		     const ghobject_t& noid,
-		     uint64_t srcoff, uint64_t srclen, uint64_t dstoff) {
+  void clone_range(const rgw_salcoll_t& cid, const rgw_saloid_t& oid,
+                   const rgw_saloid_t& noid, uint64_t srcoff, uint64_t srclen,
+                   uint64_t dstoff) {
     Op* _op = _get_next_op();
     _op->op = OP_CLONERANGE2;
     _op->cid = _get_coll_id(cid);
@@ -1005,7 +909,7 @@ public:
   }
 
   /// Create the collection
-  void create_collection(const coll_t& cid, int bits) {
+  void create_collection(const rgw_salcoll_t& cid, int bits) {
     Op* _op = _get_next_op();
     _op->op = OP_MKCOLL;
     _op->cid = _get_coll_id(cid);
@@ -1021,7 +925,8 @@ public:
    * @param hint - the hint payload, which contains the customized
    *               data along with the hint type.
    */
-  void collection_hint(const coll_t& cid, uint32_t type, const ceph::buffer::list& hint) {
+  void collection_hint(const rgw_salcoll_t& cid, uint32_t type,
+                       const ceph::buffer::list& hint) {
     using ceph::encode;
     Op* _op = _get_next_op();
     _op->op = OP_COLL_HINT;
@@ -1032,31 +937,33 @@ public:
   }
 
   /// remove the collection, the collection must be empty
-  void remove_collection(const coll_t& cid) {
+  void remove_collection(const rgw_salcoll_t& cid) {
     Op* _op = _get_next_op();
     _op->op = OP_RMCOLL;
     _op->cid = _get_coll_id(cid);
     data.ops = data.ops + 1;
   }
-  void collection_move(const coll_t& cid, const coll_t &oldcid, const ghobject_t& oid)
-    __attribute__ ((deprecated)) {
-	// NOTE: we encode this as a fixed combo of ADD + REMOVE.  they
-	// always appear together, so this is effectively a single MOVE.
-	Op* _op = _get_next_op();
-	_op->op = OP_COLL_ADD;
-	_op->cid = _get_coll_id(oldcid);
-	_op->oid = _get_object_id(oid);
-	_op->dest_cid = _get_coll_id(cid);
-	data.ops = data.ops + 1;
+  void collection_move(const rgw_salcoll_t& cid, const rgw_salcoll_t& oldcid,
+                       const rgw_saloid_t& oid) __attribute__((deprecated)) {
+    // NOTE: we encode this as a fixed combo of ADD + REMOVE.  they
+    // always appear together, so this is effectively a single MOVE.
+    Op* _op = _get_next_op();
+    _op->op = OP_COLL_ADD;
+    _op->cid = _get_coll_id(oldcid);
+    _op->oid = _get_object_id(oid);
+    _op->dest_cid = _get_coll_id(cid);
+    data.ops = data.ops + 1;
 
-	_op = _get_next_op();
-	_op->op = OP_COLL_REMOVE;
-	_op->cid = _get_coll_id(oldcid);
-	_op->oid = _get_object_id(oid);
-	data.ops = data.ops + 1;
-    }
-  void collection_move_rename(const coll_t& oldcid, const ghobject_t& oldoid,
-				const coll_t &cid, const ghobject_t& oid) {
+    _op = _get_next_op();
+    _op->op = OP_COLL_REMOVE;
+    _op->cid = _get_coll_id(oldcid);
+    _op->oid = _get_object_id(oid);
+    data.ops = data.ops + 1;
+  }
+  void collection_move_rename(const rgw_salcoll_t& oldcid,
+                              const rgw_saloid_t& oldoid,
+                              const rgw_salcoll_t& cid,
+                              const rgw_saloid_t& oid) {
     Op* _op = _get_next_op();
     _op->op = OP_COLL_MOVE_RENAME;
     _op->cid = _get_coll_id(oldcid);
@@ -1065,8 +972,8 @@ public:
     _op->dest_oid = _get_object_id(oid);
     data.ops = data.ops + 1;
   }
-  void try_rename(const coll_t &cid, const ghobject_t& oldoid,
-                  const ghobject_t& oid) {
+  void try_rename(const rgw_salcoll_t& cid, const rgw_saloid_t& oldoid,
+                  const rgw_saloid_t& oid) {
     Op* _op = _get_next_op();
     _op->op = OP_TRY_RENAME;
     _op->cid = _get_coll_id(cid);
@@ -1075,144 +982,10 @@ public:
     data.ops = data.ops + 1;
   }
 
-  /// Remove omap from oid
-  void omap_clear(
-    const coll_t &cid,           ///< [in] Collection containing oid
-    const ghobject_t &oid  ///< [in] Object from which to remove omap
-    ) {
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_CLEAR;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    data.ops = data.ops + 1;
-  }
-  /// Set keys on oid omap.  Replaces duplicate keys.
-  void omap_setkeys(
-    const coll_t& cid,                           ///< [in] Collection containing oid
-    const ghobject_t &oid,                ///< [in] Object to update
-    const std::map<std::string, ceph::buffer::list> &attrset ///< [in] Replacement keys and values
-    ) {
-    using ceph::encode;
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_SETKEYS;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    encode(attrset, data_bl);
-    data.ops = data.ops + 1;
-  }
-
-  /// Set keys on an oid omap (ceph::buffer::list variant).
-  void omap_setkeys(
-    const coll_t &cid,                           ///< [in] Collection containing oid
-    const ghobject_t &oid,                ///< [in] Object to update
-    const ceph::buffer::list &attrset_bl          ///< [in] Replacement keys and values
-    ) {
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_SETKEYS;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    data_bl.append(attrset_bl);
-    data.ops = data.ops + 1;
-  }
-
-  /// Remove keys from oid omap
-  void omap_rmkeys(
-    const coll_t &cid,             ///< [in] Collection containing oid
-    const ghobject_t &oid,  ///< [in] Object from which to remove the omap
-    const std::set<std::string> &keys ///< [in] Keys to clear
-    ) {
-    using ceph::encode;
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_RMKEYS;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    encode(keys, data_bl);
-    data.ops = data.ops + 1;
-  }
-
-  /// Remove key from oid omap
-  void omap_rmkey(
-    const coll_t &cid,             ///< [in] Collection containing oid
-    const ghobject_t &oid,  ///< [in] Object from which to remove the omap
-    const std::string& key ///< [in] Keys to clear
-    ) {
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_RMKEYS;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    using ceph::encode;
-    encode((uint32_t)1, data_bl);
-    encode(key, data_bl);
-    data.ops = data.ops + 1;
-  }
-
-  /// Remove keys from oid omap
-  void omap_rmkeys(
-    const coll_t &cid,             ///< [in] Collection containing oid
-    const ghobject_t &oid,  ///< [in] Object from which to remove the omap
-    const ceph::buffer::list &keys_bl ///< [in] Keys to clear
-    ) {
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_RMKEYS;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    data_bl.append(keys_bl);
-    data.ops = data.ops + 1;
-  }
-
-  /// Remove key range from oid omap
-  void omap_rmkeyrange(
-    const coll_t &cid,             ///< [in] Collection containing oid
-    const ghobject_t &oid,  ///< [in] Object from which to remove the omap keys
-    const std::string& first,    ///< [in] first key in range
-    const std::string& last      ///< [in] first key past range, range is [first,last)
-    ) {
-    using ceph::encode;
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_RMKEYRANGE;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    encode(first, data_bl);
-    encode(last, data_bl);
-    data.ops = data.ops + 1;
-  }
-
-  /// Remove key range from oid omap
-  void omap_rmkeyrange(
-    const coll_t cid,       ///< [in] Collection containing oid
-    const ghobject_t &oid,  ///< [in] Object from which to remove the omap keys
-    const bufferlist &keys_bl ///< [in] range of keys to clear
-    ) {
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_RMKEYRANGE;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    data_bl.append(keys_bl);
-    data.ops = data.ops + 1;
-  }
-
-  /// Set omap header
-  void omap_setheader(
-    const coll_t &cid,             ///< [in] Collection containing oid
-    const ghobject_t &oid,  ///< [in] Object
-    const ceph::buffer::list &bl    ///< [in] Header value
-    ) {
-    using ceph::encode;
-    Op* _op = _get_next_op();
-    _op->op = OP_OMAP_SETHEADER;
-    _op->cid = _get_coll_id(cid);
-    _op->oid = _get_object_id(oid);
-    encode(bl, data_bl);
-    data.ops = data.ops + 1;
-  }
-
   /// Split collection based on given prefixes, objects matching the specified bits/rem are
   /// moved to the new collection
-  void split_collection(
-    const coll_t &cid,
-    uint32_t bits,
-    uint32_t rem,
-    const coll_t &destination) {
+  void split_collection(const rgw_salcoll_t& cid, uint32_t bits, uint32_t rem,
+                        const rgw_salcoll_t& destination) {
     Op* _op = _get_next_op();
     _op->op = OP_SPLIT_COLLECTION2;
     _op->cid = _get_coll_id(cid);
@@ -1223,10 +996,8 @@ public:
   }
 
   /// Merge collection into another.
-  void merge_collection(
-    coll_t cid,
-    coll_t destination,
-    uint32_t bits) {
+  void merge_collection(rgw_salcoll_t cid, rgw_salcoll_t destination,
+                        uint32_t bits) {
     Op* _op = _get_next_op();
     _op->op = OP_MERGE_COLLECTION;
     _op->cid = _get_coll_id(cid);
@@ -1235,9 +1006,7 @@ public:
     data.ops = data.ops + 1;
   }
 
-  void collection_set_bits(
-    const coll_t &cid,
-    int bits) {
+  void collection_set_bits(const rgw_salcoll_t& cid, int bits) {
     Op* _op = _get_next_op();
     _op->op = OP_COLL_SET_BITS;
     _op->cid = _get_coll_id(cid);
@@ -1247,13 +1016,9 @@ public:
 
   /// Set allocation hint for an object
   /// make 0 values(expected_object_size, expected_write_size) noops for all implementations
-  void set_alloc_hint(
-    const coll_t &cid,
-    const ghobject_t &oid,
-    uint64_t expected_object_size,
-    uint64_t expected_write_size,
-    uint32_t flags
-  ) {
+  void set_alloc_hint(const rgw_salcoll_t& cid, const rgw_saloid_t& oid,
+                      uint64_t expected_object_size,
+                      uint64_t expected_write_size, uint32_t flags) {
     Op* _op = _get_next_op();
     _op->op = OP_SETALLOCHINT;
     _op->cid = _get_coll_id(cid);
@@ -1275,7 +1040,7 @@ public:
     ENCODE_FINISH(bl);
   }
 
-  void decode(ceph::buffer::list::const_iterator &bl) {
+  void decode(ceph::buffer::list::const_iterator& bl) {
     DECODE_START(9, bl);
     DECODE_OLDEST(9);
 
@@ -1290,7 +1055,7 @@ public:
     DECODE_FINISH(bl);
   }
 
-  void dump(ceph::Formatter *f);
+  void dump(ceph::Formatter* f);
   static void generate_test_instances(std::list<Transaction*>& o);
 };
 WRITE_CLASS_ENCODER(Transaction)
@@ -1298,4 +1063,4 @@ WRITE_CLASS_ENCODER(Transaction::TransactionData)
 
 std::ostream& operator<<(std::ostream& out, const Transaction& tx);
 
-}
+}  // namespace ceph::os

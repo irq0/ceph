@@ -14,28 +14,30 @@
 #ifndef OS_INDEXMANAGER_H
 #define OS_INDEXMANAGER_H
 
-#include "include/unordered_map.h"
-
-#include "common/ceph_mutex.h"
-#include "common/Cond.h"
-#include "common/config.h"
-#include "common/debug.h"
-
 #include "CollectionIndex.h"
 #include "HashIndex.h"
-
+#include "common/Cond.h"
+#include "common/ceph_mutex.h"
+#include "common/config.h"
+#include "common/debug.h"
+#include "include/unordered_map.h"
 
 /// Public type for Index
 struct Index {
   CollectionIndex *index;
 
-  Index() : index(NULL) {}
-  explicit Index(CollectionIndex* index) : index(index) {}
+  Index() : index(NULL) {
+  }
+  explicit Index(CollectionIndex *index) : index(index) {
+  }
 
-  CollectionIndex *operator->() { return index; }
-  CollectionIndex &operator*() { return *index; }
+  CollectionIndex *operator->() {
+    return index;
+  }
+  CollectionIndex &operator*() {
+    return *index;
+  }
 };
-
 
 /**
  * Encapsulates mutual exclusion for CollectionIndexes.
@@ -48,11 +50,11 @@ struct Index {
  * This is enforced by using CollectionIndex::access_lock
  */
 class IndexManager {
-  CephContext* cct;
+  CephContext *cct;
   /// Lock for Index Manager
   ceph::shared_mutex lock = ceph::make_shared_mutex("IndexManager lock");
   bool upgrade;
-  ceph::unordered_map<coll_t, CollectionIndex* > col_indices;
+  ceph::unordered_map<rgw_salcoll_t, CollectionIndex *> col_indices;
 
   /**
    * Index factory
@@ -65,13 +67,14 @@ class IndexManager {
    * @param [out] index Index for c
    * @return error code
    */
-  int build_index(coll_t c, const char *path, CollectionIndex **index);
-  bool get_index_optimistic(coll_t c, Index *index);
-public:
+  int build_index(rgw_salcoll_t c, const char *path, CollectionIndex **index);
+  bool get_index_optimistic(rgw_salcoll_t c, Index *index);
+
+ public:
   /// Constructor
-  explicit IndexManager(CephContext* cct,
-			bool upgrade) : cct(cct),
-					upgrade(upgrade) {}
+  explicit IndexManager(CephContext *cct, bool upgrade)
+      : cct(cct), upgrade(upgrade) {
+  }
 
   ~IndexManager();
 
@@ -83,7 +86,7 @@ public:
    * @param [out] index Index for c
    * @return error code
    */
-  int get_index(coll_t c, const std::string& baseDir, Index *index);
+  int get_index(rgw_salcoll_t c, const std::string &baseDir, Index *index);
 
   /**
    * Initialize index for collection c at path
@@ -93,7 +96,7 @@ public:
    * @param [in] filestore_version version of containing FileStore
    * @return error code
    */
-  int init_index(coll_t c, const char *path, uint32_t filestore_version);
+  int init_index(rgw_salcoll_t c, const char *path, uint32_t filestore_version);
 };
 
 #endif

@@ -15,9 +15,9 @@
 #ifndef CEPH_HASHINDEX_H
 #define CEPH_HASHINDEX_H
 
+#include "LFNIndex.h"
 #include "include/buffer_fwd.h"
 #include "include/encoding.h"
-#include "LFNIndex.h"
 
 extern std::string reverse_hexdigit_bits_string(std::string l);
 
@@ -40,7 +40,7 @@ extern std::string reverse_hexdigit_bits_string(std::string l);
  * given by the hex characters in the hash beginning with the least
  * significant.
  *
- * ex: ghobject_t("object", CEPH_NO_SNAP, 0xA4CEE0D2)
+ * ex: rgw_saloid_t("object", CEPH_NO_SNAP, 0xA4CEE0D2)
  * would be located in (root)/2/D/0/
  *
  * Subdirectories are created when the number of objects in a
@@ -49,7 +49,7 @@ extern std::string reverse_hexdigit_bits_string(std::string l);
  * as subdir_info_s in an xattr on the directory.
  */
 class HashIndex : public LFNIndex {
-private:
+ private:
   /// Attribute name for storing subdir info @see subdir_info_s
   static const std::string SUBDIR_ATTR;
   /// Attribute name for storing index-wide settings
@@ -59,7 +59,7 @@ private:
   /// Size (bits) in object hash
   static const int PATH_HASH_LEN = 32;
   /// Max length of hashed path
-  static const int MAX_HASH_LEVEL = (PATH_HASH_LEN/4);
+  static const int MAX_HASH_LEVEL = (PATH_HASH_LEN / 4);
 
   /**
    * Merges occur when the number of object drops below
@@ -76,14 +76,14 @@ private:
 
   /// Encodes current subdir state for determining when to split/merge.
   struct subdir_info_s {
-    uint64_t objs;       ///< Objects in subdir.
-    uint32_t subdirs;    ///< Subdirs in subdir.
-    uint32_t hash_level; ///< Hashlevel of subdir.
+    uint64_t objs;        ///< Objects in subdir.
+    uint32_t subdirs;     ///< Subdirs in subdir.
+    uint32_t hash_level;  ///< Hashlevel of subdir.
 
-    subdir_info_s() : objs(0), subdirs(0), hash_level(0) {}
+    subdir_info_s() : objs(0), subdirs(0), hash_level(0) {
+    }
 
-    void encode(ceph::buffer::list &bl) const
-    {
+    void encode(ceph::buffer::list &bl) const {
       using ceph::encode;
       __u8 v = 1;
       encode(v, bl);
@@ -92,8 +92,7 @@ private:
       encode(hash_level, bl);
     }
 
-    void decode(ceph::buffer::list::const_iterator &bl)
-    {
+    void decode(ceph::buffer::list::const_iterator &bl) {
       using ceph::decode;
       __u8 v;
       decode(v, bl);
@@ -105,17 +104,17 @@ private:
   };
 
   struct settings_s {
-    uint32_t split_rand_factor; ///< random factor added to split threshold (only on root of collection)
-    settings_s() : split_rand_factor(0) {}
-    void encode(ceph::buffer::list &bl) const
-    {
+    uint32_t
+        split_rand_factor;  ///< random factor added to split threshold (only on root of collection)
+    settings_s() : split_rand_factor(0) {
+    }
+    void encode(ceph::buffer::list &bl) const {
       using ceph::encode;
       __u8 v = 1;
       encode(v, bl);
       encode(split_rand_factor, bl);
     }
-    void decode(ceph::buffer::list::const_iterator &bl)
-    {
+    void decode(ceph::buffer::list::const_iterator &bl) {
       using ceph::decode;
       __u8 v;
       decode(v, bl);
@@ -132,15 +131,22 @@ private:
     std::vector<std::string> path;
 
     InProgressOp(int op, const std::vector<std::string> &path)
-      : op(op), path(path) {}
+        : op(op), path(path) {
+    }
 
     explicit InProgressOp(ceph::buffer::list::const_iterator &bl) {
       decode(bl);
     }
 
-    bool is_split() const { return op == SPLIT; }
-    bool is_col_split() const { return op == COL_SPLIT; }
-    bool is_merge() const { return op == MERGE; }
+    bool is_split() const {
+      return op == SPLIT;
+    }
+    bool is_col_split() const {
+      return op == COL_SPLIT;
+    }
+    bool is_merge() const {
+      return op == MERGE;
+    }
 
     void encode(ceph::buffer::list &bl) const {
       using ceph::encode;
@@ -160,26 +166,26 @@ private:
     }
   };
 
-
-public:
+ public:
   /// Constructor.
-  HashIndex(
-    CephContext* cct,
-    coll_t collection,     ///< [in] Collection
-    const char *base_path, ///< [in] Path to the index root.
-    int merge_at,          ///< [in] Merge threshold.
-    int split_multiple,	   ///< [in] Split threshold.
-    uint32_t index_version,///< [in] Index version
-    double retry_probability=0) ///< [in] retry probability
-    : LFNIndex(cct, collection, base_path, index_version, retry_probability),
-      merge_threshold(merge_at),
-      split_multiplier(split_multiple)
-  {}
+  HashIndex(CephContext *cct,
+            rgw_salcoll_t collection,      ///< [in] Collection
+            const char *base_path,         ///< [in] Path to the index root.
+            int merge_at,                  ///< [in] Merge threshold.
+            int split_multiple,            ///< [in] Split threshold.
+            uint32_t index_version,        ///< [in] Index version
+            double retry_probability = 0)  ///< [in] retry probability
+      : LFNIndex(cct, collection, base_path, index_version, retry_probability),
+        merge_threshold(merge_at),
+        split_multiplier(split_multiple) {
+  }
 
   int read_settings() override;
 
   /// @see CollectionIndex
-  uint32_t collection_version() override { return index_version; }
+  uint32_t collection_version() override {
+    return index_version;
+  }
 
   /// @see CollectionIndex
   int cleanup() override;
@@ -188,149 +194,122 @@ public:
   int prep_delete() override;
 
   /// @see CollectionIndex
-  int _split(
-    uint32_t match,
-    uint32_t bits,
-    CollectionIndex* dest
-    ) override;
+  int _split(uint32_t match, uint32_t bits, CollectionIndex *dest) override;
 
   /// @see CollectionIndex
-  int _merge(
-    uint32_t bits,
-    CollectionIndex* dest
-    ) override;
+  int _merge(uint32_t bits, CollectionIndex *dest) override;
 
-  int _merge_dirs(
-    HashIndex& from,
-    HashIndex& to,
-    const std::vector<std::string>& path);
+  int _merge_dirs(HashIndex &from, HashIndex &to,
+                  const std::vector<std::string> &path);
 
   /// @see CollectionIndex
   int apply_layout_settings(int target_level) override;
 
-protected:
+ protected:
   int _init() override;
 
-  int _created(
-    const std::vector<std::string> &path,
-    const ghobject_t &oid,
-    const std::string &mangled_name
-    ) override;
-  int _remove(
-    const std::vector<std::string> &path,
-    const ghobject_t &oid,
-    const std::string &mangled_name
-    ) override;
-  int _lookup(
-    const ghobject_t &oid,
-    std::vector<std::string> *path,
-    std::string *mangled_name,
-    int *hardlink
-    ) override;
+  int _created(const std::vector<std::string> &path, const rgw_saloid_t &oid,
+               const std::string &mangled_name) override;
+  int _remove(const std::vector<std::string> &path, const rgw_saloid_t &oid,
+              const std::string &mangled_name) override;
+  int _lookup(const rgw_saloid_t &oid, std::vector<std::string> *path,
+              std::string *mangled_name, int *hardlink) override;
 
   /**
    * Pre-hash the collection to create folders according to the expected number
    * of objects in this collection.
    */
-  int _pre_hash_collection(
-      uint32_t pg_num,
-      uint64_t expected_num_objs
-      ) override;
+  int _pre_hash_collection(uint64_t expected_num_objs) override;
 
-  int _collection_list_partial(
-    const ghobject_t &start,
-    const ghobject_t &end,
-    int max_count,
-    std::vector<ghobject_t> *ls,
-    ghobject_t *next
-    ) override;
-private:
+  int _collection_list_partial(const rgw_saloid_t &start,
+                               const rgw_saloid_t &end, int max_count,
+                               std::vector<rgw_saloid_t> *ls,
+                               rgw_saloid_t *next) override;
+
+ private:
   /// Internal recursively remove path and its subdirs
   int _recursive_remove(
-    const std::vector<std::string> &path, ///< [in] path to remove
-    bool top			///< [in] internal tracking of first caller
-    ); /// @return Error Code, 0 on success
+      const std::vector<std::string> &path,  ///< [in] path to remove
+      bool top  ///< [in] internal tracking of first caller
+  );            /// @return Error Code, 0 on success
   /// Recursively remove path and its subdirs
   int recursive_remove(
-    const std::vector<std::string> &path ///< [in] path to remove
-    ); /// @return Error Code, 0 on success
+      const std::vector<std::string> &path  ///< [in] path to remove
+  );                                        /// @return Error Code, 0 on success
   /// Tag root directory at beginning of col_split
   int start_col_split(
-    const std::vector<std::string> &path ///< [in] path to split
-    ); ///< @return Error Code, 0 on success
+      const std::vector<std::string> &path  ///< [in] path to split
+  );  ///< @return Error Code, 0 on success
   /// Tag root directory at beginning of split
-  int start_split(
-    const std::vector<std::string> &path ///< [in] path to split
-    ); ///< @return Error Code, 0 on success
+  int start_split(const std::vector<std::string> &path  ///< [in] path to split
+  );  ///< @return Error Code, 0 on success
   /// Tag root directory at beginning of split
-  int start_merge(
-    const std::vector<std::string> &path ///< [in] path to merge
-    ); ///< @return Error Code, 0 on success
+  int start_merge(const std::vector<std::string> &path  ///< [in] path to merge
+  );  ///< @return Error Code, 0 on success
   /// Remove tag at end of split or merge
   int end_split_or_merge(
-    const std::vector<std::string> &path ///< [in] path to split or merged
-    ); ///< @return Error Code, 0 on success
+      const std::vector<std::string> &path  ///< [in] path to split or merged
+  );  ///< @return Error Code, 0 on success
   /// Gets info from the xattr on the subdir represented by path
-  int get_info(
-    const std::vector<std::string> &path, ///< [in] Path from which to read attribute.
-    subdir_info_s *info		///< [out] Attribute value
-    ); /// @return Error Code, 0 on success
+  int get_info(const std::vector<std::string>
+                   &path,           ///< [in] Path from which to read attribute.
+               subdir_info_s *info  ///< [out] Attribute value
+  );                                /// @return Error Code, 0 on success
 
   /// Sets info to the xattr on the subdir represented by path
-  int set_info(
-    const std::vector<std::string> &path, ///< [in] Path on which to set attribute.
-    const subdir_info_s &info  	///< [in] Value to set
-    ); /// @return Error Code, 0 on success
+  int set_info(const std::vector<std::string>
+                   &path,  ///< [in] Path on which to set attribute.
+               const subdir_info_s &info  ///< [in] Value to set
+  );                                      /// @return Error Code, 0 on success
 
   /// Encapsulates logic for when to split.
-  bool must_merge(
-    const subdir_info_s &info ///< [in] Info to check
-    ); /// @return True if info must be merged, False otherwise
+  bool must_merge(const subdir_info_s &info  ///< [in] Info to check
+  );  /// @return True if info must be merged, False otherwise
 
   /// Encapsulates logic for when to merge.
   bool must_split(
-    const subdir_info_s &info, ///< [in] Info to check
-    int target_level = 0
-    ); /// @return True if info must be split, False otherwise
+      const subdir_info_s &info,  ///< [in] Info to check
+      int target_level =
+          0);  /// @return True if info must be split, False otherwise
 
   /// Initiates merge
   int initiate_merge(
-    const std::vector<std::string> &path, ///< [in] Subdir to merge
-    subdir_info_s info		///< [in] Info attached to path
-    ); /// @return Error Code, 0 on success
+      const std::vector<std::string> &path,  ///< [in] Subdir to merge
+      subdir_info_s info                     ///< [in] Info attached to path
+  );  /// @return Error Code, 0 on success
 
   /// Completes merge
   int complete_merge(
-    const std::vector<std::string> &path, ///< [in] Subdir to merge
-    subdir_info_s info		///< [in] Info attached to path
-    ); /// @return Error Code, 0 on success
+      const std::vector<std::string> &path,  ///< [in] Subdir to merge
+      subdir_info_s info                     ///< [in] Info attached to path
+  );  /// @return Error Code, 0 on success
 
   /// Resets attr to match actual subdir contents
-  int reset_attr(
-    const std::vector<std::string> &path ///< [in] path to cleanup
-    );
+  int reset_attr(const std::vector<std::string> &path  ///< [in] path to cleanup
+  );
 
   /// Initiate Split
   int initiate_split(
-    const std::vector<std::string> &path, ///< [in] Subdir to split
-    subdir_info_s info		///< [in] Info attached to path
-    ); /// @return Error Code, 0 on success
+      const std::vector<std::string> &path,  ///< [in] Subdir to split
+      subdir_info_s info                     ///< [in] Info attached to path
+  );  /// @return Error Code, 0 on success
 
   /// Completes Split
   int complete_split(
-    const std::vector<std::string> &path, ///< [in] Subdir to split
-    subdir_info_s info	       ///< [in] Info attached to path
-    ); /// @return Error Code, 0 on success
+      const std::vector<std::string> &path,  ///< [in] Subdir to split
+      subdir_info_s info                     ///< [in] Info attached to path
+  );  /// @return Error Code, 0 on success
 
   /// Determine path components from hoid hash
   void get_path_components(
-    const ghobject_t &oid, ///< [in] Object for which to get path components
-    std::vector<std::string> *path   ///< [out] Path components for hoid.
-    );
+      const rgw_saloid_t
+          &oid,  ///< [in] Object for which to get path components
+      std::vector<std::string> *path  ///< [out] Path components for hoid.
+  );
 
   /// Pre-hash and split folders to avoid runtime splitting
   /// according to the given expected object number.
-  int pre_split_folder(uint32_t pg_num, uint64_t expected_num_objs);
+  int pre_split_folder(uint64_t expected_num_objs);
 
   /// Initialize the folder (dir info) with the given hash
   /// level and number of its subdirs.
@@ -338,49 +317,46 @@ private:
 
   /// do collection split for path
   static int col_split_level(
-    HashIndex &from,            ///< [in] from index
-    HashIndex &dest,            ///< [in] to index
-    const std::vector<std::string> &path, ///< [in] path to split
-    uint32_t bits,              ///< [in] num bits to match
-    uint32_t match,             ///< [in] bits to match
-    unsigned *mkdirred          ///< [in,out] path[:mkdirred] has been mkdirred
-    );
-
+      HashIndex &from,                       ///< [in] from index
+      HashIndex &dest,                       ///< [in] to index
+      const std::vector<std::string> &path,  ///< [in] path to split
+      uint32_t bits,                         ///< [in] num bits to match
+      uint32_t match,                        ///< [in] bits to match
+      unsigned *mkdirred  ///< [in,out] path[:mkdirred] has been mkdirred
+  );
 
   /**
-   * Get std::string representation of ghobject_t/hash
+   * Get std::string representation of rgw_saloid_t/hash
    *
    * e.g: 0x01234567 -> "76543210"
    */
   static std::string get_path_str(
-    const ghobject_t &oid ///< [in] Object to get hash std::string for
-    ); ///< @return Hash std::string for hoid.
+      const rgw_saloid_t &oid  ///< [in] Object to get hash std::string for
+  );                           ///< @return Hash std::string for hoid.
 
   /// Get std::string from hash, @see get_path_str
   static std::string get_hash_str(
-    uint32_t hash ///< [in] Hash to convert to a string.
-    ); ///< @return std::string representation of hash
+      uint32_t hash  ///< [in] Hash to convert to a string.
+  );                 ///< @return std::string representation of hash
 
   /// Get hash from hash prefix std::string e.g. "FFFFAB" -> 0xFFFFAB00
   static uint32_t hash_prefix_to_hash(
-    std::string prefix ///< [in] std::string to convert
-    ); ///< @return Hash
+      std::string prefix  ///< [in] std::string to convert
+  );                      ///< @return Hash
 
   /// Get hash mod from path
   static void path_to_hobject_hash_prefix(
-    const std::vector<std::string> &path,///< [in] path to convert
-    uint32_t *bits,            ///< [out] bits
-    uint32_t *hash             ///< [out] hash
-    ) {
+      const std::vector<std::string> &path,  ///< [in] path to convert
+      uint32_t *bits,                        ///< [out] bits
+      uint32_t *hash                         ///< [out] hash
+  ) {
     std::string hash_str;
     for (auto i = path.begin(); i != path.end(); ++i) {
       hash_str.push_back(*i->begin());
     }
     uint32_t rev_hash = hash_prefix_to_hash(hash_str);
-    if (hash)
-      *hash = rev_hash;
-    if (bits)
-      *bits = path.size() * 4;
+    if (hash) *hash = rev_hash;
+    if (bits) *bits = path.size() * 4;
   }
 
   /// Calculate the number of bits.
@@ -403,53 +379,50 @@ private:
   }
 
   struct CmpPairBitwise {
-    bool operator()(const std::pair<std::string, ghobject_t>& l,
-		    const std::pair<std::string, ghobject_t>& r) const
-    {
-      if (l.first < r.first)
-	return true;
-      if (l.first > r.first)
-	return false;
-      if (cmp(l.second, r.second) < 0)
-	return true;
+    bool operator()(const std::pair<std::string, rgw_saloid_t> &l,
+                    const std::pair<std::string, rgw_saloid_t> &r) const {
+      if (l.first < r.first) return true;
+      if (l.first > r.first) return false;
+      if (cmp(l.second, r.second) < 0) return true;
       return false;
     }
   };
 
   struct CmpHexdigitStringBitwise {
-    bool operator()(const std::string& l, const std::string& r) const {
+    bool operator()(const std::string &l, const std::string &r) const {
       return reverse_hexdigit_bits_string(l) < reverse_hexdigit_bits_string(r);
     }
   };
 
   /// Get path contents by hash
   int get_path_contents_by_hash_bitwise(
-    const std::vector<std::string> &path,             /// [in] Path to list
-    const ghobject_t *next_object,          /// [in] list > *next_object
-    std::set<std::string, CmpHexdigitStringBitwise> *hash_prefixes, /// [out] prefixes in dir
-    std::set<std::pair<std::string, ghobject_t>, CmpPairBitwise> *objects /// [out] objects
-    );
+      const std::vector<std::string> &path,  /// [in] Path to list
+      const rgw_saloid_t *next_object,       /// [in] list > *next_object
+      std::set<std::string, CmpHexdigitStringBitwise>
+          *hash_prefixes,  /// [out] prefixes in dir
+      std::set<std::pair<std::string, rgw_saloid_t>, CmpPairBitwise>
+          *objects  /// [out] objects
+  );
 
-  /// List objects in collection in ghobject_t order
-  int list_by_hash(
-    const std::vector<std::string> &path, /// [in] Path to list
-    const ghobject_t &end,      /// [in] List only objects < end
-    int max_count,              /// [in] List at most max_count
-    ghobject_t *next,            /// [in,out] List objects >= *next
-    std::vector<ghobject_t> *out      /// [out] Listed objects
-    ); ///< @return Error Code, 0 on success
-  /// List objects in collection in ghobject_t order
+  /// List objects in collection in rgw_saloid_t order
+  int list_by_hash(const std::vector<std::string> &path,  /// [in] Path to list
+                   const rgw_saloid_t &end,  /// [in] List only objects < end
+                   int max_count,            /// [in] List at most max_count
+                   rgw_saloid_t *next,       /// [in,out] List objects >= *next
+                   std::vector<rgw_saloid_t> *out  /// [out] Listed objects
+  );  ///< @return Error Code, 0 on success
+  /// List objects in collection in rgw_saloid_t order
   int list_by_hash_bitwise(
-    const std::vector<std::string> &path, /// [in] Path to list
-    const ghobject_t &end,      /// [in] List only objects < end
-    int max_count,              /// [in] List at most max_count
-    ghobject_t *next,            /// [in,out] List objects >= *next
-    std::vector<ghobject_t> *out      /// [out] Listed objects
-    ); ///< @return Error Code, 0 on success
+      const std::vector<std::string> &path,  /// [in] Path to list
+      const rgw_saloid_t &end,               /// [in] List only objects < end
+      int max_count,                         /// [in] List at most max_count
+      rgw_saloid_t *next,                    /// [in,out] List objects >= *next
+      std::vector<rgw_saloid_t> *out         /// [out] Listed objects
+  );  ///< @return Error Code, 0 on success
 
   /// Create the given levels of sub directories from the given root.
   /// The contents of *path* is not changed after calling this function.
-  int recursive_create_path(std::vector<std::string>& path, int level);
+  int recursive_create_path(std::vector<std::string> &path, int level);
 
   /// split each dir below the given path
   int split_dirs(const std::vector<std::string> &path, int target_level = 0);

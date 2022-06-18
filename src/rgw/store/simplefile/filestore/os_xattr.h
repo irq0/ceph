@@ -12,7 +12,6 @@
 #ifndef CEPH_EXTATTR_H
 #define CEPH_EXTATTR_H
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,19 +20,17 @@ extern "C" {
 // which does #define ENOATTR ENODATA.  It seems that occasionally that
 // isn't defined, though, so let's make sure.
 #ifndef ENOATTR
-# define ENOATTR ENODATA
+#define ENOATTR ENODATA
 #endif
 
 #include <stddef.h>
 
-int ceph_os_setxattr(const char *path, const char *name,
-                  const void *value, size_t size);
-int ceph_os_fsetxattr(int fd, const char *name, const void *value,
-                   size_t size);
-ssize_t ceph_os_getxattr(const char *path, const char *name,
-                         void *value, size_t size);
-ssize_t ceph_os_fgetxattr(int fd, const char *name, void *value,
-                          size_t size);
+int ceph_os_setxattr(const char *path, const char *name, const void *value,
+                     size_t size);
+int ceph_os_fsetxattr(int fd, const char *name, const void *value, size_t size);
+ssize_t ceph_os_getxattr(const char *path, const char *name, void *value,
+                         size_t size);
+ssize_t ceph_os_fgetxattr(int fd, const char *name, void *value, size_t size);
 ssize_t ceph_os_listxattr(const char *path, char *list, size_t size);
 ssize_t ceph_os_flistxattr(int fd, char *list, size_t size);
 int ceph_os_removexattr(const char *path, const char *name);

@@ -4,15 +4,15 @@
 #ifndef CEPH_JOURNAL_THROTTLE_H
 #define CEPH_JOURNAL_THROTTLE_H
 
-#include "common/Throttle.h"
-
-#include <list>
-#include <deque>
+#include <chrono>
 #include <condition_variable>
+#include <deque>
+#include <iostream>
+#include <list>
 #include <thread>
 #include <vector>
-#include <chrono>
-#include <iostream>
+
+#include "common/Throttle.h"
 
 /**
  * JournalThrottle
@@ -39,7 +39,7 @@ class JournalThrottle {
   std::deque<std::pair<uint64_t, uint64_t> > journaled_ops;
   using locker = std::unique_lock<std::mutex>;
 
-public:
+ public:
   /**
    * set_params
    *
@@ -47,14 +47,10 @@ public:
    * and populates errstream (if non-null) with a user compreshensible
    * explanation.
    */
-  bool set_params(
-    double low_threshhold,
-    double high_threshhold,
-    double expected_throughput,
-    double high_multiple,
-    double max_multiple,
-    uint64_t throttle_max,
-    std::ostream *errstream);
+  bool set_params(double low_threshhold, double high_threshhold,
+                  double expected_throughput, double high_multiple,
+                  double max_multiple, uint64_t throttle_max,
+                  std::ostream *errstream);
 
   /**
    * gets specified throttle for id mono_id, waiting as necessary
@@ -81,7 +77,6 @@ public:
    */
   void register_throttle_seq(uint64_t seq, uint64_t c);
 
-
   /**
    * Releases throttle held by ids <= mono_id
    *
@@ -94,9 +89,11 @@ public:
   uint64_t get_max();
 
   JournalThrottle(
-    CephContext *cct,
-    unsigned expected_concurrency ///< [in] determines size of conds
-    ) : throttle(cct, "filestore_journal", expected_concurrency) {}
+      CephContext *cct,
+      unsigned expected_concurrency  ///< [in] determines size of conds
+      )
+      : throttle(cct, "filestore_journal", expected_concurrency) {
+  }
 };
 
 #endif

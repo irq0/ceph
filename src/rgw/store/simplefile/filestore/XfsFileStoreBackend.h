@@ -16,16 +16,17 @@
 #define CEPH_XFSFILESTOREBACKEND_H
 
 #include "GenericFileStoreBackend.h"
-
 #include "include/int_types.h"
 
 class XfsFileStoreBackend : public GenericFileStoreBackend {
-private:
+ private:
   bool m_has_extsize;
   int set_extsize(int fd, unsigned int val);
-public:
+
+ public:
   explicit XfsFileStoreBackend(FileStore *fs);
-  ~XfsFileStoreBackend() override {}
+  ~XfsFileStoreBackend() override {
+  }
   const char *get_name() override {
     return "xfs";
   }

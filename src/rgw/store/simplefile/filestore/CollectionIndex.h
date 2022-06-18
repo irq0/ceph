@@ -18,16 +18,18 @@
 #include <string>
 #include <vector>
 
-#include "osd/osd_types.h"
+#include "common/ceph_mutex.h"
 #include "include/object.h"
+#include "rgw_filestore_types.h"
 
 /**
   CollectionIndex provides an interface for manipulating indexed collections
  */
 class CollectionIndex {
-public:
-  CephContext* cct;
-protected:
+ public:
+  CephContext *cct;
+
+ protected:
   /**
    * Object encapsulating a returned path.
    *
@@ -40,50 +42,54 @@ protected:
    * @see set_ref
    */
   class Path {
-  public:
+   public:
     /// Returned path
     std::string full_path;
     /// Ref to parent Index
-    CollectionIndex* parent_ref;
-    /// coll_t for parent Index
-    coll_t parent_coll;
+    CollectionIndex *parent_ref;
+    /// rgw_salcoll_t for parent Index
+    rgw_salcoll_t parent_coll;
 
     /// Normal Constructor
-    Path(
-      std::string path,                              ///< [in] Path to return.
-      CollectionIndex* ref)
-      : full_path(path), parent_ref(ref), parent_coll(parent_ref->coll()) {}
+    Path(std::string path,  ///< [in] Path to return.
+         CollectionIndex *ref)
+        : full_path(path), parent_ref(ref), parent_coll(parent_ref->coll()) {
+    }
 
     /// Debugging Constructor
-    Path(
-      std::string path,                              ///< [in] Path to return.
-      const coll_t& coll)                              ///< [in] collection
-      : full_path(path), parent_coll(coll) {}
+    Path(std::string path,           ///< [in] Path to return.
+         const rgw_salcoll_t &coll)  ///< [in] collection
+        : full_path(path), parent_coll(coll) {
+    }
 
     /// Getter for the stored path.
-    const char *path() const { return full_path.c_str(); }
+    const char *path() const {
+      return full_path.c_str();
+    }
 
     /// Getter for collection
-    const coll_t& coll() const { return parent_coll; }
+    const rgw_salcoll_t &coll() const {
+      return parent_coll;
+    }
 
     /// Getter for parent
-    CollectionIndex* get_index() const {
+    CollectionIndex *get_index() const {
       return parent_ref;
     }
   };
- public:
 
+ public:
   ceph::shared_mutex access_lock =
-    ceph::make_shared_mutex("CollectionIndex::access_lock", true, false);
+      ceph::make_shared_mutex("CollectionIndex::access_lock", true, false);
   /// Type of returned paths
   typedef std::shared_ptr<Path> IndexedPath;
 
-  static IndexedPath get_testing_path(std::string path, coll_t collection) {
+  static IndexedPath get_testing_path(std::string path,
+                                      rgw_salcoll_t collection) {
     return std::make_shared<Path>(path, collection);
   }
 
   static const uint32_t FLAT_INDEX_TAG = 0;
-  static const uint32_t HASH_INDEX_TAG = 1;
   static const uint32_t HASH_INDEX_TAG_2 = 2;
   static const uint32_t HOBJECT_WITH_POOL = 3;
   /**
@@ -96,8 +102,7 @@ protected:
   /**
    * Returns the collection managed by this CollectionIndex
    */
-  virtual coll_t coll() const = 0;
-
+  virtual rgw_salcoll_t coll() const = 0;
 
   /**
    * Initializes the index.
@@ -124,19 +129,17 @@ protected:
    *
    * @return Error Code, 0 for success
    */
-  virtual int created(
-    const ghobject_t &oid, ///< [in] Created object.
-    const char *path       ///< [in] Path to created object.
-    ) = 0;
+  virtual int created(const rgw_saloid_t &oid,  ///< [in] Created object.
+                      const char *path  ///< [in] Path to created object.
+                      ) = 0;
 
   /**
    * Removes oid from the collection
    *
    * @return Error Code, 0 for success
    */
-  virtual int unlink(
-    const ghobject_t &oid ///< [in] Object to remove
-    ) = 0;
+  virtual int unlink(const rgw_saloid_t &oid  ///< [in] Object to remove
+                     ) = 0;
 
   /**
    * Gets the IndexedPath for oid.
@@ -144,10 +147,11 @@ protected:
    * @return Error Code, 0 for success
    */
   virtual int lookup(
-    const ghobject_t &oid, ///< [in] Object to lookup
-    IndexedPath *path,	   ///< [out] Path to object
-    int *hardlink          ///< [out] number of hard links of this object. *hardlink=0 mean object no-exist.
-    ) = 0;
+      const rgw_saloid_t &oid,  ///< [in] Object to lookup
+      IndexedPath *path,        ///< [out] Path to object
+      int *
+          hardlink  ///< [out] number of hard links of this object. *hardlink=0 mean object no-exist.
+      ) = 0;
 
   /**
    * Moves objects matching @e match in the lsb @e bits
@@ -156,32 +160,38 @@ protected:
    *
    * @return Error Code, 0 for success
    */
-  virtual int split(
-    uint32_t match,                             //< [in] value to match
-    uint32_t bits,                              //< [in] bits to check
-    CollectionIndex* dest  //< [in] destination index
-    ) { ceph_abort(); return 0; }
+  virtual int split(uint32_t match,        //< [in] value to match
+                    uint32_t bits,         //< [in] bits to check
+                    CollectionIndex *dest  //< [in] destination index
+  ) {
+    ceph_abort();
+    return 0;
+  }
 
-  virtual int merge(
-    uint32_t bits,                              //< [in] common (target) bits
-    CollectionIndex* dest  //< [in] destination index
-    ) { ceph_abort(); return 0; }
-
+  virtual int merge(uint32_t bits,         //< [in] common (target) bits
+                    CollectionIndex *dest  //< [in] destination index
+  ) {
+    ceph_abort();
+    return 0;
+  }
 
   /// List contents of collection by hash
   virtual int collection_list_partial(
-    const ghobject_t &start, ///< [in] object at which to start
-    const ghobject_t &end,    ///< [in] list only objects < end
-    int max_count,          ///< [in] return at most max_count objects
-    std::vector<ghobject_t> *ls,  ///< [out] Listed objects
-    ghobject_t *next         ///< [out] Next object to list
-    ) = 0;
+      const rgw_saloid_t &start,      ///< [in] object at which to start
+      const rgw_saloid_t &end,        ///< [in] list only objects < end
+      int max_count,                  ///< [in] return at most max_count objects
+      std::vector<rgw_saloid_t> *ls,  ///< [out] Listed objects
+      rgw_saloid_t *next              ///< [out] Next object to list
+      ) = 0;
 
   /// Call prior to removing directory
-  virtual int prep_delete() { return 0; }
+  virtual int prep_delete() {
+    return 0;
+  }
 
-  CollectionIndex(CephContext* cct, const coll_t& collection)
-    : cct(cct) {}
+  CollectionIndex(CephContext *cct, const rgw_salcoll_t &collection)
+      : cct(cct) {
+  }
 
   /*
    * Pre-hash the collection, this collection should map to a PG folder.
@@ -191,17 +201,26 @@ protected:
    * @Return 0 on success, an error code otherwise.
    */
   virtual int pre_hash_collection(
-      uint32_t pg_num,            ///< [in] pg number of the pool this collection belongs to
-      uint64_t expected_num_objs  ///< [in] expected number of objects this collection has
-      ) { ceph_abort(); return 0; }
+      uint64_t
+          expected_num_objs  ///< [in] expected number of objects this collection has
+  ) {
+    ceph_abort();
+    return 0;
+  }
 
-  virtual int apply_layout_settings(int target_level) { ceph_abort(); return 0; }
+  virtual int apply_layout_settings(int target_level) {
+    ceph_abort();
+    return 0;
+  }
 
   /// Read index-wide settings (should be called after construction)
-  virtual int read_settings() { return 0; }
+  virtual int read_settings() {
+    return 0;
+  }
 
   /// Virtual destructor
-  virtual ~CollectionIndex() {}
+  virtual ~CollectionIndex() {
+  }
 };
 
 #endif

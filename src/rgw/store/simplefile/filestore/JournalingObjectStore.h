@@ -15,27 +15,24 @@
 #ifndef CEPH_JOURNALINGOBJECTSTORE_H
 #define CEPH_JOURNALINGOBJECTSTORE_H
 
-#include "ObjectStore.h"
-#include "Journal.h"
 #include "FileJournal.h"
-#include "osd/OpRequest.h"
+#include "Journal.h"
+#include "ObjectStore.h"
 
 class JournalingObjectStore : public ObjectStore {
-protected:
-  Journal *journal;
+ protected:
+  Journal* journal;
   Finisher finisher;
-
 
   class SubmitManager {
     CephContext* cct;
     ceph::mutex lock = ceph::make_mutex("JOS::SubmitManager::lock");
     uint64_t op_seq;
     uint64_t op_submitted;
-  public:
-    SubmitManager(CephContext* cct) :
-      cct(cct),
-      op_seq(0), op_submitted(0)
-    {}
+
+   public:
+    SubmitManager(CephContext* cct) : cct(cct), op_seq(0), op_submitted(0) {
+    }
     uint64_t op_submit_start();
     void op_submit_finish(uint64_t op);
     void set_op_seq(uint64_t seq) {
@@ -49,8 +46,8 @@ protected:
 
   class ApplyManager {
     CephContext* cct;
-    Journal *&journal;
-    Finisher &finisher;
+    Journal*& journal;
+    Finisher& finisher;
 
     ceph::mutex apply_lock = ceph::make_mutex("JOS::ApplyManager::apply_lock");
     bool blocked;
@@ -62,13 +59,17 @@ protected:
     std::map<version_t, std::vector<Context*> > commit_waiters;
     uint64_t committing_seq, committed_seq;
 
-  public:
-    ApplyManager(CephContext* cct, Journal *&j, Finisher &f) :
-      cct(cct), journal(j), finisher(f),
-      blocked(false),
-      open_ops(0),
-      max_applied_seq(0),
-      committing_seq(0), committed_seq(0) {}
+   public:
+    ApplyManager(CephContext* cct, Journal*& j, Finisher& f)
+        : cct(cct),
+          journal(j),
+          finisher(f),
+          blocked(false),
+          open_ops(0),
+          max_applied_seq(0),
+          committing_seq(0),
+          committed_seq(0) {
+    }
     void reset() {
       ceph_assert(open_ops == 0);
       ceph_assert(blocked == false);
@@ -96,31 +97,33 @@ protected:
     }
     void init_seq(uint64_t fs_op_seq) {
       {
-	std::lock_guard l{com_lock};
-	committed_seq = fs_op_seq;
-	committing_seq = fs_op_seq;
+        std::lock_guard l{com_lock};
+        committed_seq = fs_op_seq;
+        committing_seq = fs_op_seq;
       }
       {
-	std::lock_guard l{apply_lock};
-	max_applied_seq = fs_op_seq;
+        std::lock_guard l{apply_lock};
+        max_applied_seq = fs_op_seq;
       }
     }
   } apply_manager;
 
   bool replaying;
 
-protected:
+ protected:
   void journal_start();
   void journal_stop();
   void journal_write_close();
   int journal_replay(uint64_t fs_op_seq);
 
-  void _op_journal_transactions(ceph::buffer::list& tls, uint32_t orig_len, uint64_t op,
-				Context *onjournal, TrackedOpRef osd_op);
+  void _op_journal_transactions(ceph::buffer::list& tls, uint32_t orig_len,
+                                uint64_t op, Context* onjournal,
+                                TrackedOpRef osd_op);
 
-  virtual int do_transactions(std::vector<ObjectStore::Transaction>& tls, uint64_t op_seq) = 0;
+  virtual int do_transactions(std::vector<ObjectStore::Transaction>& tls,
+                              uint64_t op_seq) = 0;
 
-public:
+ public:
   bool is_committing() {
     return apply_manager.is_committing();
   }
@@ -128,14 +131,15 @@ public:
     return apply_manager.get_committed_seq();
   }
 
-public:
+ public:
   JournalingObjectStore(CephContext* cct, const std::string& path)
-    : ObjectStore(cct, path),
-      journal(NULL),
-      finisher(cct, "JournalObjectStore", "fn_jrn_objstore"),
-      submit_manager(cct),
-      apply_manager(cct, journal, finisher),
-      replaying(false) {}
+      : ObjectStore(cct, path),
+        journal(NULL),
+        finisher(cct, "JournalObjectStore", "fn_jrn_objstore"),
+        submit_manager(cct),
+        apply_manager(cct, journal, finisher),
+        replaying(false) {
+  }
 
   ~JournalingObjectStore() override {
   }

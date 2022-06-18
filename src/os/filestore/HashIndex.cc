@@ -433,7 +433,7 @@ int HashIndex::_split(
 }
 
 int HashIndex::split_dirs(const vector<string> &path, int target_level) {
-  dout(20) << __func__ << " " << path << " target level: " 
+  dout(20) << __func__ << " " << path << " target level: "
            << target_level << dendl;
   subdir_info_s info;
   int r = get_info(path, &info);
@@ -445,7 +445,7 @@ int HashIndex::split_dirs(const vector<string> &path, int target_level) {
 
   if (must_split(info, target_level)) {
     dout(1) << __func__ << " " << path << " has " << info.objs
-            << " objects, " << info.hash_level 
+            << " objects, " << info.hash_level
             << " level, starting split in pg " << coll() << "." << dendl;
     r = initiate_split(path, info);
     if (r < 0) {
@@ -894,7 +894,7 @@ bool HashIndex::must_merge(const subdir_info_s &info) {
 
 bool HashIndex::must_split(const subdir_info_s &info, int target_level) {
   // target_level is used for ceph-objectstore-tool to split dirs offline.
-  // if it is set (defalult is 0) and current hash level < target_level, 
+  // if it is set (defalult is 0) and current hash level < target_level,
   // this dir would be split no matters how many objects it has.
   return (info.hash_level < (unsigned)MAX_HASH_LEVEL &&
          ((target_level > 0 && info.hash_level < (unsigned)target_level) ||
@@ -1222,5 +1222,3 @@ int HashIndex::list_by_hash_bitwise(
     *next = ghobject_t::get_max();
   return 0;
 }
-
-

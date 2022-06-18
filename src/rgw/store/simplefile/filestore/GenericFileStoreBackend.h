@@ -20,7 +20,7 @@
 class SloppyCRCMap;
 
 class GenericFileStoreBackend : public FileStoreBackend {
-private:
+ private:
   bool ioctl_fiemap;
   bool seek_data_hole;
   bool use_splice;
@@ -30,46 +30,74 @@ private:
   bool m_filestore_splice;
   bool m_rotational = true;
   bool m_journal_rotational = true;
-public:
+
+ public:
   explicit GenericFileStoreBackend(FileStore *fs);
-  ~GenericFileStoreBackend() override {}
+  ~GenericFileStoreBackend() override {
+  }
 
   const char *get_name() override {
     return "generic";
   }
   int detect_features() override;
   int create_current() override;
-  bool can_checkpoint() override { return false; }
+  bool can_checkpoint() override {
+    return false;
+  }
   bool is_rotational() override {
     return m_rotational;
   }
   bool is_journal_rotational() override {
     return m_journal_rotational;
   }
-  int list_checkpoints(std::list<std::string>& ls) override { return 0; }
-  int create_checkpoint(const std::string& name, uint64_t *cid) override { return -EOPNOTSUPP; }
-  int sync_checkpoint(uint64_t id) override { return -EOPNOTSUPP; }
-  int rollback_to(const std::string& name) override { return -EOPNOTSUPP; }
-  int destroy_checkpoint(const std::string& name) override { return -EOPNOTSUPP; }
+  int list_checkpoints(std::list<std::string> &ls) override {
+    return 0;
+  }
+  int create_checkpoint(const std::string &name, uint64_t *cid) override {
+    return -EOPNOTSUPP;
+  }
+  int sync_checkpoint(uint64_t id) override {
+    return -EOPNOTSUPP;
+  }
+  int rollback_to(const std::string &name) override {
+    return -EOPNOTSUPP;
+  }
+  int destroy_checkpoint(const std::string &name) override {
+    return -EOPNOTSUPP;
+  }
   int syncfs() override;
-  bool has_fiemap() override { return ioctl_fiemap; }
-  bool has_seek_data_hole() override { return seek_data_hole; }
-  int do_fiemap(int fd, off_t start, size_t len, struct fiemap **pfiemap) override;
-  int clone_range(int from, int to, uint64_t srcoff, uint64_t len, uint64_t dstoff) override {
+  bool has_fiemap() override {
+    return ioctl_fiemap;
+  }
+  bool has_seek_data_hole() override {
+    return seek_data_hole;
+  }
+  int do_fiemap(int fd, off_t start, size_t len,
+                struct fiemap **pfiemap) override;
+  int clone_range(int from, int to, uint64_t srcoff, uint64_t len,
+                  uint64_t dstoff) override {
     return _copy_range(from, to, srcoff, len, dstoff);
   }
-  int set_alloc_hint(int fd, uint64_t hint) override { return -EOPNOTSUPP; }
-  bool has_splice() const override { return use_splice; }
-private:
+  int set_alloc_hint(int fd, uint64_t hint) override {
+    return -EOPNOTSUPP;
+  }
+  bool has_splice() const override {
+    return use_splice;
+  }
+
+ private:
   int _crc_load_or_init(int fd, SloppyCRCMap *cm);
   int _crc_save(int fd, SloppyCRCMap *cm);
-public:
-  int _crc_update_write(int fd, loff_t off, size_t len, const ceph::buffer::list& bl) override;
+
+ public:
+  int _crc_update_write(int fd, loff_t off, size_t len,
+                        const ceph::buffer::list &bl) override;
   int _crc_update_truncate(int fd, loff_t off) override;
   int _crc_update_zero(int fd, loff_t off, size_t len) override;
-  int _crc_update_clone_range(int srcfd, int destfd,
-				      loff_t srcoff, size_t len, loff_t dstoff) override;
-  int _crc_verify_read(int fd, loff_t off, size_t len, const ceph::buffer::list& bl,
-		       std::ostream *out) override;
+  int _crc_update_clone_range(int srcfd, int destfd, loff_t srcoff, size_t len,
+                              loff_t dstoff) override;
+  int _crc_verify_read(int fd, loff_t off, size_t len,
+                       const ceph::buffer::list &bl,
+                       std::ostream *out) override;
 };
 #endif

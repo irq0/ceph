@@ -4,22 +4,24 @@
 #ifndef __CEPH_OS_SEQUENCERPOSITION_H
 #define __CEPH_OS_SEQUENCERPOSITION_H
 
-#include "include/types.h"
+#include <ostream>
+
+#include "common/Formatter.h"
 #include "include/cmp.h"
 #include "include/encoding.h"
-#include "common/Formatter.h"
-
-#include <ostream>
+#include "include/types.h"
 
 /**
  * transaction and op offset
  */
 struct SequencerPosition {
-  uint64_t seq;  ///< seq
-  uint32_t trans; ///< transaction in that seq (0-based)
-  uint32_t op;    ///< op in that transaction (0-based)
+  uint64_t seq;    ///< seq
+  uint32_t trans;  ///< transaction in that seq (0-based)
+  uint32_t op;     ///< op in that transaction (0-based)
 
-  SequencerPosition(uint64_t s=0, int32_t t=0, int32_t o=0) : seq(s), trans(t), op(o) {}
+  SequencerPosition(uint64_t s = 0, int32_t t = 0, int32_t o = 0)
+      : seq(s), trans(t), op(o) {
+  }
 
   void encode(ceph::buffer::list& bl) const {
     ENCODE_START(1, 1, bl);
@@ -35,7 +37,7 @@ struct SequencerPosition {
     decode(op, p);
     DECODE_FINISH(p);
   }
-  void dump(ceph::Formatter *f) const {
+  void dump(ceph::Formatter* f) const {
     f->dump_unsigned("seq", seq);
     f->dump_unsigned("trans", trans);
     f->dump_unsigned("op", op);
@@ -54,6 +56,5 @@ inline std::ostream& operator<<(std::ostream& out, const SequencerPosition& t) {
 
 WRITE_EQ_OPERATORS_3(SequencerPosition, seq, trans, op)
 WRITE_CMP_OPERATORS_3(SequencerPosition, seq, trans, op)
-
 
 #endif

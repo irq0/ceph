@@ -15,15 +15,16 @@
 #ifndef WBTHROTTLE_H
 #define WBTHROTTLE_H
 
-#include "include/unordered_map.h"
 #include <boost/tuple/tuple.hpp>
-#include "common/Formatter.h"
-#include "common/hobject.h"
-#include "include/interval_set.h"
-#include "include/common_fwd.h"
+
 #include "FDCache.h"
+#include "common/Formatter.h"
 #include "common/Thread.h"
 #include "common/ceph_context.h"
+#include "common/hobject.h"
+#include "include/common_fwd.h"
+#include "include/interval_set.h"
+#include "include/unordered_map.h"
 
 enum {
   l_wbthrottle_first = 999090,
@@ -42,7 +43,7 @@ enum {
  * Tracks, throttles, and flushes outstanding IO
  */
 class WBThrottle : Thread, public md_config_obs_t {
-  ghobject_t clearing;
+  rgw_saloid_t clearing;
   /* *_limits.first is the start_flusher limit and
    * *_limits.second is the hard limit
    */
@@ -56,21 +57,21 @@ class WBThrottle : Thread, public md_config_obs_t {
   /// Limits on unflushed objects
   std::pair<uint64_t, uint64_t> fd_limits;
 
-  uint64_t cur_ios;  /// Currently unflushed IOs
-  uint64_t cur_size; /// Currently unflushed bytes
+  uint64_t cur_ios;   /// Currently unflushed IOs
+  uint64_t cur_size;  /// Currently unflushed bytes
 
   /**
    * PendingWB tracks the ios pending on an object.
    */
   class PendingWB {
-  public:
+   public:
     bool nocache;
     uint64_t size;
     uint64_t ios;
-    PendingWB() : nocache(true), size(0), ios(0) {}
+    PendingWB() : nocache(true), size(0), ios(0) {
+    }
     void add(bool _nocache, uint64_t _size, uint64_t _ios) {
-      if (!_nocache)
-	nocache = false; // only nocache if all writes are nocache
+      if (!_nocache) nocache = false;  // only nocache if all writes are nocache
       size += _size;
       ios += _ios;
     }
@@ -82,70 +83,64 @@ class WBThrottle : Thread, public md_config_obs_t {
   ceph::mutex lock = ceph::make_mutex("WBThrottle::lock");
   ceph::condition_variable cond;
 
-
   /**
    * Flush objects in lru order
    */
-  std::list<ghobject_t> lru;
-  ceph::unordered_map<ghobject_t, std::list<ghobject_t>::iterator> rev_lru;
-  void remove_object(const ghobject_t &oid) {
+  std::list<rgw_saloid_t> lru;
+  ceph::unordered_map<rgw_saloid_t, std::list<rgw_saloid_t>::iterator> rev_lru;
+  void remove_object(const rgw_saloid_t &oid) {
     ceph_assert(ceph_mutex_is_locked(lock));
-    ceph::unordered_map<ghobject_t, std::list<ghobject_t>::iterator>::iterator iter =
-      rev_lru.find(oid);
-    if (iter == rev_lru.end())
-      return;
+    ceph::unordered_map<rgw_saloid_t,
+                        std::list<rgw_saloid_t>::iterator>::iterator iter =
+        rev_lru.find(oid);
+    if (iter == rev_lru.end()) return;
 
     lru.erase(iter->second);
     rev_lru.erase(iter);
   }
-  ghobject_t pop_object() {
+  rgw_saloid_t pop_object() {
     ceph_assert(!lru.empty());
-    ghobject_t oid(lru.front());
+    rgw_saloid_t oid(lru.front());
     lru.pop_front();
     rev_lru.erase(oid);
     return oid;
   }
-  void insert_object(const ghobject_t &oid) {
+  void insert_object(const rgw_saloid_t &oid) {
     ceph_assert(rev_lru.find(oid) == rev_lru.end());
     lru.push_back(oid);
     rev_lru.insert(make_pair(oid, --lru.end()));
   }
 
-  ceph::unordered_map<ghobject_t, std::pair<PendingWB, FDRef> > pending_wbs;
+  ceph::unordered_map<rgw_saloid_t, std::pair<PendingWB, FDRef> > pending_wbs;
 
   /// get next flush to perform
-  bool get_next_should_flush(
-    std::unique_lock<ceph::mutex>& locker,
-    boost::tuple<ghobject_t, FDRef, PendingWB> *next ///< [out] next to flush
-    ); ///< @return false if we are shutting down
-public:
-  enum FS {
-    BTRFS,
-    XFS
-  };
+  bool get_next_should_flush(std::unique_lock<ceph::mutex> &locker,
+                             boost::tuple<rgw_saloid_t, FDRef, PendingWB>
+                                 *next  ///< [out] next to flush
+  );  ///< @return false if we are shutting down
+ public:
+  enum FS { BTRFS, XFS };
 
-private:
+ private:
   FS fs;
 
   void set_from_conf();
   bool beyond_limit() const {
-    if (cur_ios < io_limits.first &&
-	pending_wbs.size() < fd_limits.first &&
-	cur_size < size_limits.first)
+    if (cur_ios < io_limits.first && pending_wbs.size() < fd_limits.first &&
+        cur_size < size_limits.first)
       return false;
     else
       return true;
   }
   bool need_flush() const {
-    if (cur_ios < io_limits.second &&
-	pending_wbs.size() < fd_limits.second &&
-	cur_size < size_limits.second)
+    if (cur_ios < io_limits.second && pending_wbs.size() < fd_limits.second &&
+        cur_size < size_limits.second)
       return false;
     else
       return true;
   }
 
-public:
+ public:
   explicit WBThrottle(CephContext *cct);
   ~WBThrottle() override;
 
@@ -159,27 +154,26 @@ public:
   }
 
   /// Queue wb on oid, fd taking throttle (does not block)
-  void queue_wb(
-    FDRef fd,              ///< [in] FDRef to oid
-    const ghobject_t &oid, ///< [in] object
-    uint64_t offset,       ///< [in] offset written
-    uint64_t len,          ///< [in] length written
-    bool nocache           ///< [in] try to clear out of cache after write
-    );
+  void queue_wb(FDRef fd,                 ///< [in] FDRef to oid
+                const rgw_saloid_t &oid,  ///< [in] object
+                uint64_t offset,          ///< [in] offset written
+                uint64_t len,             ///< [in] length written
+                bool nocache  ///< [in] try to clear out of cache after write
+  );
 
   /// Clear all wb (probably due to sync)
   void clear();
 
   /// Clear object
-  void clear_object(const ghobject_t &oid);
+  void clear_object(const rgw_saloid_t &oid);
 
   /// Block until there is throttle available
   void throttle();
 
   /// md_config_obs_t
-  const char** get_tracked_conf_keys() const override;
-  void handle_conf_change(const ConfigProxy& conf,
-			  const std::set<std::string> &changed) override;
+  const char **get_tracked_conf_keys() const override;
+  void handle_conf_change(const ConfigProxy &conf,
+                          const std::set<std::string> &changed) override;
 
   /// Thread
   void *entry() override;
