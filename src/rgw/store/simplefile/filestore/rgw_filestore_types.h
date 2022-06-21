@@ -7,6 +7,7 @@
 
 #include "common/reverse.h"
 #include "include/types.h"
+#include "rgw/rgw_common.h"
 
 struct rgw_saloid_t {
   static const version_t NO_GEN = UINT64_MAX;
@@ -23,6 +24,9 @@ struct rgw_saloid_t {
   rgw_saloid_t() : max(false), name("unknown") {
   }
   rgw_saloid_t(const std::string& _name) : max(false), name(_name) {
+  }
+
+  rgw_saloid_t(const rgw_obj_key& key) : max(false), name(key.get_index_key_name()) {
   }
 
   rgw_saloid_t(const rgw_saloid_t& rhs) = default;
@@ -126,6 +130,9 @@ struct rgw_salcoll_t {
   rgw_salcoll_t() : name("unknown") {
   }
   rgw_salcoll_t(const std::string& _name) : name(_name) {
+  }
+
+  rgw_salcoll_t(const rgw_bucket& b) : name(b.get_key()) {
   }
 
   int operator<(const rgw_salcoll_t& rhs) const {

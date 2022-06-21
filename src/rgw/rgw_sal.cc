@@ -173,9 +173,6 @@ rgw::sal::Store* StoreManager::init_storage_provider(const DoutPrefixProvider* d
 
     object_store->mount();
 
-    object_store->write_meta("magic", "RGW");
-    object_store->write_meta("whoami", "RGW SAL");
-
     ldpp_dout(dpp, 0) << "SimpleFileStore: journal " << journal_path
 	 << " for object store " << data_path << dendl;
 

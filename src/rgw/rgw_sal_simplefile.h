@@ -16,7 +16,7 @@
  */
 #include <filesystem>
 
-#include "os/ObjectStore.h"
+#include "store/simplefile/filestore/ObjectStore.h"
 #include "rgw_multi.h"
 #include "rgw_notify.h"
 #include "rgw_oidc_provider.h"
@@ -94,25 +94,25 @@ class SimpleFileUser : public User {
 class SimpleFileBucket : public Bucket {
  private:
   const SimpleFileStore &store;
-  const coll_t collection;
+  const rgw_salcoll_t collection;
   RGWAccessControlPolicy acls;
-  const ghobject_t metadata_ghobject;
+  const rgw_saloid_t metadata_ghobject;
 
  protected:
   SimpleFileBucket(const SimpleFileBucket &) = default;
 
  public:
-  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store);
-  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store,
+  SimpleFileBucket(const rgw_salcoll_t &_collection, const SimpleFileStore &_store);
+  SimpleFileBucket(const rgw_salcoll_t &_collection, const SimpleFileStore &_store,
                    const RGWBucketInfo &_bucket, User *_user);
-  SimpleFileBucket(const coll_t &_collection, const SimpleFileStore &_store,
+  SimpleFileBucket(const rgw_salcoll_t &_collection, const SimpleFileStore &_store,
                    const rgw_bucket &_bucket, User *_user);
   SimpleFileBucket &operator=(const SimpleFileBucket &) = delete;
 
-  const coll_t &get_os_collection() const {
+  const rgw_salcoll_t &get_os_collection() const {
     return collection;
   }
-  const ghobject_t &get_os_metadata_ghobject() const {
+  const rgw_saloid_t &get_os_metadata_ghobject() const {
     return metadata_ghobject;
   }
 
@@ -229,7 +229,7 @@ class SimpleFileObject : public Object {
    private:
     SimpleFileObject *source;
     ::ObjectStore::CollectionHandle ch;
-    const ghobject_t oid;
+    const rgw_saloid_t oid;
 
    public:
     SimpleFileReadOp(SimpleFileObject *_source);
@@ -246,8 +246,8 @@ class SimpleFileObject : public Object {
   struct SimpleFileDeleteOp : public DeleteOp {
    private:
     SimpleFileObject *source;
-    const coll_t cid;
-    const ghobject_t oid;
+    const rgw_salcoll_t cid;
+    const rgw_saloid_t oid;
     ::ObjectStore::Transaction os_transaction;
 
    public:
@@ -266,8 +266,8 @@ class SimpleFileObject : public Object {
     ceph_assert(_b != nullptr);
   }
 
-  const coll_t &get_os_collection() const;
-  ghobject_t get_os_oid();
+  const rgw_salcoll_t &get_os_collection() const;
+  rgw_saloid_t get_os_oid();
   ::ObjectStore::CollectionHandle open_os_collection() const;
 
   virtual std::unique_ptr<Object> clone() override {
@@ -410,8 +410,8 @@ class SimpleFileNotification : public Notification {
 class SimpleFileAtomicWriter : public Writer {
  protected:
   const SimpleFileStore &store;
-  const coll_t cid;
-  const ghobject_t oid;
+  const rgw_salcoll_t cid;
+  const rgw_saloid_t oid;
   std::unique_ptr<SimpleFileObject> head_obj;
   ::ObjectStore::Transaction os_transaction;
 
