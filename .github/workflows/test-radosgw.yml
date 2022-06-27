@@ -68,7 +68,7 @@ jobs:
             -v $GITHUB_WORKSPACE/storage:/data \
             -p 7480:7480 \
             localhost:5000/s3gw:latest \
-              --rgw-backend-store simplefile \
+              --rgw-backend-store sfs \
               --debug-rgw 1
 
           sleep 5

@@ -2,19 +2,19 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "common/ceph_context.h"
-#include "rgw/driver/simplefile/sqlite/sqlite_users.h"
-#include "rgw/driver/simplefile/sqlite/users_conversions.h"
+#include "rgw/driver/sfs/sqlite/sqlite_users.h"
+#include "rgw/driver/sfs/sqlite/users_conversions.h"
 
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <memory>
 
-using namespace rgw::sal::simplefile::sqlite;
+using namespace rgw::sal::sfs::sqlite;
 
 namespace fs = std::filesystem;
-const static std::string TEST_DIR = "rgw_simplefile_tests";
+const static std::string TEST_DIR = "rgw_sfs_tests";
 
-class TestSimpleFileSQLiteUsers : public ::testing::Test {
+class TestSFSSQLiteUsers : public ::testing::Test {
 protected:
   void SetUp() override {
     fs::current_path(fs::temp_directory_path());
@@ -97,15 +97,39 @@ void compareUsers(const DBOPUserInfo & origin, const DBOPUserInfo & dest) {
   ASSERT_EQ(origin.uinfo.default_placement.name, dest.uinfo.default_placement.name);
   ASSERT_EQ(origin.uinfo.default_placement.storage_class, dest.uinfo.default_placement.storage_class);
   ASSERT_EQ(origin.uinfo.placement_tags, dest.uinfo.placement_tags);
-  ASSERT_EQ(origin.uinfo.bucket_quota.max_size, dest.uinfo.bucket_quota.max_size);
-  ASSERT_EQ(origin.uinfo.bucket_quota.max_objects, dest.uinfo.bucket_quota.max_objects);
-  ASSERT_EQ(origin.uinfo.bucket_quota.enabled, dest.uinfo.bucket_quota.enabled);
-  ASSERT_EQ(origin.uinfo.bucket_quota.check_on_raw, dest.uinfo.bucket_quota.check_on_raw);
+  ASSERT_EQ(
+    origin.uinfo.quota.bucket_quota.max_size,
+    dest.uinfo.quota.bucket_quota.max_size
+  );
+  ASSERT_EQ(
+    origin.uinfo.quota.bucket_quota.max_objects,
+    dest.uinfo.quota.bucket_quota.max_objects
+  );
+  ASSERT_EQ(
+    origin.uinfo.quota.bucket_quota.enabled,
+    dest.uinfo.quota.bucket_quota.enabled
+  );
+  ASSERT_EQ(
+    origin.uinfo.quota.bucket_quota.check_on_raw,
+    dest.uinfo.quota.bucket_quota.check_on_raw
+  );
   ASSERT_TRUE(compareMaps(origin.uinfo.temp_url_keys, dest.uinfo.temp_url_keys));
-  ASSERT_EQ(origin.uinfo.user_quota.max_size, dest.uinfo.user_quota.max_size);
-  ASSERT_EQ(origin.uinfo.user_quota.max_objects, dest.uinfo.user_quota.max_objects);
-  ASSERT_EQ(origin.uinfo.user_quota.enabled, dest.uinfo.user_quota.enabled);
-  ASSERT_EQ(origin.uinfo.user_quota.check_on_raw, dest.uinfo.user_quota.check_on_raw);
+  ASSERT_EQ(
+    origin.uinfo.quota.user_quota.max_size,
+    dest.uinfo.quota.user_quota.max_size
+  );
+  ASSERT_EQ(
+    origin.uinfo.quota.user_quota.max_objects,
+    dest.uinfo.quota.user_quota.max_objects
+  );
+  ASSERT_EQ(
+    origin.uinfo.quota.user_quota.enabled,
+    dest.uinfo.quota.user_quota.enabled
+  );
+  ASSERT_EQ(
+    origin.uinfo.quota.user_quota.check_on_raw,
+    dest.uinfo.quota.user_quota.check_on_raw
+  );
   ASSERT_EQ(origin.uinfo.type, dest.uinfo.type);
   ASSERT_EQ(origin.uinfo.mfa_ids, dest.uinfo.mfa_ids);
   ASSERT_EQ(origin.uinfo.assumed_role_arn, dest.uinfo.assumed_role_arn);
@@ -137,16 +161,16 @@ DBOPUserInfo createTestUser(const std::string & suffix) {
   user.uinfo.default_placement.storage_class = "default_placement_class";
   user.uinfo.placement_tags.push_back("tag1");
   user.uinfo.placement_tags.push_back("tag2");
-  user.uinfo.bucket_quota.max_size = 1999;
-  user.uinfo.bucket_quota.max_objects = 3121;
-  user.uinfo.bucket_quota.enabled = true;
-  user.uinfo.bucket_quota.check_on_raw = false;
+  user.uinfo.quota.bucket_quota.max_size = 1999;
+  user.uinfo.quota.bucket_quota.max_objects = 3121;
+  user.uinfo.quota.bucket_quota.enabled = true;
+  user.uinfo.quota.bucket_quota.check_on_raw = false;
   user.uinfo.temp_url_keys[1] = "url_key_1";
   user.uinfo.temp_url_keys[2] = "url_key_2";
-  user.uinfo.user_quota.max_size = 2333;
-  user.uinfo.user_quota.max_objects = 22;
-  user.uinfo.user_quota.enabled = false;
-  user.uinfo.user_quota.check_on_raw = true;
+  user.uinfo.quota.user_quota.max_size = 2333;
+  user.uinfo.quota.user_quota.max_objects = 22;
+  user.uinfo.quota.user_quota.enabled = false;
+  user.uinfo.quota.user_quota.check_on_raw = true;
   user.uinfo.type = 44;
   user.uinfo.mfa_ids.insert("id1");
   user.uinfo.assumed_role_arn = "assumed_role_arn";
@@ -159,9 +183,9 @@ DBOPUserInfo createTestUser(const std::string & suffix) {
   return user;
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, CreateAndGet) {
+TEST_F(TestSFSSQLiteUsers, CreateAndGet) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -174,9 +198,9 @@ TEST_F(TestSimpleFileSQLiteUsers, CreateAndGet) {
   compareUsers(user, *ret_user);
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, CreateAndGetByEmail) {
+TEST_F(TestSFSSQLiteUsers, CreateAndGetByEmail) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -189,9 +213,9 @@ TEST_F(TestSimpleFileSQLiteUsers, CreateAndGetByEmail) {
   compareUsers(user, *ret_user);
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, CreateAndGetByAccessKey) {
+TEST_F(TestSFSSQLiteUsers, CreateAndGetByAccessKey) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -204,9 +228,9 @@ TEST_F(TestSimpleFileSQLiteUsers, CreateAndGetByAccessKey) {
   compareUsers(user, *ret_user);
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, ListUserIDs) {
+TEST_F(TestSFSSQLiteUsers, ListUserIDs) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -223,9 +247,9 @@ TEST_F(TestSimpleFileSQLiteUsers, ListUserIDs) {
   EXPECT_EQ(user_ids[2], "test3");
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, RemoveUser) {
+TEST_F(TestSFSSQLiteUsers, RemoveUser) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -244,9 +268,9 @@ TEST_F(TestSimpleFileSQLiteUsers, RemoveUser) {
   ASSERT_FALSE(ret_user.has_value());
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, RemoveUserThatDoesNotExist) {
+TEST_F(TestSFSSQLiteUsers, RemoveUserThatDoesNotExist) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -263,9 +287,9 @@ TEST_F(TestSimpleFileSQLiteUsers, RemoveUserThatDoesNotExist) {
   EXPECT_EQ(user_ids[2], "test3");
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, CreateAndUpdate) {
+TEST_F(TestSFSSQLiteUsers, CreateAndUpdate) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -285,9 +309,9 @@ TEST_F(TestSimpleFileSQLiteUsers, CreateAndUpdate) {
   compareUsers(user, *ret_user);
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, GetExisting) {
+TEST_F(TestSFSSQLiteUsers, GetExisting) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -306,9 +330,9 @@ TEST_F(TestSimpleFileSQLiteUsers, GetExisting) {
   compareUsers(user, *ret_user);
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, AddMoreThanOneUserWithSameEmail) {
+TEST_F(TestSFSSQLiteUsers, AddMoreThanOneUserWithSameEmail) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -328,9 +352,9 @@ TEST_F(TestSimpleFileSQLiteUsers, AddMoreThanOneUserWithSameEmail) {
   compareUsers(user1, *ret_user);
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, AddMoreThanOneUserWithSameAccessKey) {
+TEST_F(TestSFSSQLiteUsers, AddMoreThanOneUserWithSameAccessKey) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
@@ -354,9 +378,9 @@ TEST_F(TestSimpleFileSQLiteUsers, AddMoreThanOneUserWithSameAccessKey) {
   compareUsers(user1, *ret_user);
 }
 
-TEST_F(TestSimpleFileSQLiteUsers, UseStorage) {
+TEST_F(TestSFSSQLiteUsers, UseStorage) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_simplefile_data_path", getTestDir());
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   SQLiteUsers db_users(ceph_context.get());
   auto storage = db_users.getStorage();

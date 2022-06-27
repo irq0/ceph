@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,8 +11,8 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#ifndef RGW_STORE_SIMPLEFILE_BUCKET_MGR_H
-#define RGW_STORE_SIMPLEFILE_BUCKET_MGR_H
+#ifndef RGW_STORE_SFS_BUCKET_MGR_H
+#define RGW_STORE_SFS_BUCKET_MGR_H
 
 #include <memory>
 #include "include/Context.h"
@@ -22,16 +22,16 @@
 
 namespace rgw::sal {
 
-class SimpleFileStore;
-class SimpleFileObject;
-class SimpleFileBucket;
+class SFStore;
+class SFSObject;
+class SFSBucket;
 
 class BucketMgr {
   CephContext *cct;
-  SimpleFileStore *store;
+  SFStore *store;
   std::string bucket_name;
-  std::list<SimpleFileObject*> new_objects;
-  std::list<SimpleFileObject*> rm_objects;
+  std::list<SFSObject*> new_objects;
+  std::list<SFSObject*> rm_objects;
   std::map<std::string, std::string> objects_map;
   version_t object_map_version;
   ceph::mutex commit_lock = ceph::make_mutex("commit_lock");
@@ -39,7 +39,7 @@ class BucketMgr {
  public:
   BucketMgr(
     CephContext *_cct,
-    SimpleFileStore *_store,
+    SFStore *_store,
     std::string _bucket_name
   )
     : cct(_cct),
@@ -53,21 +53,21 @@ class BucketMgr {
   }
   ~BucketMgr() = default;
 
-  void add_object(SimpleFileObject *obj) {
+  void add_object(SFSObject *obj) {
     std::lock_guard l1{commit_lock};
     new_objects.push_back(obj);
     write_object_map();
     load_object_map();
   }
 
-  void remove_object(SimpleFileObject *obj) {
+  void remove_object(SFSObject *obj) {
     std::lock_guard l{commit_lock};
     rm_objects.push_back(obj);
     write_object_map();
     load_object_map();
   }
 
-  void new_bucket(const DoutPrefixProvider *dpp, SimpleFileBucket *bucket);
+  void new_bucket(const DoutPrefixProvider *dpp, SFSBucket *bucket);
   std::map<std::string, std::string> get_objects();
   size_t size() const {
     return objects_map.size();
@@ -83,4 +83,4 @@ using BucketMgrRef = std::shared_ptr<BucketMgr>;
 
 } // ns rgw::sal
 
-#endif // RGW_STORE_SIMPLEFILE_BUCKET_MGR_H
+#endif // RGW_STORE_SFS_BUCKET_MGR_H

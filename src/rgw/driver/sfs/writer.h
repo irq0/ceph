@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,23 +11,23 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#ifndef RGW_STORE_SIMPLEFILE_WRITER_H
-#define RGW_STORE_SIMPLEFILE_WRITER_H
+#ifndef RGW_STORE_SFS_WRITER_H
+#define RGW_STORE_SFS_WRITER_H
 
 #include <memory>
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
-#include "driver/simplefile/bucket_mgr.h"
+#include "driver/sfs/bucket_mgr.h"
 
 namespace rgw::sal {
 
-class SimpleFileStore;
+class SFStore;
 
-class SimpleFileAtomicWriter : public StoreWriter {
+class SFSAtomicWriter : public StoreWriter {
 
  protected:
-  rgw::sal::SimpleFileStore *store;
-  SimpleFileObject obj;
+  rgw::sal::SFStore *store;
+  SFSObject obj;
   BucketMgrRef mgr;
   const rgw_user &owner;
   const rgw_placement_rule *placement_rule;
@@ -36,18 +36,18 @@ class SimpleFileAtomicWriter : public StoreWriter {
   uint64_t bytes_written;
 
  public:
-  SimpleFileAtomicWriter(
+  SFSAtomicWriter(
     const DoutPrefixProvider *_dpp,
     optional_yield _y,
     rgw::sal::Object* _head_obj,
-    SimpleFileStore *_store,
+    SFStore *_store,
     BucketMgrRef _mgr,
     const rgw_user& _owner,
     const rgw_placement_rule *_ptail_placement_rule,
     uint64_t _olh_epoch,
     const std::string &_unique_tag
   );
-  ~SimpleFileAtomicWriter() = default;
+  ~SFSAtomicWriter() = default;
 
   virtual int prepare(optional_yield y) override;
   virtual int process(bufferlist &&data, uint64_t offset) override;
@@ -70,24 +70,24 @@ class SimpleFileAtomicWriter : public StoreWriter {
 
 };
 
-class SimpleFileMultipartWriter : public StoreWriter {
+class SFSMultipartWriter : public StoreWriter {
 
  protected:
-  const rgw::sal::SimpleFileStore *store;
+  const rgw::sal::SFStore *store;
 
  public:
-  SimpleFileMultipartWriter(
+  SFSMultipartWriter(
     const DoutPrefixProvider *_dpp,
     optional_yield y,
     MultipartUpload *upload,
     rgw::sal::Object* _head_obj,
-    const SimpleFileStore *store,
+    const SFStore *store,
     const rgw_user &_owner,
     const rgw_placement_rule *_ptail_placement_rule,
     uint64_t _part_num,
     const std::string &_part_num_str
   );
-  ~SimpleFileMultipartWriter() = default;
+  ~SFSMultipartWriter() = default;
 
   virtual int prepare(optional_yield y) override;
   virtual int process(bufferlist &&data, uint64_t offset) override;
@@ -110,4 +110,4 @@ class SimpleFileMultipartWriter : public StoreWriter {
 
 } // ns rgw::sal
 
-#endif // RGW_STORE_SIMPLEFILE_WRITER_H
+#endif // RGW_STORE_SFS_WRITER_H

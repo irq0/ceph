@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,8 +11,8 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#include "rgw_sal_simplefile.h"
-#include "driver/simplefile/zone.h"
+#include "rgw_sal_sfs.h"
+#include "driver/sfs/zone.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -20,53 +20,53 @@ using namespace std;
 
 namespace rgw::sal {
 
-ZoneGroup& SimpleFileZone::get_zonegroup() {
+ZoneGroup& SFSZone::get_zonegroup() {
   return *zonegroup;
 }
 
-const std::string& SimpleFileZone::get_id() {
+const std::string& SFSZone::get_id() {
   return cur_zone_id.id;
 }
 
-const std::string& SimpleFileZone::get_name() const {
+const std::string& SFSZone::get_name() const {
   return zone_params->get_name();
 }
 
-bool SimpleFileZone::is_writeable() {
+bool SFSZone::is_writeable() {
   return true;
 }
 
-bool SimpleFileZone::get_redirect_endpoint(std::string* endpoint) {
+bool SFSZone::get_redirect_endpoint(std::string* endpoint) {
   return false;
 }
 
-bool SimpleFileZone::has_zonegroup_api(const std::string& api) const {
+bool SFSZone::has_zonegroup_api(const std::string& api) const {
   return false;
 }
 
-const std::string& SimpleFileZone::get_current_period_id() {
+const std::string& SFSZone::get_current_period_id() {
   return current_period->get_id();
 }
 
-const RGWAccessKey& SimpleFileZone::get_system_key() {
+const RGWAccessKey& SFSZone::get_system_key() {
   return zone_params->system_key;
 }
 
-const std::string& SimpleFileZone::get_realm_name() {
+const std::string& SFSZone::get_realm_name() {
   return realm->get_name();
 }
 
-const std::string& SimpleFileZone::get_realm_id() {
+const std::string& SFSZone::get_realm_id() {
   return realm->get_id();
 }
 
-RGWBucketSyncPolicyHandlerRef SimpleFileZone::get_sync_policy_handler() {
+RGWBucketSyncPolicyHandlerRef SFSZone::get_sync_policy_handler() {
   return nullptr;
 }
 
-SimpleFileZone::SimpleFileZone(SimpleFileStore *_store) : store(_store) {
+SFSZone::SFSZone(SFStore *_store) : store(_store) {
   realm = new RGWRealm();
-  zonegroup = new SimpleFileZoneGroup(store, std::make_unique<RGWZoneGroup>());
+  zonegroup = new SFSZoneGroup(store, std::make_unique<RGWZoneGroup>());
   zone_public_config = new RGWZone();
   zone_params = new RGWZoneParams();
   current_period = new RGWPeriod();

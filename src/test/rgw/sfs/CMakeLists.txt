@@ -1,0 +1,3 @@
+add_executable(unittest_rgw_sfs_sqlite_users test_rgw_sfs_sqlite_users.cc)
+add_ceph_unittest(unittest_rgw_sfs_sqlite_users)
+target_link_libraries(unittest_rgw_sfs_sqlite_users ${rgw_libs})

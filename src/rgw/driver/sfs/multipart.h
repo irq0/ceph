@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,17 +11,17 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#ifndef RGW_STORE_SIMPLEFILE_MULTIPART_H
-#define RGW_STORE_SIMPLEFILE_MULTIPART_H
+#ifndef RGW_STORE_SFS_MULTIPART_H
+#define RGW_STORE_SFS_MULTIPART_H
 
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
 
 namespace rgw::sal {
 
-class SimpleFileStore;
+class SFStore;
 
-class SimpleFileMultipartMeta {
+class SFSMultipartMeta {
 
   ACLOwner owner;
   Attrs attrs;
@@ -31,7 +31,7 @@ class SimpleFileMultipartMeta {
   ceph::real_time mtime;
 
  public:
-  SimpleFileMultipartMeta(
+  SFSMultipartMeta(
     ACLOwner &_owner,
     Attrs &_attrs,
     rgw_placement_rule &_dest_placement,
@@ -62,9 +62,9 @@ class SimpleFileMultipartMeta {
   }
 
 };
-WRITE_CLASS_ENCODER(SimpleFileMultipartMeta)
+WRITE_CLASS_ENCODER(SFSMultipartMeta)
 
-class SimpleFileMultipartObject {
+class SFSMultipartObject {
 
   std::string oid;  // object id / name
   std::string upload_id;
@@ -74,12 +74,12 @@ class SimpleFileMultipartObject {
   void init(CephContext *cct, std::string _oid, std::string _upload_id);
 
  public:
-  SimpleFileMultipartObject(
+  SFSMultipartObject(
     CephContext *cct,
     const std::string &_oid,
     const std::string &_upload_id
   );
-  SimpleFileMultipartObject(
+  SFSMultipartObject(
     CephContext *cct,
     const std::string &_oid,
     const std::optional<std::string> _upload_id
@@ -98,7 +98,7 @@ class SimpleFileMultipartObject {
   }
 
   friend inline std::ostream& operator<<(
-    std::ostream &out, const SimpleFileMultipartObject &obj
+    std::ostream &out, const SFSMultipartObject &obj
   ) {
     out << "multipart_object(oid: " << obj.get_key() << ", upload_id: "
         << obj.get_upload_id() << ", meta: " << obj.get_meta() << ")";
@@ -107,19 +107,19 @@ class SimpleFileMultipartObject {
 
 };
 
-class SimpleFileMultipartUpload : public StoreMultipartUpload {
+class SFSMultipartUpload : public StoreMultipartUpload {
 
-  SimpleFileStore *store;
+  SFStore *store;
   const std::string &oid;
   std::optional<std::string> upload_id;
-  SimpleFileMultipartObject obj;
+  SFSMultipartObject obj;
   ACLOwner owner;
   ceph::real_time mtime;
 
  public:
-  SimpleFileMultipartUpload(
+  SFSMultipartUpload(
     CephContext *_cct,
-    SimpleFileStore *_store,
+    SFStore *_store,
     Bucket *_bucket,
     const std::string &_oid,
     std::optional<std::string> _upload_id,
@@ -130,7 +130,7 @@ class SimpleFileMultipartUpload : public StoreMultipartUpload {
       obj(_cct, _oid, _upload_id),
       owner(_owner), mtime(_mtime) { }
 
-  virtual ~SimpleFileMultipartUpload() = default;
+  virtual ~SFSMultipartUpload() = default;
 
   virtual const std::string& get_meta() const {
     return obj.get_meta();
@@ -195,11 +195,11 @@ class SimpleFileMultipartUpload : public StoreMultipartUpload {
   void dump(Formatter *f) const;
   int write_metadata(
     const DoutPrefixProvider *dpp,
-    SimpleFileMultipartMeta &metadata
+    SFSMultipartMeta &metadata
   );
   inline std::string get_cls_name() { return "multipart_upload"; }
 };
 
 } // ns rgw::sal
 
-#endif // RGW_STORE_SIMPLEFILE_MULTIPART_H
+#endif // RGW_STORE_SFS_MULTIPART_H

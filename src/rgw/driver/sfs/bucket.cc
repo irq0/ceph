@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -12,9 +12,9 @@
  * Foundation. See file COPYING.
  */
 #include <fstream>
-#include "rgw_sal_simplefile.h"
-#include "driver/simplefile/bucket_mgr.h"
-#include "driver/simplefile/multipart.h"
+#include "rgw_sal_sfs.h"
+#include "driver/sfs/bucket_mgr.h"
+#include "driver/sfs/multipart.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -23,15 +23,15 @@ using namespace std;
 namespace rgw::sal {
 
 
-SimpleFileBucket::SimpleFileBucket(
+SFSBucket::SFSBucket(
   const std::filesystem::path& _path,
-  SimpleFileStore *_store,
+  SFStore *_store,
   BucketMgrRef _mgr
 ) : store(_store), mgr(_mgr), path(_path), acls() {
   ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
 }
 
-void SimpleFileBucket::init(
+void SFSBucket::init(
   const DoutPrefixProvider *dpp,
   const rgw_bucket &b
 ) {
@@ -51,13 +51,13 @@ void SimpleFileBucket::init(
   write_meta(dpp);
 }
 
-void SimpleFileBucket::write_meta(const DoutPrefixProvider *dpp) {
+void SFSBucket::write_meta(const DoutPrefixProvider *dpp) {
 
   auto meta_path = bucket_metadata_path();
 
   lsfs_dout(dpp, 10) << "write metadata to " << meta_path << dendl;
 
-  SimpleFileBucket::Meta meta;
+  SFSBucket::Meta meta;
   meta.info = info;
   // meta.multipart = multipart;
 
@@ -72,16 +72,16 @@ void SimpleFileBucket::write_meta(const DoutPrefixProvider *dpp) {
   ofs.close();
 }
 
-std::unique_ptr<Object> SimpleFileBucket::get_object(const rgw_obj_key &key) {
+std::unique_ptr<Object> SFSBucket::get_object(const rgw_obj_key &key) {
   ldout(store->ceph_context(), 10) << "bucket::" << __func__
                                    << ": key" << key << dendl;
-  return make_unique<SimpleFileObject>(this->store, key, this);
+  return make_unique<SFSObject>(this->store, key, this);
 }
 
 /**
  * List objects in this bucket.
  */
-int SimpleFileBucket::list(const DoutPrefixProvider *dpp, ListParams &, int,
+int SFSBucket::list(const DoutPrefixProvider *dpp, ListParams &, int,
                            ListResults &results, optional_yield y) {
   lsfs_dout(dpp, 10) << "iterate bucket " << get_name() << dendl;
   auto objects_map = mgr->get_objects();
@@ -111,7 +111,7 @@ int SimpleFileBucket::list(const DoutPrefixProvider *dpp, ListParams &, int,
   return 0;
 }
 
-int SimpleFileBucket::remove_bucket(const DoutPrefixProvider *dpp,
+int SFSBucket::remove_bucket(const DoutPrefixProvider *dpp,
                                     bool delete_children,
                                     bool forward_to_master, req_info *req_info,
                                     optional_yield y) {
@@ -120,7 +120,7 @@ int SimpleFileBucket::remove_bucket(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::remove_bucket_bypass_gc(int concurrent_max,
+int SFSBucket::remove_bucket_bypass_gc(int concurrent_max,
                                               bool keep_index_consistent,
                                               optional_yield y,
                                               const DoutPrefixProvider *dpp) {
@@ -129,7 +129,7 @@ int SimpleFileBucket::remove_bucket_bypass_gc(int concurrent_max,
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::load_bucket(const DoutPrefixProvider* dpp,
+int SFSBucket::load_bucket(const DoutPrefixProvider *dpp,
                                   optional_yield y, bool get_stats) {
   std::filesystem::path meta_file_path = bucket_metadata_path();
   ceph_assert(std::filesystem::exists(meta_file_path));
@@ -143,7 +143,7 @@ int SimpleFileBucket::load_bucket(const DoutPrefixProvider* dpp,
   auto it = bucket_meta_parser.find("meta");
   ceph_assert(!it.end());
 
-  SimpleFileBucket::Meta meta;
+  SFSBucket::Meta meta;
   JSONDecoder::decode_json("meta", meta, &bucket_meta_parser); 
   lsfs_dout(dpp, 10) "bucket name: " << meta.info.bucket.get_key() << dendl;
 
@@ -158,23 +158,23 @@ int SimpleFileBucket::load_bucket(const DoutPrefixProvider* dpp,
   return 0;
 }
 
-int SimpleFileBucket::chown(const DoutPrefixProvider *dpp, User &new_user,
+int SFSBucket::chown(const DoutPrefixProvider *dpp, User &new_user,
                             optional_yield y) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
-bool SimpleFileBucket::is_owner(User *user) {
+bool SFSBucket::is_owner(User *user) {
   ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
   return true;
 }
-int SimpleFileBucket::check_empty(const DoutPrefixProvider *dpp,
+int SFSBucket::check_empty(const DoutPrefixProvider *dpp,
                                   optional_yield y) {
   /** Check in the backing store if this bucket is empty */
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::merge_and_store_attrs(const DoutPrefixProvider *dpp,
+int SFSBucket::merge_and_store_attrs(const DoutPrefixProvider *dpp,
                                             Attrs &new_attrs,
                                             optional_yield y) {
   /** Set the attributes in attrs, leaving any other existing attrs set, and
@@ -183,7 +183,7 @@ int SimpleFileBucket::merge_and_store_attrs(const DoutPrefixProvider *dpp,
   return -ENOTSUP;
 }
 
-std::unique_ptr<MultipartUpload> SimpleFileBucket::get_multipart_upload(
+std::unique_ptr<MultipartUpload> SFSBucket::get_multipart_upload(
     const std::string &oid,
     std::optional<std::string> upload_id,
     ACLOwner owner,
@@ -191,17 +191,17 @@ std::unique_ptr<MultipartUpload> SimpleFileBucket::get_multipart_upload(
 ) {
   ldout(store->ceph_context(), 10) << "bucket::" << __func__ << ": oid: " << oid
                                   << ", upload id: " << upload_id << dendl;
-  auto p = new SimpleFileMultipartUpload(
+  auto p = new SFSMultipartUpload(
     store->ctx(), store, this, oid, upload_id, std::move(owner), mtime
   );
   /** Create a multipart upload in this bucket */
-  return std::unique_ptr<SimpleFileMultipartUpload>(p);
-  // return std::make_unique<SimpleFileMultipartUpload>(
+  return std::unique_ptr<SFSMultipartUpload>(p);
+  // return std::make_unique<SFSMultipartUpload>(
   //   store, this, oid, upload_id, std::move(owner), mtime
   // );
 }
 
-int SimpleFileBucket::list_multiparts(
+int SFSBucket::list_multiparts(
     const DoutPrefixProvider *dpp, const std::string &prefix,
     std::string &marker, const std::string &delim, const int &max_uploads,
     std::vector<std::unique_ptr<MultipartUpload>> &uploads,
@@ -211,37 +211,37 @@ int SimpleFileBucket::list_multiparts(
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::abort_multiparts(const DoutPrefixProvider *dpp,
+int SFSBucket::abort_multiparts(const DoutPrefixProvider *dpp,
                                        CephContext *cct) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::try_refresh_info(const DoutPrefixProvider *dpp,
+int SFSBucket::try_refresh_info(const DoutPrefixProvider *dpp,
                                        ceph::real_time *pmtime) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::read_usage(
+int SFSBucket::read_usage(
     const DoutPrefixProvider *dpp, uint64_t start_epoch, uint64_t end_epoch,
     uint32_t max_entries, bool *is_truncated, RGWUsageIter &usage_iter,
     std::map<rgw_user_bucket, rgw_usage_log_entry> &usage) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
-int SimpleFileBucket::trim_usage(const DoutPrefixProvider *dpp,
+int SFSBucket::trim_usage(const DoutPrefixProvider *dpp,
                                  uint64_t start_epoch, uint64_t end_epoch) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::rebuild_index(const DoutPrefixProvider *dpp) {
+int SFSBucket::rebuild_index(const DoutPrefixProvider *dpp) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::check_quota(
+int SFSBucket::check_quota(
   const DoutPrefixProvider *dpp,
   RGWQuota &quota,
   uint64_t obj_size,
@@ -258,7 +258,7 @@ int SimpleFileBucket::check_quota(
   return 0;
 }
 
-int SimpleFileBucket::read_stats(
+int SFSBucket::read_stats(
     const DoutPrefixProvider *dpp,
     const bucket_index_layout_generation &idx_layout,
     int shard_id,
@@ -271,7 +271,7 @@ int SimpleFileBucket::read_stats(
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
-int SimpleFileBucket::read_stats_async(
+int SFSBucket::read_stats_async(
     const DoutPrefixProvider *dpp,
     const bucket_index_layout_generation &idx_layout,
     int shard_id,
@@ -281,34 +281,34 @@ int SimpleFileBucket::read_stats_async(
   return -ENOTSUP;
 }
 
-int SimpleFileBucket::sync_user_stats(const DoutPrefixProvider *dpp,
+int SFSBucket::sync_user_stats(const DoutPrefixProvider *dpp,
                                       optional_yield y) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
-int SimpleFileBucket::update_container_stats(const DoutPrefixProvider *dpp) {
+int SFSBucket::update_container_stats(const DoutPrefixProvider *dpp) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
-int SimpleFileBucket::check_bucket_shards(const DoutPrefixProvider *dpp) {
+int SFSBucket::check_bucket_shards(const DoutPrefixProvider *dpp) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
-int SimpleFileBucket::put_info(const DoutPrefixProvider *dpp, bool exclusive,
+int SFSBucket::put_info(const DoutPrefixProvider *dpp, bool exclusive,
                                ceph::real_time mtime) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
 // bucket_path returns the path containing bucket metadata and objects
-std::filesystem::path SimpleFileBucket::bucket_path() const { return path; }
+std::filesystem::path SFSBucket::bucket_path() const { return path; }
 // bucket_metadata_path returns the path to the metadata file metadata_fn
-std::filesystem::path SimpleFileBucket::bucket_metadata_path() const {
+std::filesystem::path SFSBucket::bucket_metadata_path() const {
   return path / "_meta.json";
 }
 // objects_path returns the path to the buckets objects. Each
 // subdirectory points to an object
-std::filesystem::path SimpleFileBucket::objects_path() const {
+std::filesystem::path SFSBucket::objects_path() const {
   return path / "objects";
 }
 

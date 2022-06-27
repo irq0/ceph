@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,7 +11,7 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#include "rgw_sal_simplefile.h"
+#include "rgw_sal_sfs.h"
 #include "multipart.h"
 #include "writer.h"
 
@@ -22,7 +22,7 @@ using namespace std;
 
 namespace rgw::sal {
 
-SimpleFileMultipartObject::SimpleFileMultipartObject(
+SFSMultipartObject::SFSMultipartObject(
   CephContext *cct,
   const std::string &_oid,
   const std::string &_upload_id
@@ -31,7 +31,7 @@ SimpleFileMultipartObject::SimpleFileMultipartObject(
   init(cct, _oid, _upload_id);
 }
 
-SimpleFileMultipartObject::SimpleFileMultipartObject(
+SFSMultipartObject::SFSMultipartObject(
   CephContext *cct,
   const std::string &_oid,
   const std::optional<std::string> _upload_id
@@ -40,12 +40,12 @@ SimpleFileMultipartObject::SimpleFileMultipartObject(
   init(cct, _oid, upid);
 }
 
-std::string SimpleFileMultipartObject::gen_upload_id() {
+std::string SFSMultipartObject::gen_upload_id() {
   auto now = ceph::real_clock::now();
   return ceph::to_iso_8601_no_separators(now, ceph::iso_8601_format::YMDhms); 
 }
 
-void SimpleFileMultipartObject::init(
+void SFSMultipartObject::init(
   CephContext *_cct,
   std::string _oid,
   std::string _upload_id
@@ -61,15 +61,15 @@ void SimpleFileMultipartObject::init(
   meta = "_meta." + oid + "." + upload_id;
 }
 
-std::unique_ptr<rgw::sal::Object> SimpleFileMultipartUpload::get_meta_obj() {
+std::unique_ptr<rgw::sal::Object> SFSMultipartUpload::get_meta_obj() {
   return bucket->get_object(
     rgw_obj_key(get_meta(), string(), RGW_OBJ_NS_MULTIPART)
   );
 }
 
-int SimpleFileMultipartUpload::write_metadata(
+int SFSMultipartUpload::write_metadata(
   const DoutPrefixProvider *dpp,
-  SimpleFileMultipartMeta &metadata
+  SFSMultipartMeta &metadata
 ) {
 
   auto obj = get_meta_obj();
@@ -77,7 +77,7 @@ int SimpleFileMultipartUpload::write_metadata(
   bufferlist bl;
   encode(metadata, bl);
 
-  SimpleFileBucket *b = static_cast<SimpleFileBucket*>(bucket);
+  SFSBucket *b = static_cast<SFSBucket*>(bucket);
   std::filesystem::path metafn = b->objects_path() / get_meta();
   bl.write_file(metafn.c_str());
 
@@ -86,7 +86,7 @@ int SimpleFileMultipartUpload::write_metadata(
   return 0;
 }
 
-int SimpleFileMultipartUpload::init(
+int SFSMultipartUpload::init(
   const DoutPrefixProvider *dpp,
   optional_yield y,
   ACLOwner &owner,
@@ -99,7 +99,7 @@ int SimpleFileMultipartUpload::init(
   lsfs_dout(dpp, 10) << "objid: " << get_key() << ", upload_id: "
                      << get_upload_id() << ", meta: " << get_meta() << dendl;
 
-  SimpleFileMultipartMeta metadata(
+  SFSMultipartMeta metadata(
     owner, attrs, dest_placement, RGWObjCategory::MultiMeta,
     PUT_OBJ_CREATE_EXCL,  // this comes from rgw_rados.h, we should change it.
     mtime
@@ -110,7 +110,7 @@ int SimpleFileMultipartUpload::init(
   return 0;
 }
 
-int SimpleFileMultipartUpload::list_parts(
+int SFSMultipartUpload::list_parts(
   const DoutPrefixProvider *dpp,
   CephContext *cct,
   int num_parts,
@@ -123,7 +123,7 @@ int SimpleFileMultipartUpload::list_parts(
   return 0;
 }
 
-int SimpleFileMultipartUpload::abort(
+int SFSMultipartUpload::abort(
   const DoutPrefixProvider *dpp,
   CephContext *cct
 ) {
@@ -131,7 +131,7 @@ int SimpleFileMultipartUpload::abort(
   return 0;
 }
 
-int SimpleFileMultipartUpload::complete(
+int SFSMultipartUpload::complete(
   const DoutPrefixProvider *dpp,
   optional_yield y,
   CephContext *cct,
@@ -150,7 +150,7 @@ int SimpleFileMultipartUpload::complete(
   return 0;
 }
 
-int SimpleFileMultipartUpload::get_info(
+int SFSMultipartUpload::get_info(
   const DoutPrefixProvider *dpp,
   optional_yield y,
   rgw_placement_rule **rule,
@@ -160,7 +160,7 @@ int SimpleFileMultipartUpload::get_info(
   return 0;
 }
 
-std::unique_ptr<Writer> SimpleFileMultipartUpload::get_writer(
+std::unique_ptr<Writer> SFSMultipartUpload::get_writer(
   const DoutPrefixProvider *dpp,
   optional_yield y,
   rgw::sal::Object* head_obj,
@@ -172,13 +172,13 @@ std::unique_ptr<Writer> SimpleFileMultipartUpload::get_writer(
   lsfs_dout(dpp, 10) << "head obj: " << head_obj << ", owner: " << _owner
                      << ", part num: " << part_num << dendl;
 
-  return std::make_unique<SimpleFileMultipartWriter>(
+  return std::make_unique<SFSMultipartWriter>(
     dpp, y, this, head_obj, store, _owner,
     ptail_placement_rule, part_num, part_num_str
   );
 }
 
-void SimpleFileMultipartUpload::dump(Formatter *f) const {
+void SFSMultipartUpload::dump(Formatter *f) const {
   // TODO
 }
 

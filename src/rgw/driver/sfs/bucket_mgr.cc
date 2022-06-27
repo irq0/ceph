@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -15,9 +15,9 @@
 #include <memory>
 #include <filesystem>
 
-#include "rgw_sal_simplefile.h"
-#include "driver/simplefile/bucket_mgr.h"
-#include "driver/simplefile/object.h"
+#include "rgw_sal_sfs.h"
+#include "driver/sfs/bucket_mgr.h"
+#include "driver/sfs/object.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -25,7 +25,7 @@ namespace rgw::sal {
 
 void BucketMgr::new_bucket(
   const DoutPrefixProvider *dpp,
-  SimpleFileBucket *bucket
+  SFSBucket *bucket
 ) {
   ceph_assert(bucket->get_name() == bucket_name);
   std::lock_guard l{commit_lock};
