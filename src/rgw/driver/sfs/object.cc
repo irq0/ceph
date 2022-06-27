@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,9 +11,9 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#include "driver/simplefile/object.h"
+#include "driver/sfs/object.h"
 
-#include "rgw_sal_simplefile.h"
+#include "rgw_sal_sfs.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -21,12 +21,10 @@ using namespace std;
 
 namespace rgw::sal {
 
-SimpleFileObject::SimpleFileReadOp::SimpleFileReadOp(
-    SimpleFileObject* _source, RGWObjectCtx* _rctx
-)
+SFSObject::SFSReadOp::SFSReadOp(SFSObject* _source, RGWObjectCtx* _rctx)
     : source(_source), rctx(_rctx) {}
 
-int SimpleFileObject::SimpleFileReadOp::prepare(
+int SFSObject::SFSReadOp::prepare(
     optional_yield y, const DoutPrefixProvider* dpp
 ) {
   source->refresh_meta();
@@ -48,7 +46,7 @@ int SimpleFileObject::SimpleFileReadOp::prepare(
   return 0;
 }
 
-int SimpleFileObject::SimpleFileReadOp::get_attr(
+int SFSObject::SFSReadOp::get_attr(
     const DoutPrefixProvider* dpp, const char* name, bufferlist& dest,
     optional_yield y
 ) {
@@ -65,7 +63,7 @@ int SimpleFileObject::SimpleFileReadOp::get_attr(
 }
 
 // sync read
-int SimpleFileObject::SimpleFileReadOp::read(
+int SFSObject::SFSReadOp::read(
     int64_t ofs, int64_t end, bufferlist& bl, optional_yield y,
     const DoutPrefixProvider* dpp
 ) {
@@ -91,7 +89,7 @@ int SimpleFileObject::SimpleFileReadOp::read(
 }
 
 // async read
-int SimpleFileObject::SimpleFileReadOp::iterate(
+int SFSObject::SFSReadOp::iterate(
     const DoutPrefixProvider* dpp, int64_t ofs, int64_t end, RGWGetDataCB* cb,
     optional_yield y
 ) {
@@ -120,12 +118,10 @@ int SimpleFileObject::SimpleFileReadOp::iterate(
   return 0;
 }
 
-SimpleFileObject::SimpleFileDeleteOp::SimpleFileDeleteOp(
-    SimpleFileObject* _source, BucketMgrRef _mgr
-)
+SFSObject::SFSDeleteOp::SFSDeleteOp(SFSObject* _source, BucketMgrRef _mgr)
     : source(_source), mgr(_mgr) {}
 
-int SimpleFileObject::SimpleFileDeleteOp::delete_obj(
+int SFSObject::SFSDeleteOp::delete_obj(
     const DoutPrefixProvider* dpp, optional_yield y
 ) {
   lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
@@ -144,16 +140,16 @@ int SimpleFileObject::SimpleFileDeleteOp::delete_obj(
   return 0;
 }
 
-int SimpleFileObject::delete_object(
+int SFSObject::delete_object(
     const DoutPrefixProvider* dpp, optional_yield y, bool prevent_versioning
 ) {
   lsfs_dout(dpp, 10) << "prevent_versioning: " << prevent_versioning << dendl;
   auto mgr = store->get_bucket_mgr(get_bucket()->get_name());
-  SimpleFileObject::SimpleFileDeleteOp del(this, mgr);
+  SFSObject::SFSDeleteOp del(this, mgr);
   return del.delete_obj(dpp, y);
 }
 
-int SimpleFileObject::copy_object(
+int SFSObject::copy_object(
     User* user, req_info* info, const rgw_zone_id& source_zone,
     rgw::sal::Object* dest_object, rgw::sal::Bucket* dest_bucket,
     rgw::sal::Bucket* src_bucket, const rgw_placement_rule& dest_placement,
@@ -171,18 +167,18 @@ int SimpleFileObject::copy_object(
 }
 
 /** TODO Create a randomized instance ID for this object */
-void SimpleFileObject::gen_rand_obj_instance_name() {
+void SFSObject::gen_rand_obj_instance_name() {
   ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
   return;
 }
 
-int SimpleFileObject::get_obj_attrs(
+int SFSObject::get_obj_attrs(
     optional_yield y, const DoutPrefixProvider* dpp, rgw_obj* target_obj
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
-int SimpleFileObject::modify_obj_attrs(
+int SFSObject::modify_obj_attrs(
     const char* attr_name, bufferlist& attr_val, optional_yield y,
     const DoutPrefixProvider* dpp
 ) {
@@ -190,21 +186,21 @@ int SimpleFileObject::modify_obj_attrs(
   return -ENOTSUP;
 }
 
-int SimpleFileObject::delete_obj_attrs(
+int SFSObject::delete_obj_attrs(
     const DoutPrefixProvider* dpp, const char* attr_name, optional_yield y
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
-std::unique_ptr<MPSerializer> SimpleFileObject::get_serializer(
+std::unique_ptr<MPSerializer> SFSObject::get_serializer(
     const DoutPrefixProvider* dpp, const std::string& lock_name
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return nullptr;
 }
 
-int SimpleFileObject::transition(
+int SFSObject::transition(
     Bucket* bucket, const rgw_placement_rule& placement_rule,
     const real_time& mtime, uint64_t olh_epoch, const DoutPrefixProvider* dpp,
     optional_yield y
@@ -213,7 +209,7 @@ int SimpleFileObject::transition(
   return -ENOTSUP;
 }
 
-int SimpleFileObject::transition_to_cloud(
+int SFSObject::transition_to_cloud(
     Bucket* bucket, rgw::sal::PlacementTier* tier, rgw_bucket_dir_entry& o,
     std::set<std::string>& cloud_targets, CephContext* cct, bool update_object,
     const DoutPrefixProvider* dpp, optional_yield y
@@ -222,21 +218,21 @@ int SimpleFileObject::transition_to_cloud(
   return -ENOTSUP;
 }
 
-bool SimpleFileObject::placement_rules_match(
+bool SFSObject::placement_rules_match(
     rgw_placement_rule& r1, rgw_placement_rule& r2
 ) {
   ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
   return true;
 }
 
-int SimpleFileObject::dump_obj_layout(
+int SFSObject::dump_obj_layout(
     const DoutPrefixProvider* dpp, optional_yield y, Formatter* f
 ) {
   ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
-int SimpleFileObject::swift_versioning_restore(
+int SFSObject::swift_versioning_restore(
     bool& restored, /* out */
     const DoutPrefixProvider* dpp
 ) {
@@ -244,14 +240,14 @@ int SimpleFileObject::swift_versioning_restore(
   return 0;
 }
 
-int SimpleFileObject::swift_versioning_copy(
+int SFSObject::swift_versioning_copy(
     const DoutPrefixProvider* dpp, optional_yield y
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": do nothing." << dendl;
   return 0;
 }
 
-int SimpleFileObject::omap_get_vals_by_keys(
+int SFSObject::omap_get_vals_by_keys(
     const DoutPrefixProvider* dpp, const std::string& oid,
     const std::set<std::string>& keys, Attrs* vals
 ) {
@@ -259,7 +255,7 @@ int SimpleFileObject::omap_get_vals_by_keys(
   return -ENOTSUP;
 }
 
-int SimpleFileObject::omap_set_val_by_key(
+int SFSObject::omap_set_val_by_key(
     const DoutPrefixProvider* dpp, const std::string& key, bufferlist& val,
     bool must_exist, optional_yield y
 ) {
@@ -267,20 +263,20 @@ int SimpleFileObject::omap_set_val_by_key(
   return -ENOTSUP;
 }
 
-int SimpleFileObject::chown(
+int SFSObject::chown(
     rgw::sal::User& new_user, const DoutPrefixProvider* dpp, optional_yield y
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
 
-std::unique_ptr<rgw::sal::Object::DeleteOp> SimpleFileObject::get_delete_op() {
+std::unique_ptr<rgw::sal::Object::DeleteOp> SFSObject::get_delete_op() {
   ceph_assert(bucket != nullptr);
   auto mgr = store->get_bucket_mgr(bucket->get_name());
-  return std::make_unique<SimpleFileObject::SimpleFileDeleteOp>(this, mgr);
+  return std::make_unique<SFSObject::SFSDeleteOp>(this, mgr);
 }
 
-void SimpleFileObject::write_meta() {
+void SFSObject::write_meta() {
   auto metapath = get_metadata_path();
 
   ofstream ofs(metapath);
@@ -292,7 +288,7 @@ void SimpleFileObject::write_meta() {
   ofs.close();
 }
 
-void SimpleFileObject::load_meta() {
+void SFSObject::load_meta() {
   auto metapath = get_metadata_path();
 
   ldout(store->ctx(), 10) << "load metadata for " << get_name() << dendl;
@@ -317,10 +313,10 @@ void SimpleFileObject::load_meta() {
   state.mtime = meta.mtime;
 }
 
-std::filesystem::path SimpleFileObject::get_data_path() {
+std::filesystem::path SFSObject::get_data_path() {
   return store->object_path(get_bucket()->get_key(), get_key());
 }
-std::filesystem::path SimpleFileObject::get_metadata_path() {
+std::filesystem::path SFSObject::get_metadata_path() {
   return store->object_metadata_path(get_bucket()->get_key(), get_key());
 };
 

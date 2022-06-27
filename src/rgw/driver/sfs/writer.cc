@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,15 +11,14 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#include "driver/simplefile/writer.h"
+#include "driver/sfs/writer.h"
 
 #include <memory>
 
-#include "driver/simplefile/bucket.h"
-#include "driver/simplefile/bucket_mgr.h"
-#include "driver/simplefile/writer.h"
+#include "driver/sfs/bucket.h"
+#include "driver/sfs/bucket_mgr.h"
 #include "rgw_sal.h"
-#include "rgw_sal_simplefile.h"
+#include "rgw_sal_sfs.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -27,9 +26,9 @@ using namespace std;
 
 namespace rgw::sal {
 
-SimpleFileAtomicWriter::SimpleFileAtomicWriter(
+SFSAtomicWriter::SFSAtomicWriter(
     const DoutPrefixProvider* _dpp, optional_yield _y,
-    rgw::sal::Object* _head_obj, SimpleFileStore* _store, BucketMgrRef _mgr,
+    rgw::sal::Object* _head_obj, SFStore* _store, BucketMgrRef _mgr,
     const rgw_user& _owner, const rgw_placement_rule* _ptail_placement_rule,
     uint64_t _olh_epoch, const std::string& _unique_tag
 )
@@ -47,13 +46,13 @@ SimpleFileAtomicWriter::SimpleFileAtomicWriter(
                      << dendl;
 }
 
-int SimpleFileAtomicWriter::prepare(optional_yield y) {
+int SFSAtomicWriter::prepare(optional_yield y) {
   lsfs_dout(dpp, 10) << ": unimplemented, return success." << dendl;
   // TODO: create meta file for this new object
   return 0;
 }
 
-int SimpleFileAtomicWriter::process(bufferlist&& data, uint64_t offset) {
+int SFSAtomicWriter::process(bufferlist&& data, uint64_t offset) {
   lsfs_dout(dpp, 10) << "data len: " << data.length() << ", offset: " << offset
                      << dendl;
 
@@ -77,7 +76,7 @@ int SimpleFileAtomicWriter::process(bufferlist&& data, uint64_t offset) {
   return 0;
 }
 
-int SimpleFileAtomicWriter::complete(
+int SFSAtomicWriter::complete(
     size_t accounted_size, const std::string& etag, ceph::real_time* mtime,
     ceph::real_time set_mtime, std::map<std::string, bufferlist>& attrs,
     ceph::real_time delete_at, const char* if_match, const char* if_nomatch,
@@ -94,7 +93,7 @@ int SimpleFileAtomicWriter::complete(
 
   ceph_assert(bytes_written == accounted_size);
 
-  SimpleFileObject::Meta& meta = obj.meta;
+  SFSObject::Meta& meta = obj.meta;
   meta.size = accounted_size;
   meta.etag = etag;
   meta.mtime = ceph::real_clock::now();
@@ -108,21 +107,21 @@ int SimpleFileAtomicWriter::complete(
   return 0;
 }
 
-SimpleFileMultipartWriter::SimpleFileMultipartWriter(
+SFSMultipartWriter::SFSMultipartWriter(
     const DoutPrefixProvider* _dpp, optional_yield y, MultipartUpload* upload,
-    rgw::sal::Object* _head_obj, const SimpleFileStore* store,
-    const rgw_user& _owner, const rgw_placement_rule* _ptail_placement_rule,
-    uint64_t _part_num, const std::string& _part_num_str
+    rgw::sal::Object* _head_obj, const SFStore* store, const rgw_user& _owner,
+    const rgw_placement_rule* _ptail_placement_rule, uint64_t _part_num,
+    const std::string& _part_num_str
 )
     : StoreWriter(_dpp, y) {}
 
-int SimpleFileMultipartWriter::prepare(optional_yield y) {
+int SFSMultipartWriter::prepare(optional_yield y) {
   ldpp_dout(dpp, 10) << "multipart_writer::" << __func__
                      << ": unimplemented, return success" << dendl;
   return 0;
 }
 
-int SimpleFileMultipartWriter::process(bufferlist&& data, uint64_t offset) {
+int SFSMultipartWriter::process(bufferlist&& data, uint64_t offset) {
   ldpp_dout(dpp, 10) << "multipart_writer::" << __func__
                      << ": unimplemented, return success" << dendl;
   ldpp_dout(dpp, 10) << "multipart_writer::" << __func__
@@ -131,7 +130,7 @@ int SimpleFileMultipartWriter::process(bufferlist&& data, uint64_t offset) {
   return 0;
 }
 
-int SimpleFileMultipartWriter::complete(
+int SFSMultipartWriter::complete(
     size_t accounted_size, const std::string& etag, ceph::real_time* mtime,
     ceph::real_time set_mtime, std::map<std::string, bufferlist>& attrs,
     ceph::real_time delete_at, const char* if_match, const char* if_nomatch,

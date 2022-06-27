@@ -214,20 +214,20 @@ if(WITH_RADOSGW_DBSTORE)
   add_subdirectory(driver/dbstore)
   list(APPEND librgw_common_srcs rgw_sal_dbstore.cc)
 endif()
-if(WITH_RADOSGW_SIMPLEFILE)
+if(WITH_RADOSGW_SFS)
   list(APPEND librgw_common_srcs
-    rgw_sal_simplefile.cc
-    driver/simplefile/bucket.cc
-    driver/simplefile/bucket_mgr.cc
-    driver/simplefile/multipart.cc
-    driver/simplefile/object.cc
-    driver/simplefile/user.cc
-    driver/simplefile/zone.cc
-    driver/simplefile/writer.cc
-    driver/simplefile/sfs_bucket.cc
-    driver/simplefile/sfs_user.cc
-    driver/simplefile/sqlite/sqlite_users.cc
-    driver/simplefile/sqlite/users_conversions.cc)
+    rgw_sal_sfs.cc
+    driver/sfs/bucket.cc
+    driver/sfs/bucket_mgr.cc
+    driver/sfs/multipart.cc
+    driver/sfs/object.cc
+    driver/sfs/user.cc
+    driver/sfs/zone.cc
+    driver/sfs/writer.cc
+    driver/sfs/sfs_bucket.cc
+    driver/sfs/sfs_user.cc
+    driver/sfs/sqlite/sqlite_users.cc
+    driver/sfs/sqlite/users_conversions.cc)
 endif()
 if(WITH_RADOSGW_MOTR)
   list(APPEND librgw_common_srcs rgw_sal_motr.cc)
@@ -290,7 +290,7 @@ target_link_libraries(rgw_common
 target_include_directories(rgw_common
   PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw/services"
   PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw/driver/rados"
-  PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw/store/simplefile"
+  PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw/store/sfs"
   PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw"
   PUBLIC "${LUA_INCLUDE_DIR}")
 if(WITH_RADOSGW_KAFKA_ENDPOINT)

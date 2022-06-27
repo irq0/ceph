@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,26 +11,26 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#ifndef RGW_STORE_SIMPLEFILE_OBJECT_H
-#define RGW_STORE_SIMPLEFILE_OBJECT_H
+#ifndef RGW_STORE_SFS_OBJECT_H
+#define RGW_STORE_SFS_OBJECT_H
 
 #include <filesystem>
 
-#include "driver/simplefile/bucket_mgr.h"
+#include "driver/sfs/bucket_mgr.h"
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
 
 namespace rgw::sal {
 
-class SimpleFileStore;
+class SFStore;
 
-class SimpleFileObject : public StoreObject {
+class SFSObject : public StoreObject {
  private:
-  SimpleFileStore* store;
+  SFStore* store;
   RGWAccessControlPolicy acls;
 
  protected:
-  SimpleFileObject(SimpleFileObject&) = default;
+  SFSObject(SFSObject&) = default;
   void init() { load_meta(); }
 
  public:
@@ -63,18 +63,18 @@ class SimpleFileObject : public StoreObject {
       JSONDecoder::decode_json("attrs", attrs, obj);
     }
   };
-  SimpleFileObject::Meta meta;
+  SFSObject::Meta meta;
 
   /**
    * reads an object's contents.
    */
-  struct SimpleFileReadOp : public ReadOp {
+  struct SFSReadOp : public ReadOp {
    private:
-    SimpleFileObject* source;
+    SFSObject* source;
     RGWObjectCtx* rctx;
 
    public:
-    SimpleFileReadOp(SimpleFileObject* _source, RGWObjectCtx* _rctx);
+    SFSReadOp(SFSObject* _source, RGWObjectCtx* _rctx);
 
     virtual int prepare(optional_yield y, const DoutPrefixProvider* dpp)
         override;
@@ -97,33 +97,33 @@ class SimpleFileObject : public StoreObject {
   /**
    * deletes an object.
    */
-  struct SimpleFileDeleteOp : public DeleteOp {
+  struct SFSDeleteOp : public DeleteOp {
    private:
-    SimpleFileObject* source;
+    SFSObject* source;
     BucketMgrRef mgr;
 
    public:
-    SimpleFileDeleteOp(SimpleFileObject* _source, BucketMgrRef _mgr);
+    SFSDeleteOp(SFSObject* _source, BucketMgrRef _mgr);
     virtual int delete_obj(const DoutPrefixProvider* dpp, optional_yield y)
         override;
 
     const std::string get_cls_name() { return "object_delete"; }
   };
 
-  // SimpleFileObject continues here.
+  // SFSObject continues here.
   //
 
-  SimpleFileObject& operator=(const SimpleFileObject&) = delete;
+  SFSObject& operator=(const SFSObject&) = delete;
 
-  SimpleFileObject(SimpleFileStore* _st, const rgw_obj_key& _k)
+  SFSObject(SFStore* _st, const rgw_obj_key& _k)
       : StoreObject(_k), store(_st) {}
-  SimpleFileObject(SimpleFileStore* _st, const rgw_obj_key& _k, Bucket* _b)
+  SFSObject(SFStore* _st, const rgw_obj_key& _k, Bucket* _b)
       : StoreObject(_k, _b), store(_st) {
     init();
   }
 
   virtual std::unique_ptr<Object> clone() override {
-    return std::unique_ptr<Object>(new SimpleFileObject{*this});
+    return std::unique_ptr<Object>(new SFSObject{*this});
   }
 
   virtual int delete_object(
@@ -197,7 +197,7 @@ class SimpleFileObject : public StoreObject {
    * Obtain a Read Operation.
    */
   virtual std::unique_ptr<ReadOp> get_read_op() override {
-    return std::make_unique<SimpleFileObject::SimpleFileReadOp>(this, nullptr);
+    return std::make_unique<SFSObject::SFSReadOp>(this, nullptr);
   }
   /**
    * Obtain a Delete Operation.
@@ -241,4 +241,4 @@ class SimpleFileObject : public StoreObject {
 
 }  // namespace rgw::sal
 
-#endif  // RGW_STORE_SIMPLEFILE_OBJECT_H
+#endif  // RGW_STORE_SFS_OBJECT_H

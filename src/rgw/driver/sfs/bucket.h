@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,8 +11,8 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#ifndef RGW_STORE_SIMPLEFILE_BUCKET_H
-#define RGW_STORE_SIMPLEFILE_BUCKET_H
+#ifndef RGW_STORE_SFS_BUCKET_H
+#define RGW_STORE_SFS_BUCKET_H
 
 #include <filesystem>
 #include <memory>
@@ -20,23 +20,23 @@
 
 #include "common/Formatter.h"
 #include "common/ceph_json.h"
-#include "driver/simplefile/bucket_mgr.h"
-#include "driver/simplefile/multipart.h"
+#include "driver/sfs/bucket_mgr.h"
+#include "driver/sfs/multipart.h"
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
 
 namespace rgw::sal {
 
-class SimpleFileStore;
-class SimpleFileObject;
+class SFStore;
+class SFSObject;
 
-class SimpleFileBucket : public StoreBucket {
+class SFSBucket : public StoreBucket {
  private:
-  SimpleFileStore* store;
+  SFStore* store;
   BucketMgrRef mgr;
   const std::filesystem::path path;
   RGWAccessControlPolicy acls;
-  // std::map<std::string, SimpleFileMultipartUpload> multipart;
+
  protected:
   class Meta {
    public:
@@ -56,7 +56,7 @@ class SimpleFileBucket : public StoreBucket {
     }
   };
 
-  SimpleFileBucket(const SimpleFileBucket&) = default;
+  SFSBucket(const SFSBucket&) = default;
 
   void write_meta(const DoutPrefixProvider* dpp);
   // void read_meta(const DoutPrefixProvider *dpp);
@@ -64,11 +64,10 @@ class SimpleFileBucket : public StoreBucket {
   // void remove_multipart(const std::string &oid, const std::string &meta);
 
  public:
-  SimpleFileBucket(
-      const std::filesystem::path& _path, SimpleFileStore* _store,
-      BucketMgrRef _mgr
+  SFSBucket(
+      const std::filesystem::path& _path, SFStore* _store, BucketMgrRef _mgr
   );
-  SimpleFileBucket& operator=(const SimpleFileBucket&) = delete;
+  SFSBucket& operator=(const SFSBucket&) = delete;
 
   void init(const DoutPrefixProvider* dpp, const rgw_bucket& b);
 
@@ -77,7 +76,7 @@ class SimpleFileBucket : public StoreBucket {
   std::filesystem::path objects_path() const;
 
   virtual std::unique_ptr<Bucket> clone() override {
-    return std::unique_ptr<Bucket>(new SimpleFileBucket{*this});
+    return std::unique_ptr<Bucket>(new SFSBucket{*this});
   }
 
   /**
@@ -216,4 +215,4 @@ class SimpleFileBucket : public StoreBucket {
 
 }  // namespace rgw::sal
 
-#endif  // RGW_STORE_SIMPLEFILE_BUCKET_H
+#endif  // RGW_STORE_SFS_BUCKET_H

@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,22 +11,20 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#ifndef RGW_STORE_SIMPLEFILE_NOTIFICATION_H
-#define RGW_STORE_SIMPLEFILE_NOTIFICATION_H
+#ifndef RGW_STORE_SFS_NOTIFICATION_H
+#define RGW_STORE_SFS_NOTIFICATION_H
 
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
 
 namespace rgw::sal {
 
-class SimpleFileNotification : public StoreNotification {
+class SFSNotification : public StoreNotification {
  public:
-  SimpleFileNotification(
-      Object* obj, Object* src_obj, rgw::notify::EventType type
-  )
+  SFSNotification(Object* obj, Object* src_obj, rgw::notify::EventType type)
       : StoreNotification(obj, src_obj, type) {}
 
-  ~SimpleFileNotification() = default;
+  ~SFSNotification() = default;
 
   virtual int publish_reserve(
       const DoutPrefixProvider* dpp, RGWObjTags* obj_tags = nullptr
@@ -45,4 +43,4 @@ class SimpleFileNotification : public StoreNotification {
 
 }  // namespace rgw::sal
 
-#endif  // RGW_STORE_SIMPLEFILE_NOTIFICATION_H
+#endif  // RGW_STORE_SFS_NOTIFICATION_H

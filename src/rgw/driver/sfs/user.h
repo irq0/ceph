@@ -2,7 +2,7 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 /*
  * Ceph - scalable distributed file system
- * Simple filesystem SAL implementation
+ * SFS SAL implementation
  *
  * Copyright (C) 2022 SUSE LLC
  *
@@ -11,36 +11,35 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
-#ifndef RGW_STORE_SIMPLEFILE_USER_H
-#define RGW_STORE_SIMPLEFILE_USER_H
+#ifndef RGW_STORE_SFS_USER_H
+#define RGW_STORE_SFS_USER_H
 
 #include <memory>
 #include <string>
 
-#include "driver/simplefile/bucket.h"
+#include "driver/sfs/bucket.h"
 #include "rgw_sal.h"
 
 namespace rgw::sal {
 
-class SimpleFileStore;
+class SFStore;
 
-class SimpleFileUser : public StoreUser {
+class SFSUser : public StoreUser {
  private:
-  SimpleFileStore* store;
+  SFStore* store;
 
  protected:
-  SimpleFileUser(SimpleFileUser&) = default;
-  SimpleFileUser& operator=(const SimpleFileUser&) = default;
+  SFSUser(SFSUser&) = default;
+  SFSUser& operator=(const SFSUser&) = default;
 
  public:
-  SimpleFileUser(const rgw_user& _u, SimpleFileStore* _store)
-      : StoreUser(_u), store(_store) {}
-  SimpleFileUser(const RGWUserInfo& _i, SimpleFileStore* _store)
+  SFSUser(const rgw_user& _u, SFStore* _store) : StoreUser(_u), store(_store) {}
+  SFSUser(const RGWUserInfo& _i, SFStore* _store)
       : StoreUser(_i), store(_store) {}
-  virtual ~SimpleFileUser() = default;
+  virtual ~SFSUser() = default;
 
   virtual std::unique_ptr<User> clone() override {
-    return std::unique_ptr<User>(new SimpleFileUser{*this});
+    return std::unique_ptr<User>(new SFSUser{*this});
   }
   virtual int list_buckets(
       const DoutPrefixProvider* dpp, const std::string& marker,
@@ -97,4 +96,4 @@ class SimpleFileUser : public StoreUser {
 
 }  // namespace rgw::sal
 
-#endif  // RGW_STORE_SIMPLEFILE_USER_H
+#endif  // RGW_STORE_SFS_USER_H
