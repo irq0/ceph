@@ -74,7 +74,8 @@ class SFSBucket : public StoreBucket {
 
   void init(
     const DoutPrefixProvider *dpp,
-    const rgw_bucket &b
+    const rgw_bucket &b,
+    const RGWUserInfo & owner
   );
 
   std::filesystem::path bucket_path() const;

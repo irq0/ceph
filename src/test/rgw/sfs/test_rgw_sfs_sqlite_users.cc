@@ -5,6 +5,8 @@
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
 #include "rgw/driver/sfs/sqlite/users_conversions.h"
 
+#include "rgw/rgw_sal_sfs.h"
+
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <memory>
@@ -80,62 +82,50 @@ std::string getCapsString(const RGWUserCaps & caps) {
   return oss.str();
 }
 
+void compareUsersRGWInfo(const RGWUserInfo & origin, const RGWUserInfo & dest) {
+  ASSERT_EQ(origin.user_id.id, dest.user_id.id);
+  ASSERT_EQ(origin.user_id.tenant, dest.user_id.tenant);
+  ASSERT_EQ(origin.user_id.ns, dest.user_id.ns);
+  ASSERT_EQ(origin.display_name, dest.display_name);
+  ASSERT_EQ(origin.user_email, dest.user_email);
+  ASSERT_TRUE(compareMaps(origin.access_keys, dest.access_keys));
+  ASSERT_TRUE(compareMaps(origin.swift_keys, dest.swift_keys));
+  ASSERT_TRUE(compareMaps(origin.subusers, dest.subusers));
+  ASSERT_EQ(origin.suspended, dest.suspended);
+  ASSERT_EQ(origin.max_buckets, dest.max_buckets);
+  ASSERT_EQ(origin.op_mask, dest.op_mask);
+  ASSERT_EQ(getCapsString(origin.caps), getCapsString(dest.caps));
+  ASSERT_EQ(origin.system, dest.system);
+  ASSERT_EQ(origin.default_placement.name, dest.default_placement.name);
+  ASSERT_EQ(origin.default_placement.storage_class, dest.default_placement.storage_class);
+  ASSERT_EQ(origin.placement_tags, dest.placement_tags);
+  ASSERT_EQ(origin.quota.bucket_quota.max_size, dest.quota.bucket_quota.max_size);
+  ASSERT_EQ(origin.quota.bucket_quota.max_objects, dest.quota.bucket_quota.max_objects);
+  ASSERT_EQ(origin.quota.bucket_quota.enabled, dest.quota.bucket_quota.enabled);
+  ASSERT_EQ(origin.quota.bucket_quota.check_on_raw, dest.quota.bucket_quota.check_on_raw);
+  ASSERT_TRUE(compareMaps(origin.temp_url_keys, dest.temp_url_keys));
+  ASSERT_EQ(origin.quota.user_quota.max_size, dest.quota.user_quota.max_size);
+  ASSERT_EQ(origin.quota.user_quota.max_objects, dest.quota.user_quota.max_objects);
+  ASSERT_EQ(origin.quota.user_quota.enabled, dest.quota.user_quota.enabled);
+  ASSERT_EQ(origin.quota.user_quota.check_on_raw, dest.quota.user_quota.check_on_raw);
+  ASSERT_EQ(origin.type, dest.type);
+  ASSERT_EQ(origin.mfa_ids, dest.mfa_ids);
+  ASSERT_EQ(origin.assumed_role_arn, dest.assumed_role_arn);
+}
+
+void compareUserAttrs(const rgw::sal::Attrs & origin, const rgw::sal::Attrs & dest) {
+  ASSERT_TRUE(compareMaps(origin, dest));
+}
+
+void compareUserVersion(const obj_version & origin, const obj_version & dest) {
+  ASSERT_EQ(origin.ver, dest.ver);
+  ASSERT_EQ(origin.tag, dest.tag);
+}
+
 void compareUsers(const DBOPUserInfo & origin, const DBOPUserInfo & dest) {
-  ASSERT_EQ(origin.uinfo.user_id.id, dest.uinfo.user_id.id);
-  ASSERT_EQ(origin.uinfo.user_id.tenant, dest.uinfo.user_id.tenant);
-  ASSERT_EQ(origin.uinfo.user_id.ns, dest.uinfo.user_id.ns);
-  ASSERT_EQ(origin.uinfo.display_name, dest.uinfo.display_name);
-  ASSERT_EQ(origin.uinfo.user_email, dest.uinfo.user_email);
-  ASSERT_TRUE(compareMaps(origin.uinfo.access_keys, dest.uinfo.access_keys));
-  ASSERT_TRUE(compareMaps(origin.uinfo.swift_keys, dest.uinfo.swift_keys));
-  ASSERT_TRUE(compareMaps(origin.uinfo.subusers, dest.uinfo.subusers));
-  ASSERT_EQ(origin.uinfo.suspended, dest.uinfo.suspended);
-  ASSERT_EQ(origin.uinfo.max_buckets, dest.uinfo.max_buckets);
-  ASSERT_EQ(origin.uinfo.op_mask, dest.uinfo.op_mask);
-  ASSERT_EQ(getCapsString(origin.uinfo.caps), getCapsString(dest.uinfo.caps));
-  ASSERT_EQ(origin.uinfo.system, dest.uinfo.system);
-  ASSERT_EQ(origin.uinfo.default_placement.name, dest.uinfo.default_placement.name);
-  ASSERT_EQ(origin.uinfo.default_placement.storage_class, dest.uinfo.default_placement.storage_class);
-  ASSERT_EQ(origin.uinfo.placement_tags, dest.uinfo.placement_tags);
-  ASSERT_EQ(
-    origin.uinfo.quota.bucket_quota.max_size,
-    dest.uinfo.quota.bucket_quota.max_size
-  );
-  ASSERT_EQ(
-    origin.uinfo.quota.bucket_quota.max_objects,
-    dest.uinfo.quota.bucket_quota.max_objects
-  );
-  ASSERT_EQ(
-    origin.uinfo.quota.bucket_quota.enabled,
-    dest.uinfo.quota.bucket_quota.enabled
-  );
-  ASSERT_EQ(
-    origin.uinfo.quota.bucket_quota.check_on_raw,
-    dest.uinfo.quota.bucket_quota.check_on_raw
-  );
-  ASSERT_TRUE(compareMaps(origin.uinfo.temp_url_keys, dest.uinfo.temp_url_keys));
-  ASSERT_EQ(
-    origin.uinfo.quota.user_quota.max_size,
-    dest.uinfo.quota.user_quota.max_size
-  );
-  ASSERT_EQ(
-    origin.uinfo.quota.user_quota.max_objects,
-    dest.uinfo.quota.user_quota.max_objects
-  );
-  ASSERT_EQ(
-    origin.uinfo.quota.user_quota.enabled,
-    dest.uinfo.quota.user_quota.enabled
-  );
-  ASSERT_EQ(
-    origin.uinfo.quota.user_quota.check_on_raw,
-    dest.uinfo.quota.user_quota.check_on_raw
-  );
-  ASSERT_EQ(origin.uinfo.type, dest.uinfo.type);
-  ASSERT_EQ(origin.uinfo.mfa_ids, dest.uinfo.mfa_ids);
-  ASSERT_EQ(origin.uinfo.assumed_role_arn, dest.uinfo.assumed_role_arn);
-  ASSERT_TRUE(compareMaps(origin.user_attrs, dest.user_attrs));
-  ASSERT_EQ(origin.user_version.ver, dest.user_version.ver);
-  ASSERT_EQ(origin.user_version.tag, dest.user_version.tag);
+  compareUsersRGWInfo(origin.uinfo, dest.uinfo);
+  compareUserAttrs(origin.user_attrs, dest.user_attrs);
+  compareUserVersion(origin.user_version, dest.user_version);
 }
 
 DBOPUserInfo createTestUser(const std::string & suffix) {
@@ -178,8 +168,8 @@ DBOPUserInfo createTestUser(const std::string & suffix) {
   std::string blob = "blob_test";
   buffer.append(reinterpret_cast<const char *>(blob.c_str()), blob.length());
   user.user_attrs["attr1"] = buffer;
-  user.user_version.ver = 1999;
-  user.user_version.tag = "version_tag";
+  user.user_version.ver = 1;
+  user.user_version.tag = "user_version_tag";
   return user;
 }
 
@@ -413,4 +403,254 @@ TEST_F(TestSFSSQLiteUsers, UseStorage) {
   auto ret_user = db_users.getUser("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(rgw_user_2, *ret_user);
+}
+
+// User management tests ------------------------------------------------------
+
+TEST_F(TestSFSSQLiteUsers, StoreListUsers) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = std::make_shared<rgw::sal::SFStore>(ceph_context.get(), getTestDir());
+
+  const NoDoutPrefix no_dpp(ceph_context.get(), 1);
+  std::list<std::string> userIds;
+  bool truncated;
+  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  ASSERT_FALSE(truncated);
+  ASSERT_EQ(userIds.size(), 0);
+
+  auto user1 = createTestUser("1");
+  auto user2 = createTestUser("2");
+  auto user3 = createTestUser("3");
+  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  db_users->storeUser(user1);
+  db_users->storeUser(user2);
+  db_users->storeUser(user3);
+
+  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(),userIds, &truncated);
+  ASSERT_FALSE(truncated);
+  ASSERT_EQ(userIds.size(), 3);
+  std::vector<std::string> users_vector{ std::make_move_iterator(userIds.begin()),
+                                  std::make_move_iterator(userIds.end()) };
+  ASSERT_EQ(users_vector[0], "test1");
+  ASSERT_EQ(users_vector[1], "test2");
+  ASSERT_EQ(users_vector[2], "test3");
+}
+
+TEST_F(TestSFSSQLiteUsers, StoreAddUser) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = std::make_shared<rgw::sal::SFStore>(ceph_context.get(), getTestDir());
+
+  auto user1 = createTestUser("1");
+  auto sfs_user = std::make_shared<rgw::sal::SFSUser>(user1.uinfo, store.get());
+  sfs_user->set_attrs(user1.user_attrs);
+
+  const NoDoutPrefix no_dpp(ceph_context.get(), 1);
+  EXPECT_EQ(sfs_user->store_user(&no_dpp, null_yield, true), 0);
+
+  std::list<std::string> userIds;
+  bool truncated;
+  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  ASSERT_FALSE(truncated);
+  ASSERT_EQ(userIds.size(), 1);
+
+  // read the user straight from the db
+  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  auto ret_user = db_users->getUser("test1");
+  ASSERT_TRUE(ret_user.has_value());
+  compareUsers(user1, *ret_user);
+}
+
+TEST_F(TestSFSSQLiteUsers, StoreLoadUser) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = std::make_shared<rgw::sal::SFStore>(ceph_context.get(), getTestDir());
+
+  auto user1 = createTestUser("1");
+  auto sfs_user = std::make_shared<rgw::sal::SFSUser>(user1.uinfo, store.get());
+  sfs_user->set_attrs(user1.user_attrs);
+
+  const NoDoutPrefix no_dpp(ceph_context.get(), 1);
+  EXPECT_EQ(sfs_user->store_user(&no_dpp, null_yield, true), 0);
+
+  auto stored_user = store->get_user({"", "test1", ""});
+  EXPECT_EQ(stored_user->load_user(&no_dpp, null_yield), 0);
+  // check that all fields are as expected
+  compareUsersRGWInfo(stored_user->get_info(), user1.uinfo);
+  compareUserAttrs(stored_user->get_attrs(), user1.user_attrs);
+  // version stored should be 1
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.ver, 1);
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.tag, "user_version_tag");
+}
+
+TEST_F(TestSFSSQLiteUsers, StoreUpdateUserCheckOldInfo) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = std::make_shared<rgw::sal::SFStore>(ceph_context.get(), getTestDir());
+
+  auto user1 = createTestUser("1");
+  auto stored_user = store->get_user(user1.uinfo.user_id);
+  stored_user->set_attrs(user1.user_attrs);
+  stored_user->get_info() = user1.uinfo;
+
+  const NoDoutPrefix no_dpp(ceph_context.get(), 1);
+  EXPECT_EQ(stored_user->store_user(&no_dpp, null_yield, true), 0);
+
+  EXPECT_EQ(stored_user->load_user(&no_dpp, null_yield), 0);
+  // check that all fields are as expected
+  compareUsersRGWInfo(stored_user->get_info(), user1.uinfo);
+  compareUserAttrs(stored_user->get_attrs(), user1.user_attrs);
+  // version stored should be 1
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.ver, 1);
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.tag, "user_version_tag");
+
+  // store again (change email)
+  auto prev_info = user1.uinfo;
+
+  stored_user->get_info().user_email = "this_was_updated@test.com";
+  user1.uinfo.user_email = "this_was_updated@test.com";  // set the same value so we can compare later
+
+  // store and retrieve the old info
+  RGWUserInfo old_info;
+  EXPECT_EQ(stored_user->store_user(&no_dpp, null_yield, true, &old_info), 0);
+  EXPECT_EQ(stored_user->load_user(&no_dpp, null_yield), 0);
+
+  compareUsersRGWInfo(stored_user->get_info(), user1.uinfo);
+  compareUserAttrs(stored_user->get_attrs(), user1.user_attrs);
+  // version stored should be 2 now
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.ver, 2);
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.tag, "user_version_tag");
+
+  // check old info
+  compareUsersRGWInfo(prev_info, old_info);
+  ASSERT_NE(old_info.user_email, "this_was_updated@test.com");
+}
+
+TEST_F(TestSFSSQLiteUsers, StoreUpdateUserCheckVersioning) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = std::make_shared<rgw::sal::SFStore>(ceph_context.get(), getTestDir());
+
+  auto user1 = createTestUser("1");
+  auto stored_user = store->get_user(user1.uinfo.user_id);
+  stored_user->set_attrs(user1.user_attrs);
+  stored_user->get_info() = user1.uinfo;
+
+  const NoDoutPrefix no_dpp(ceph_context.get(), 1);
+  EXPECT_EQ(stored_user->store_user(&no_dpp, null_yield, true), 0);
+
+  EXPECT_EQ(stored_user->load_user(&no_dpp, null_yield), 0);
+  // check that all fields are as expected
+  compareUsersRGWInfo(stored_user->get_info(), user1.uinfo);
+  compareUserAttrs(stored_user->get_attrs(), user1.user_attrs);
+  // version stored should be 1
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.ver, 1);
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.tag, "user_version_tag");
+
+  // store again (no changes)
+  EXPECT_EQ(stored_user->store_user(&no_dpp, null_yield, true), 0);
+  EXPECT_EQ(stored_user->load_user(&no_dpp, null_yield), 0);
+  compareUsersRGWInfo(stored_user->get_info(), user1.uinfo);
+  compareUserAttrs(stored_user->get_attrs(), user1.user_attrs);
+  // version stored should be 2 now
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.ver, 2);
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.tag, "user_version_tag");
+
+  // store again (change email)
+  stored_user->get_info().user_email = "this_was_updated@test.com";
+  user1.uinfo.user_email = "this_was_updated@test.com";  // set the same value so we can compare later
+
+  EXPECT_EQ(stored_user->store_user(&no_dpp, null_yield, true), 0);
+  EXPECT_EQ(stored_user->load_user(&no_dpp, null_yield), 0);
+
+  compareUsersRGWInfo(stored_user->get_info(), user1.uinfo);
+  compareUserAttrs(stored_user->get_attrs(), user1.user_attrs);
+  // version stored should be 3 now
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.ver, 3);
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.tag, "user_version_tag");
+}
+
+TEST_F(TestSFSSQLiteUsers, StoreUpdateUserErrorVersioning) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = std::make_shared<rgw::sal::SFStore>(ceph_context.get(), getTestDir());
+
+  auto user1 = createTestUser("1");
+  auto stored_user = store->get_user(user1.uinfo.user_id);
+  stored_user->set_attrs(user1.user_attrs);
+  stored_user->get_info() = user1.uinfo;
+
+  const NoDoutPrefix no_dpp(ceph_context.get(), 1);
+  EXPECT_EQ(stored_user->store_user(&no_dpp, null_yield, true), 0);
+
+  EXPECT_EQ(stored_user->load_user(&no_dpp, null_yield), 0);
+  // check that all fields are as expected
+  compareUsersRGWInfo(stored_user->get_info(), user1.uinfo);
+  compareUserAttrs(stored_user->get_attrs(), user1.user_attrs);
+  // version stored should be 1
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.ver, 1);
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.tag, "user_version_tag");
+
+  // store again (no changes)
+  EXPECT_EQ(stored_user->store_user(&no_dpp, null_yield, true), 0);
+  EXPECT_EQ(stored_user->load_user(&no_dpp, null_yield), 0);
+  compareUsersRGWInfo(stored_user->get_info(), user1.uinfo);
+  compareUserAttrs(stored_user->get_attrs(), user1.user_attrs);
+  // version stored should be 2 now
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.ver, 2);
+  EXPECT_EQ(stored_user->get_version_tracker().read_version.tag, "user_version_tag");
+
+  // store again (this time we manipulate the version so when storing next time it doesn't match)
+  stored_user->get_info().user_email = "this_was_updated@test.com";
+  user1.uinfo.user_email = "this_was_updated@test.com";  // set the same value so we can compare later
+
+  // change here the version obtained with load_user
+  stored_user->get_version_tracker().read_version.ver = 1;
+  // store should be cancelled
+  EXPECT_EQ(stored_user->store_user(&no_dpp, null_yield, true), -ECANCELED);
+}
+
+TEST_F(TestSFSSQLiteUsers, StoreRemoveUser) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = std::make_shared<rgw::sal::SFStore>(ceph_context.get(), getTestDir());
+
+  const NoDoutPrefix no_dpp(ceph_context.get(), 1);
+  std::list<std::string> userIds;
+  bool truncated;
+  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  ASSERT_FALSE(truncated);
+  ASSERT_EQ(userIds.size(), 0);
+
+  auto user1 = createTestUser("1");
+  auto user2 = createTestUser("2");
+  auto user3 = createTestUser("3");
+  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  db_users->storeUser(user1);
+  db_users->storeUser(user2);
+  db_users->storeUser(user3);
+
+  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  ASSERT_FALSE(truncated);
+  ASSERT_EQ(userIds.size(), 3);
+  std::vector<std::string> users_vector{ std::make_move_iterator(userIds.begin()),
+                                  std::make_move_iterator(userIds.end()) };
+  ASSERT_EQ(users_vector[0], "test1");
+  ASSERT_EQ(users_vector[1], "test2");
+  ASSERT_EQ(users_vector[2], "test3");
+
+  // now remove user test2
+  auto stored_user = store->get_user(user2.uinfo.user_id);
+  EXPECT_EQ(stored_user->remove_user(&no_dpp, null_yield), 0);
+
+  // ensure the user was removed
+  userIds.clear();
+  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  ASSERT_FALSE(truncated);
+  ASSERT_EQ(userIds.size(), 2);
+  std::vector<std::string> users_after_remove_vector{ std::make_move_iterator(userIds.begin()),
+                                  std::make_move_iterator(userIds.end()) };
+  ASSERT_EQ(users_after_remove_vector[0], "test1");
+  ASSERT_EQ(users_after_remove_vector[1], "test3");
 }
