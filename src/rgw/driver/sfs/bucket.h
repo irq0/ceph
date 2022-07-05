@@ -69,7 +69,10 @@ class SFSBucket : public StoreBucket {
   );
   SFSBucket& operator=(const SFSBucket&) = delete;
 
-  void init(const DoutPrefixProvider* dpp, const rgw_bucket& b);
+  void init(
+      const DoutPrefixProvider* dpp, const rgw_bucket& b,
+      const RGWUserInfo& owner
+  );
 
   std::filesystem::path bucket_path() const;
   std::filesystem::path bucket_metadata_path() const;

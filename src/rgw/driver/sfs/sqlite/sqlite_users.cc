@@ -60,8 +60,7 @@ std::optional<DBOPUserInfo> SQLiteUsers::getUserByAccessKey(
 
 std::vector<std::string> SQLiteUsers::getUserIDs() const {
   auto storage = getStorage();
-  auto selectStatement = storage.prepare(select(&DBUser::UserID));
-  return storage.execute(selectStatement);
+  return storage.select(&DBUser::UserID);
 }
 
 void SQLiteUsers::storeUser(const DBOPUserInfo& user) const {

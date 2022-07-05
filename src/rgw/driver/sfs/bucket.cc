@@ -30,7 +30,9 @@ SFSBucket::SFSBucket(
   ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
 }
 
-void SFSBucket::init(const DoutPrefixProvider* dpp, const rgw_bucket& b) {
+void SFSBucket::init(
+    const DoutPrefixProvider* dpp, const rgw_bucket& b, const RGWUserInfo& owner
+) {
   ldpp_dout(dpp, 10) << __func__ << ": init bucket: " << get_name() << "["
                      << path << "]" << dendl;
   auto meta_path = bucket_metadata_path();
@@ -40,6 +42,7 @@ void SFSBucket::init(const DoutPrefixProvider* dpp, const rgw_bucket& b) {
   std::filesystem::create_directory(obj_path);
 
   info.bucket = b;
+  info.owner = owner.user_id;
   info.creation_time = ceph::real_clock::now();
   info.placement_rule.name = "default";
   info.placement_rule.storage_class = "STANDARD";

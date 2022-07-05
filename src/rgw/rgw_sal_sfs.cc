@@ -27,6 +27,7 @@
 #include "driver/sfs/bucket_mgr.h"
 #include "driver/sfs/notification.h"
 #include "driver/sfs/writer.h"
+#include "rgw/driver/sfs/sqlite/sqlite_users.h"
 #include "rgw_acl_s3.h"
 #include "rgw_aio.h"
 #include "rgw_aio_throttle.h"
@@ -130,8 +131,7 @@ int SFStore::forward_request_to_master(
     const DoutPrefixProvider* dpp, User* user, obj_version* objv,
     bufferlist& in_data, JSONParser* jp, req_info& info, optional_yield y
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  return 0;
 }
 
 int SFStore::forward_iam_request_to_master(
@@ -253,7 +253,10 @@ int SFStore::meta_list_keys_next(
     const DoutPrefixProvider* dpp, void* handle, int max, list<string>& keys,
     bool* truncated
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+  *truncated = false;
+  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  auto ids = sqlite_users.getUserIDs();
+  std::copy(ids.begin(), ids.end(), std::back_inserter(keys));
   return 0;
 }
 
