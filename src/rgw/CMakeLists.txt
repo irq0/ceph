@@ -226,7 +226,14 @@ if(WITH_RADOSGW_SFS)
     driver/sfs/sfs_bucket.cc
     driver/sfs/sfs_user.cc
     driver/sfs/sqlite/sqlite_users.cc
-    driver/sfs/sqlite/users_conversions.cc)
+    driver/sfs/sqlite/sqlite_buckets.cc
+    driver/sfs/sqlite/sqlite_objects.cc
+    driver/sfs/sqlite/sqlite_versioned_objects.cc
+    driver/sfs/sqlite/sqlite_schema.cc
+    driver/sfs/sqlite/users/users_conversions.cc
+    driver/sfs/sqlite/buckets/bucket_conversions.cc
+    driver/sfs/sqlite/objects/object_conversions.cc
+    driver/sfs/sqlite/versioned_object/versioned_object_conversions.cc)
 endif()
 if(WITH_RADOSGW_MOTR)
   list(APPEND librgw_common_srcs rgw_sal_motr.cc)

@@ -3,7 +3,7 @@
 
 #include "common/ceph_context.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
-#include "rgw/driver/sfs/sqlite/users_conversions.h"
+#include "rgw/driver/sfs/sqlite/users/users_conversions.h"
 
 #include "rgw/rgw_sal_sfs.h"
 
@@ -34,7 +34,7 @@ protected:
   }
 
   fs::path getDBFullPath(const std::string & base_dir) const {
-    auto db_full_name = "users.db";
+    auto db_full_name = "s3gw.db";
     auto db_full_path = fs::path(base_dir) /  db_full_name;
     return db_full_path;
   }
@@ -180,10 +180,10 @@ TEST_F(TestSFSSQLiteUsers, CreateAndGet) {
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
   auto user = createTestUser("1");
-  db_users->storeUser(user);
+  db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_user = db_users->getUser("test1");
+  auto ret_user = db_users->get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user, *ret_user);
 }
@@ -195,10 +195,10 @@ TEST_F(TestSFSSQLiteUsers, CreateAndGetByEmail) {
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
   auto user = createTestUser("1");
-  db_users->storeUser(user);
+  db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_user = db_users->getUserByEmail("user1@test.com");
+  auto ret_user = db_users->get_user_by_email("user1@test.com");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user, *ret_user);
 }
@@ -210,10 +210,10 @@ TEST_F(TestSFSSQLiteUsers, CreateAndGetByAccessKey) {
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
   auto user = createTestUser("1");
-  db_users->storeUser(user);
+  db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_user = db_users->getUserByAccessKey("key1_1");
+  auto ret_user = db_users->get_user_by_access_key("key1_1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user, *ret_user);
 }
@@ -225,12 +225,12 @@ TEST_F(TestSFSSQLiteUsers, ListUserIDs) {
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
 
-  db_users->storeUser(createTestUser("1"));
-  db_users->storeUser(createTestUser("2"));
-  db_users->storeUser(createTestUser("3"));
+  db_users->store_user(createTestUser("1"));
+  db_users->store_user(createTestUser("2"));
+  db_users->store_user(createTestUser("3"));
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto user_ids = db_users->getUserIDs();
+  auto user_ids = db_users->get_user_ids();
   EXPECT_EQ(user_ids.size(), 3);
   EXPECT_EQ(user_ids[0], "test1");
   EXPECT_EQ(user_ids[1], "test2");
@@ -244,17 +244,17 @@ TEST_F(TestSFSSQLiteUsers, RemoveUser) {
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
 
-  db_users->storeUser(createTestUser("1"));
-  db_users->storeUser(createTestUser("2"));
-  db_users->storeUser(createTestUser("3"));
+  db_users->store_user(createTestUser("1"));
+  db_users->store_user(createTestUser("2"));
+  db_users->store_user(createTestUser("3"));
 
-  db_users->removeUser("test2");
-  auto user_ids = db_users->getUserIDs();
+  db_users->remove_user("test2");
+  auto user_ids = db_users->get_user_ids();
   EXPECT_EQ(user_ids.size(), 2);
   EXPECT_EQ(user_ids[0], "test1");
   EXPECT_EQ(user_ids[1], "test3");
 
-  auto ret_user = db_users->getUser("test2");
+  auto ret_user = db_users->get_user("test2");
   ASSERT_FALSE(ret_user.has_value());
 }
 
@@ -265,12 +265,12 @@ TEST_F(TestSFSSQLiteUsers, RemoveUserThatDoesNotExist) {
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
 
-  db_users->storeUser(createTestUser("1"));
-  db_users->storeUser(createTestUser("2"));
-  db_users->storeUser(createTestUser("3"));
+  db_users->store_user(createTestUser("1"));
+  db_users->store_user(createTestUser("2"));
+  db_users->store_user(createTestUser("3"));
 
-  db_users->removeUser("testX");
-  auto user_ids = db_users->getUserIDs();
+  db_users->remove_user("testX");
+  auto user_ids = db_users->get_user_ids();
   EXPECT_EQ(user_ids.size(), 3);
   EXPECT_EQ(user_ids[0], "test1");
   EXPECT_EQ(user_ids[1], "test2");
@@ -284,16 +284,16 @@ TEST_F(TestSFSSQLiteUsers, CreateAndUpdate) {
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
   auto user = createTestUser("1");
-  db_users->storeUser(user);
+  db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_user = db_users->getUser("test1");
+  auto ret_user = db_users->get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user, *ret_user);
 
   user.uinfo.user_email = "email_changed@test.com";
-  db_users->storeUser(user);
-  ret_user = db_users->getUser("test1");
+  db_users->store_user(user);
+  ret_user = db_users->get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   ASSERT_EQ(ret_user->uinfo.user_email, "email_changed@test.com");
   compareUsers(user, *ret_user);
@@ -306,16 +306,16 @@ TEST_F(TestSFSSQLiteUsers, GetExisting) {
   EXPECT_FALSE(fs::exists(getDBFullPath()));
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
   auto user = createTestUser("1");
-  db_users->storeUser(user);
+  db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_user = db_users->getUser("test1");
+  auto ret_user = db_users->get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user, *ret_user);
 
   // create a new instance, user should exist
   auto db_users_2 = std::make_shared<SQLiteUsers>(ceph_context.get());
-  ret_user = db_users_2->getUser("test1");
+  ret_user = db_users_2->get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user, *ret_user);
 }
@@ -331,12 +331,12 @@ TEST_F(TestSFSSQLiteUsers, AddMoreThanOneUserWithSameEmail) {
   auto user3 = createTestUser("3");
   user2.uinfo.user_email = "user1@test.com";
   user3.uinfo.user_email = "user1@test.com";
-  db_users->storeUser(user1);
-  db_users->storeUser(user2);
-  db_users->storeUser(user3);
+  db_users->store_user(user1);
+  db_users->store_user(user2);
+  db_users->store_user(user3);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_user = db_users->getUserByEmail("user1@test.com");
+  auto ret_user = db_users->get_user_by_email("user1@test.com");
   ASSERT_TRUE(ret_user.has_value());
   // it will only return the first user with that email
   compareUsers(user1, *ret_user);
@@ -357,12 +357,12 @@ TEST_F(TestSFSSQLiteUsers, AddMoreThanOneUserWithSameAccessKey) {
   user1.uinfo.access_keys = access_keys;
   user2.uinfo.access_keys = access_keys;
   user2.uinfo.access_keys = access_keys;
-  db_users->storeUser(user1);
-  db_users->storeUser(user2);
-  db_users->storeUser(user3);
+  db_users->store_user(user1);
+  db_users->store_user(user2);
+  db_users->store_user(user3);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_user = db_users->getUserByAccessKey("key1");
+  auto ret_user = db_users->get_user_by_access_key("key1");
   ASSERT_TRUE(ret_user.has_value());
   // it will only return the first user with that access key
   compareUsers(user1, *ret_user);
@@ -373,10 +373,10 @@ TEST_F(TestSFSSQLiteUsers, UseStorage) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   SQLiteUsers db_users(ceph_context.get());
-  auto storage = db_users.getStorage();
+  auto storage = db_users.get_storage();
 
   DBUser db_user;
-  db_user.UserID = "test_storage";
+  db_user.user_id = "test_storage";
 
   // we have to use replace because the primary key of rgw_user is a string
   storage.replace(db_user);
@@ -384,23 +384,23 @@ TEST_F(TestSFSSQLiteUsers, UseStorage) {
   auto user = storage.get_pointer<DBUser>("test_storage");
 
   ASSERT_NE(user, nullptr);
-  ASSERT_EQ(user->UserID, "test_storage");
+  ASSERT_EQ(user->user_id, "test_storage");
 
   // convert the DBUser to RGWUser (blobs are decoded here)
-  auto rgw_user = getRGWUser(*user);
-  ASSERT_EQ(rgw_user.uinfo.user_id.id, user->UserID);
+  auto rgw_user = get_rgw_user(*user);
+  ASSERT_EQ(rgw_user.uinfo.user_id.id, user->user_id);
 
   // creates a RGWUser for testing (id = test1, email = test1@test.com, etc..)
   auto rgw_user_2 = createTestUser("1");
 
   // convert to DBUser (blobs are encoded here)
-  auto db_user_2 = getDBUser(rgw_user_2);
+  auto db_user_2 = get_db_user(rgw_user_2);
 
   // we have to use replace because the primary key of rgw_user is a string
   storage.replace(db_user_2);
 
   // now use the SqliteUsers method, so user is already converted
-  auto ret_user = db_users.getUser("test1");
+  auto ret_user = db_users.get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(rgw_user_2, *ret_user);
 }
@@ -423,9 +423,9 @@ TEST_F(TestSFSSQLiteUsers, StoreListUsers) {
   auto user2 = createTestUser("2");
   auto user3 = createTestUser("3");
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
-  db_users->storeUser(user1);
-  db_users->storeUser(user2);
-  db_users->storeUser(user3);
+  db_users->store_user(user1);
+  db_users->store_user(user2);
+  db_users->store_user(user3);
 
   store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(),userIds, &truncated);
   ASSERT_FALSE(truncated);
@@ -457,7 +457,7 @@ TEST_F(TestSFSSQLiteUsers, StoreAddUser) {
 
   // read the user straight from the db
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
-  auto ret_user = db_users->getUser("test1");
+  auto ret_user = db_users->get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user1, *ret_user);
 }
@@ -627,9 +627,9 @@ TEST_F(TestSFSSQLiteUsers, StoreRemoveUser) {
   auto user2 = createTestUser("2");
   auto user3 = createTestUser("3");
   auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
-  db_users->storeUser(user1);
-  db_users->storeUser(user2);
-  db_users->storeUser(user3);
+  db_users->store_user(user1);
+  db_users->store_user(user2);
+  db_users->store_user(user3);
 
   store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
   ASSERT_FALSE(truncated);

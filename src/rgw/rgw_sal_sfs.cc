@@ -256,7 +256,7 @@ int SFStore::meta_list_keys_next(
 ) {
   *truncated = false;
   rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
-  auto ids = sqlite_users.getUserIDs();
+  auto ids = sqlite_users.get_user_ids();
   std::copy(ids.begin(), ids.end(), std::back_inserter(keys));
   return 0;
 }
