@@ -78,7 +78,7 @@ int SFSUser::trim_usage(const DoutPrefixProvider *dpp,
 int SFSUser::load_user(const DoutPrefixProvider *dpp, optional_yield y) {
 
   rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
-  auto db_user = sqlite_users.getUser(info.user_id.id);
+  auto db_user = sqlite_users.get_user(info.user_id.id);
   if (db_user) {
     info = db_user->uinfo;
     attrs = db_user->user_attrs;
@@ -91,7 +91,7 @@ int SFSUser::load_user(const DoutPrefixProvider *dpp, optional_yield y) {
 int SFSUser::store_user(const DoutPrefixProvider *dpp, optional_yield y,
                                bool exclusive, RGWUserInfo *old_info) {
   rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
-  auto db_user = sqlite_users.getUser(info.user_id.id);
+  auto db_user = sqlite_users.get_user(info.user_id.id);
   if (db_user) {
     if (old_info) {
       *old_info = db_user->uinfo;
@@ -105,18 +105,18 @@ int SFSUser::store_user(const DoutPrefixProvider *dpp, optional_yield y,
   auto user_version = objv_tracker.read_version;
   user_version.ver++;
   user_version.tag = "user_version_tag";  // TODO Check if we need this to be stored
-  sqlite_users.storeUser({info, user_version, attrs});
+  sqlite_users.store_user({info, user_version, attrs});
   return 0;
 }
 
 int SFSUser::remove_user(const DoutPrefixProvider *dpp,
                                 optional_yield y) {
   rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
-  auto db_user = sqlite_users.getUser(info.user_id.id);
+  auto db_user = sqlite_users.get_user(info.user_id.id);
   if (!db_user) {
     return ECANCELED;
   }
-  sqlite_users.removeUser(info.user_id.id);
+  sqlite_users.remove_user(info.user_id.id);
   return 0;
 }
 

@@ -1,3 +1,15 @@
 add_executable(unittest_rgw_sfs_sqlite_users test_rgw_sfs_sqlite_users.cc)
 add_ceph_unittest(unittest_rgw_sfs_sqlite_users)
 target_link_libraries(unittest_rgw_sfs_sqlite_users ${rgw_libs})
+
+add_executable(unittest_rgw_sfs_sqlite_buckets test_rgw_sfs_sqlite_buckets.cc)
+add_ceph_unittest(unittest_rgw_sfs_sqlite_buckets)
+target_link_libraries(unittest_rgw_sfs_sqlite_buckets ${rgw_libs})
+
+add_executable(unittest_rgw_sfs_sqlite_objects test_rgw_sfs_sqlite_objects.cc)
+add_ceph_unittest(unittest_rgw_sfs_sqlite_objects)
+target_link_libraries(unittest_rgw_sfs_sqlite_objects ${rgw_libs})
+
+add_executable(unittest_rgw_sfs_sqlite_versioned_objects test_rgw_sfs_sqlite_versioned_objects.cc)
+add_ceph_unittest(unittest_rgw_sfs_sqlite_versioned_objects)
+target_link_libraries(unittest_rgw_sfs_sqlite_versioned_objects ${rgw_libs})

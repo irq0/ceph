@@ -12,7 +12,7 @@
  * Foundation. See file COPYING.
  */
 #include "sqlite_users.h"
-#include "users_conversions.h"
+#include "users/users_conversions.h"
 
 #include <filesystem>
 #include <iostream>
@@ -22,22 +22,21 @@ using namespace sqlite_orm;
 namespace rgw::sal::sfs::sqlite {
 
 SQLiteUsers::SQLiteUsers(CephContext *cct)
-  : ceph_context_(cct) {
-    sync();
+  : SQLiteSchema(cct) {
 }
 
-std::optional<DBOPUserInfo> SQLiteUsers::getUser(const std::string & userid) const {
-  auto storage = getStorage();
+std::optional<DBOPUserInfo> SQLiteUsers::get_user(const std::string & userid) const {
+  auto storage = get_storage();
   auto user = storage.get_pointer<DBUser>(userid);
   std::optional<DBOPUserInfo> ret_value;
   if (user) {
-    ret_value = getRGWUser(*user);
+    ret_value = get_rgw_user(*user);
   }
   return ret_value;
 }
 
-std::optional<DBOPUserInfo> SQLiteUsers::getUserByEmail(const std::string & email) const {
-  auto users = getUsersBy(where(c(&DBUser::UserEmail) = email));
+std::optional<DBOPUserInfo> SQLiteUsers::get_user_by_email(const std::string & email) const {
+  auto users = get_users_by(where(c(&DBUser::user_email) = email));
   std::optional<DBOPUserInfo> ret_value;
   if (users.size()) {
     ret_value = users[0];
@@ -45,8 +44,8 @@ std::optional<DBOPUserInfo> SQLiteUsers::getUserByEmail(const std::string & emai
   return ret_value;
 }
 
-std::optional<DBOPUserInfo> SQLiteUsers::getUserByAccessKey(const std::string & key) const {
-  auto users = getUsersBy(where(c(&DBUser::AccessKeysID) = key));
+std::optional<DBOPUserInfo> SQLiteUsers::get_user_by_access_key(const std::string & key) const {
+  auto users = get_users_by(where(c(&DBUser::access_keys_id) = key));
   std::optional<DBOPUserInfo> ret_value;
   if (users.size()) {
     ret_value = users[0];
@@ -54,46 +53,31 @@ std::optional<DBOPUserInfo> SQLiteUsers::getUserByAccessKey(const std::string & 
   return ret_value;
 }
 
-std::vector<std::string> SQLiteUsers::getUserIDs() const {
-  auto storage = getStorage();
-  return storage.select(&DBUser::UserID);
+std::vector<std::string> SQLiteUsers::get_user_ids() const {
+  auto storage = get_storage();
+  return storage.select(&DBUser::user_id);
 }
 
-void SQLiteUsers::storeUser(const DBOPUserInfo & user) const {
-  auto storage = getStorage();
-  auto db_user = getDBUser(user);
+void SQLiteUsers::store_user(const DBOPUserInfo & user) const {
+  auto storage = get_storage();
+  auto db_user = get_db_user(user);
   storage.replace(db_user);
 }
 
-void SQLiteUsers::removeUser(const std::string & userid) const {
-  auto storage = getStorage();
+void SQLiteUsers::remove_user(const std::string & userid) const {
+  auto storage = get_storage();
   storage.remove<DBUser>(userid);
 }
 
 template<class... Args>
-std::vector<DBOPUserInfo> SQLiteUsers::getUsersBy(Args... args) const {
+std::vector<DBOPUserInfo> SQLiteUsers::get_users_by(Args... args) const {
   std::vector<DBOPUserInfo> users_return;
-  auto storage = getStorage();
+  auto storage = get_storage();
   auto users = storage.get_all<DBUser>(args...);
   for (auto & user: users) {
-    users_return.push_back(getRGWUser(user));
+    users_return.push_back(get_rgw_user(user));
   }
   return users_return;
-}
-
-std::string SQLiteUsers::getDBPath() const {
-  auto rgw_sfs_path = ceph_context_->_conf.get_val<std::string>("rgw_sfs_data_path");
-  auto db_path = std::filesystem::path(rgw_sfs_path) / std::string(USERS_DB_NAME);
-  return db_path.string();
-}
-
-void SQLiteUsers::sync() const {
-  // sync schema does the 'sqlite_orm' magic
-  // In case something was changed in the storage class declared with make_storage it will
-  // apply those changes to the database.
-  // We can also call passing true, which will preserve previous tables definitions in copies
-  // of the tables, so we don't lose information.
-  getStorage().sync_schema();
 }
 
 }  // namespace rgw::sal::sfs::sqlite
