@@ -17,7 +17,7 @@
 #include <memory>
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
-#include "driver/sfs/bucket_mgr.h"
+#include "driver/sfs/bucket.h"
 
 namespace rgw::sal {
 
@@ -28,7 +28,8 @@ class SFSAtomicWriter : public StoreWriter {
  protected:
   rgw::sal::SFStore *store;
   SFSObject obj;
-  BucketMgrRef mgr;
+  sfs::BucketRef bucketref;
+  sfs::ObjectRef objref;
   const rgw_user &owner;
   const rgw_placement_rule *placement_rule;
   uint64_t olh_epoch;
@@ -41,7 +42,7 @@ class SFSAtomicWriter : public StoreWriter {
     optional_yield _y,
     rgw::sal::Object* _head_obj,
     SFStore *_store,
-    BucketMgrRef _mgr,
+    sfs::BucketRef bucketref,
     const rgw_user& _owner,
     const rgw_placement_rule *_ptail_placement_rule,
     uint64_t _olh_epoch,

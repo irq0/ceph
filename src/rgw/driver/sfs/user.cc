@@ -120,25 +120,6 @@ int SFSUser::remove_user(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-static void populate_buckets_from_path(
-  SFStore *store,
-  const DoutPrefixProvider *dpp,
-  std::filesystem::path path,
-  BucketList& buckets
-) {
-  ldpp_dout(dpp, 10) << __func__ << ": from path " << path << dendl;
-  for (auto const &dir_entry : std::filesystem::directory_iterator{path}) {
-    auto p = dir_entry.path();
-    ldpp_dout(dpp, 10) << __func__ << ": bucket: " << p << dendl;
-    std::string bucketname = p.filename();
-    auto mgr = store->get_bucket_mgr(bucketname);
-    auto bucket =
-        std::unique_ptr<Bucket>(new SFSBucket{p, store, mgr});
-    bucket->load_bucket(dpp, null_yield);
-    buckets.add(std::move(bucket));
-  }
-}
-
 int SFSUser::list_buckets(const DoutPrefixProvider *dpp,
                                  const std::string &marker,
                                  const std::string &end_marker, uint64_t max,
@@ -149,7 +130,13 @@ int SFSUser::list_buckets(const DoutPrefixProvider *dpp,
   ldpp_dout(dpp, 10) << __func__
                      << ": marker (" << marker << ", " << end_marker
                      << "), max=" << max << dendl;
-  populate_buckets_from_path(store, dpp, store->buckets_path(), buckets);
+
+  std::list<sfs::BucketRef> lst = store->bucket_list();
+  for (const auto &bucketref : lst) {
+    auto bucket = std::unique_ptr<Bucket>(new SFSBucket{store, bucketref});
+    buckets.add(std::move(bucket));
+  }
+  
   ldpp_dout(dpp, 10) << __func__ << ": buckets=" << buckets.get_buckets()
                      << dendl;
   return 0;
@@ -177,26 +164,22 @@ int SFSUser::create_bucket(
 
   auto f = new JSONFormatter(true);
   info.dump(f);
-  ldpp_dout(dpp, 10) << __func__ << ": bucket: " << b
-                     << ", attrs: " << attrs << ", info: ";
+  lsfs_dout(dpp, 10) << "bucket: " << b << ", attrs: " << attrs
+                     << ", info: ";
   f->flush(*_dout);
   *_dout << dendl;
 
-  const auto path = store->bucket_path(b);
-  if (std::filesystem::exists(path)) {
+  if (store->bucket_exists(b)) {
     return -EEXIST;
   }
 
-  if (!std::filesystem::create_directory(path)) {
-    ldpp_dout(dpp, 0) << __func__
-                      << ": error creating bucket '" << b
-                      << "' at '" << path << "'" << dendl;
+  sfs::BucketRef bucketref = store->bucket_create(b, this->get_info());
+  if (!bucketref) {
+    lsfs_dout(dpp, 10) << "error creating bucket '" << b << "'" << dendl;
     return -EINVAL;
   }
-  auto mgr = store->get_bucket_mgr(b.name);
-  auto new_bucket = new SFSBucket{path, store, mgr};
-  new_bucket->init(dpp, b, this->get_info());
-  mgr->new_bucket(dpp, new_bucket);
+
+  auto new_bucket = new SFSBucket{store, bucketref};
   bucket->reset(new_bucket);
   return 0;
 }
