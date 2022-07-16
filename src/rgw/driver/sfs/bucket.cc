@@ -50,7 +50,8 @@ std::unique_ptr<Object> SFSBucket::get_object(const rgw_obj_key &key) {
   if (it == bucket->objects.end()) {
     ldout(store->ceph_context(), 10) << "unable to find key " << key
       << " in bucket " << bucket->get_name() << dendl;
-    return nullptr;
+    // possibly a copy, return a placeholder
+    return make_unique<SFSObject>(this->store, key, this, bucket);
   }
   return _get_object(it->second);
 }
