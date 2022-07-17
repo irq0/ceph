@@ -46,7 +46,16 @@ SFSAtomicWriter::SFSAtomicWriter(
 }
 
 int SFSAtomicWriter::prepare(optional_yield y) {
-  lsfs_dout(dpp, 10) << ": unimplemented, return success." << dendl;
+  objref = bucketref->get_or_create(obj.get_name());
+  std::filesystem::path object_path =
+    store->get_data_path() / objref->path.to_path();
+  std::filesystem::create_directories(object_path.parent_path());
+
+  lsfs_dout(dpp, 10) << "truncate file at " << object_path << dendl;
+  std::ofstream ofs(object_path, std::ofstream::trunc);
+  ofs.seekp(0);
+  ofs.flush();
+  ofs.close();
   return 0;
 }
 
@@ -54,14 +63,16 @@ int SFSAtomicWriter::process(bufferlist &&data, uint64_t offset) {
   lsfs_dout(dpp, 10) << "data len: " << data.length()
                      << ", offset: " << offset << dendl;
 
-  objref = bucketref->get_or_create(obj.get_name());
   std::filesystem::path object_path =
     store->get_data_path() / objref->path.to_path();
-  std::filesystem::create_directories(object_path.parent_path());
+  ceph_assert(std::filesystem::exists(object_path));
 
   lsfs_dout(dpp, 10) << "write to object at " << object_path << dendl;
 
-  auto mode = std::ofstream::binary|std::ofstream::out|std::ofstream::app;
+  auto mode = \
+    std::ofstream::binary | \
+    std::ofstream::out | \
+    std::ofstream::app;
   std::ofstream ofs(object_path, mode);
   ofs.seekp(offset);
   data.write_stream(ofs);
