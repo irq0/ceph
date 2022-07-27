@@ -27,8 +27,29 @@ std::vector<uuid_d> get_rgw_uuids( const std::vector<std::string> & uuids) {
   return ret_ids;
 }
 
+std::vector<DBOPObjectInfo> get_rgw_objects(
+  const std::vector<DBObject> & db_objects
+) {
+  std::vector<DBOPObjectInfo> ret_objs;
+  for (const auto & db_obj : db_objects) {
+    auto rgw_obj = get_rgw_object(db_obj);
+    ret_objs.push_back(rgw_obj);
+  }
+  return ret_objs;
+}
+
 SQLiteObjects::SQLiteObjects(CephContext *cct)
   : SQLiteSchema(cct) {
+}
+
+std::vector<DBOPObjectInfo> SQLiteObjects::get_objects(
+  const std::string &bucket_name
+) const {
+  auto storage = get_storage();
+  auto objects = storage.get_all<DBObject>(
+    where(is_equal(&DBObject::bucket_name, bucket_name))
+  );
+  return get_rgw_objects(objects);
 }
 
 std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const uuid_d & uuid) const {

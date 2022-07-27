@@ -26,6 +26,7 @@ class SQLiteObjects : public SQLiteSchema {
   SQLiteObjects(const SQLiteObjects&) = delete;
   SQLiteObjects& operator=(const SQLiteObjects&) = delete;
 
+  std::vector<DBOPObjectInfo> get_objects(const std::string &bucket_name) const;
   std::optional<DBOPObjectInfo> get_object(const uuid_d & uuid) const;
   std::optional<DBOPObjectInfo> get_object(const std::string & bucket_name, const std::string & object_name) const;
 
