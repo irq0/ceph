@@ -13,13 +13,15 @@
  */
 #pragma once
 
-#include "sqlite_schema.h"
+#include "dbconn.h"
 
 namespace rgw::sal::sfs::sqlite  {
 
-class SQLiteUsers : public SQLiteSchema {
+class SQLiteUsers {
+  DBConnRef conn;
+
  public:
-  explicit SQLiteUsers(CephContext *cct);
+  explicit SQLiteUsers(DBConnRef _conn);
   virtual ~SQLiteUsers() = default;
 
   SQLiteUsers(const SQLiteUsers&) = delete;

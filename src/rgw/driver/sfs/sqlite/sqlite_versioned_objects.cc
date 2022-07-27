@@ -17,12 +17,12 @@ using namespace sqlite_orm;
 
 namespace rgw::sal::sfs::sqlite {
 
-SQLiteVersionedObjects::SQLiteVersionedObjects(CephContext *cct)
-  : SQLiteSchema(cct) {
-}
+SQLiteVersionedObjects::SQLiteVersionedObjects(DBConnRef _conn)
+  : conn(_conn) { }
 
 std::optional<DBOPVersionedObjectInfo> SQLiteVersionedObjects::get_versioned_object(uint id) const {
-  auto storage = get_storage();
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   auto object = storage.get_pointer<DBVersionedObject>(id);
   std::optional<DBOPVersionedObjectInfo> ret_value;
   if (object) {
@@ -32,29 +32,37 @@ std::optional<DBOPVersionedObjectInfo> SQLiteVersionedObjects::get_versioned_obj
 }
 
 void SQLiteVersionedObjects::store_versioned_object(const DBOPVersionedObjectInfo & object) const {
-  auto storage = get_storage();
+  std::unique_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   auto db_object = get_db_versioned_object(object);
   storage.insert(db_object);
 }
 
 void SQLiteVersionedObjects::remove_versioned_object(uint id) const {
-  auto storage = get_storage();
+  std::unique_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   storage.remove<DBVersionedObject>(id);
 }
 
 std::vector<uint> SQLiteVersionedObjects::get_versioned_object_ids() const {
-  auto storage = get_storage();
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   return storage.select(&DBVersionedObject::id);
 }
 
 std::vector<uint> SQLiteVersionedObjects::get_versioned_object_ids(const uuid_d & object_id) const {
-  auto storage = get_storage();
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   auto uuid = object_id.to_string();
   return storage.select(&DBVersionedObject::id, where(c(&DBVersionedObject::object_id) = uuid));
 }
 
-std::optional<DBOPVersionedObjectInfo> SQLiteVersionedObjects::get_last_versioned_object(const uuid_d & object_id) const {
-  auto storage = get_storage();
+std::optional<DBOPVersionedObjectInfo>
+SQLiteVersionedObjects::get_last_versioned_object(
+  const uuid_d & object_id
+) const {
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   auto last_version_id = storage.max(&DBVersionedObject::id, where(c(&DBVersionedObject::object_id) = object_id.to_string()));
   std::optional<DBOPVersionedObjectInfo> ret_value;
   if (last_version_id) {

@@ -13,14 +13,16 @@
  */
 #pragma once
 
-#include "sqlite_schema.h"
+#include "dbconn.h"
 #include "versioned_object/versioned_object_conversions.h"
 
 namespace rgw::sal::sfs::sqlite  {
 
-class SQLiteVersionedObjects : public SQLiteSchema {
+class SQLiteVersionedObjects {
+  DBConnRef conn;
+
  public:
-  explicit SQLiteVersionedObjects(CephContext *cct);
+  explicit SQLiteVersionedObjects(DBConnRef _conn);
   virtual ~SQLiteVersionedObjects() = default;
 
   SQLiteVersionedObjects(const SQLiteVersionedObjects&) = delete;

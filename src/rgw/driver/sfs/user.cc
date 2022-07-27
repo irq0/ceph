@@ -77,7 +77,7 @@ int SFSUser::trim_usage(const DoutPrefixProvider *dpp,
 
 int SFSUser::load_user(const DoutPrefixProvider *dpp, optional_yield y) {
 
-  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(store->db_conn);
   auto db_user = sqlite_users.get_user(info.user_id.id);
   if (db_user) {
     info = db_user->uinfo;
@@ -90,7 +90,7 @@ int SFSUser::load_user(const DoutPrefixProvider *dpp, optional_yield y) {
 
 int SFSUser::store_user(const DoutPrefixProvider *dpp, optional_yield y,
                                bool exclusive, RGWUserInfo *old_info) {
-  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(store->db_conn);
   auto db_user = sqlite_users.get_user(info.user_id.id);
   if (db_user) {
     if (old_info) {
@@ -111,7 +111,7 @@ int SFSUser::store_user(const DoutPrefixProvider *dpp, optional_yield y,
 
 int SFSUser::remove_user(const DoutPrefixProvider *dpp,
                                 optional_yield y) {
-  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(store->db_conn);
   auto db_user = sqlite_users.get_user(info.user_id.id);
   if (!db_user) {
     return ECANCELED;

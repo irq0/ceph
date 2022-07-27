@@ -12,6 +12,9 @@ and this project adheres to
 ### Added
 - rgw/sfs: new on-disk format, based on filesystem hash tree for data
   and sqlite for metadata.
+- rgw/sfs: maintain one single sqlite database connection.
+- rgw/sfs: protect sqlite access with 'std::shared_lock'; allows multiple
+  parallel reads, but only one write at a time.
 
 
 ## [0.2.0] - 2022-07-28

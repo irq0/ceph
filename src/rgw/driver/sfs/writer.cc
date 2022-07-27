@@ -121,7 +121,7 @@ int SFSAtomicWriter::complete(
   meta.set_mtime = set_mtime;
   meta.delete_at = delete_at;
   meta.attrs = attrs;
-  bucketref->finish(obj.get_name());
+  bucketref->finish(dpp, obj.get_name());
 
   *mtime = meta.mtime;
   return 0;

@@ -21,12 +21,11 @@ using namespace sqlite_orm;
 
 namespace rgw::sal::sfs::sqlite {
 
-SQLiteUsers::SQLiteUsers(CephContext *cct)
-  : SQLiteSchema(cct) {
-}
+SQLiteUsers::SQLiteUsers(DBConnRef _conn) : conn(_conn) { }
 
 std::optional<DBOPUserInfo> SQLiteUsers::get_user(const std::string & userid) const {
-  auto storage = get_storage();
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   auto user = storage.get_pointer<DBUser>(userid);
   std::optional<DBOPUserInfo> ret_value;
   if (user) {
@@ -54,25 +53,29 @@ std::optional<DBOPUserInfo> SQLiteUsers::get_user_by_access_key(const std::strin
 }
 
 std::vector<std::string> SQLiteUsers::get_user_ids() const {
-  auto storage = get_storage();
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   return storage.select(&DBUser::user_id);
 }
 
 void SQLiteUsers::store_user(const DBOPUserInfo & user) const {
-  auto storage = get_storage();
+  std::unique_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   auto db_user = get_db_user(user);
   storage.replace(db_user);
 }
 
 void SQLiteUsers::remove_user(const std::string & userid) const {
-  auto storage = get_storage();
+  std::unique_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
   storage.remove<DBUser>(userid);
 }
 
 template<class... Args>
 std::vector<DBOPUserInfo> SQLiteUsers::get_users_by(Args... args) const {
+  std::shared_lock l(conn->rwlock);
   std::vector<DBOPUserInfo> users_return;
-  auto storage = get_storage();
+  auto storage = conn->get_storage();
   auto users = storage.get_all<DBUser>(args...);
   for (auto & user: users) {
     users_return.push_back(get_rgw_user(user));
