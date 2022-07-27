@@ -21,9 +21,14 @@
 #include <string>
 
 #include "common/ceph_mutex.h"
+#include "rgw/driver/sfs/sqlite/dbconn.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
 #include "rgw/driver/sfs/uuid_path.h"
+
+namespace rgw::sal {
+class SFStore;
+}
 
 namespace rgw::sal::sfs {
 
@@ -70,20 +75,7 @@ class Bucket {
   Bucket(const Bucket&) = default;
 
  private:
-  void _refresh_objects() {
-    sqlite::SQLiteObjects objs(cct);
-    auto existing = objs.get_objects(name);
-    for (const auto& obj : existing) {
-      ObjectRef ref = std::make_shared<Object>(obj.name, obj.uuid, false);
-      ref->meta.size = obj.size;
-      ref->meta.etag = obj.etag;
-      ref->meta.mtime = obj.mtime;
-      ref->meta.set_mtime = obj.set_mtime;
-      ref->meta.delete_at = obj.delete_at;
-      ref->meta.attrs = obj.attrs;
-      objects[obj.name] = ref;
-    }
-  }
+  void _refresh_objects();
 
  public:
   Bucket(
@@ -141,34 +133,7 @@ class Bucket {
     return objects[name];
   }
 
-  void finish(const std::string& objname) {
-    std::lock_guard l(obj_map_lock);
-
-    auto it = creating.find(objname);
-    if (it == creating.end()) {
-      return;
-    }
-
-    // finished creating the object
-    ceph_assert(objects.count(objname) == 0);
-    objects[objname] = creating[objname];
-    creating.erase(objname);
-
-    ObjectRef ref = objects[objname];
-    sqlite::DBOPObjectInfo oinfo;
-    oinfo.uuid = ref->path.get_uuid();
-    oinfo.bucket_name = name;
-    oinfo.name = objname;
-    oinfo.size = ref->meta.size;
-    oinfo.etag = ref->meta.etag;
-    oinfo.mtime = ref->meta.mtime;
-    oinfo.set_mtime = ref->meta.set_mtime;
-    oinfo.delete_at = ref->meta.delete_at;
-    oinfo.attrs = ref->meta.attrs;
-
-    sqlite::SQLiteObjects dbobjs(cct);
-    dbobjs.store_object(oinfo);
-  }
+  void finish(const DoutPrefixProvider* dpp, const std::string& objname);
 
   void delete_object(ObjectRef objref) {
     std::lock_guard l(obj_map_lock);
@@ -190,14 +155,16 @@ class Bucket {
     deleted.insert(objref);
     objects.erase(it);
   }
+
+  inline std::string get_cls_name() { return "sfs::bucket"; }
 };
 
 using BucketRef = std::shared_ptr<Bucket>;
 
 using MetaBucketsRef = std::shared_ptr<sqlite::SQLiteBuckets>;
 
-static inline MetaBucketsRef get_meta_buckets(CephContext* c) {
-  return std::make_shared<sqlite::SQLiteBuckets>(c);
+static inline MetaBucketsRef get_meta_buckets(sqlite::DBConnRef conn) {
+  return std::make_shared<sqlite::SQLiteBuckets>(conn);
 }
 
 }  // namespace rgw::sal::sfs

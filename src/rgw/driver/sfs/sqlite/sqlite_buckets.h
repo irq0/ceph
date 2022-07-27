@@ -14,13 +14,15 @@
 #pragma once
 
 #include "buckets/bucket_conversions.h"
-#include "sqlite_schema.h"
+#include "dbconn.h"
 
 namespace rgw::sal::sfs::sqlite {
 
-class SQLiteBuckets : public SQLiteSchema {
+class SQLiteBuckets {
+  DBConnRef conn;
+
  public:
-  explicit SQLiteBuckets(CephContext* cct);
+  explicit SQLiteBuckets(DBConnRef _conn);
   virtual ~SQLiteBuckets() = default;
 
   SQLiteBuckets(const SQLiteBuckets&) = delete;

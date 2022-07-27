@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "common/ceph_context.h"
+#include "rgw/driver/sfs/sqlite/dbconn.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
 #include "rgw/driver/sfs/sqlite/users/users_conversions.h"
 
@@ -178,7 +179,9 @@ TEST_F(TestSFSSQLiteUsers, CreateAndGet) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
   auto user = createTestUser("1");
   db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -193,7 +196,9 @@ TEST_F(TestSFSSQLiteUsers, CreateAndGetByEmail) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
   auto user = createTestUser("1");
   db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -208,7 +213,9 @@ TEST_F(TestSFSSQLiteUsers, CreateAndGetByAccessKey) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
   auto user = createTestUser("1");
   db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -223,7 +230,9 @@ TEST_F(TestSFSSQLiteUsers, ListUserIDs) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
 
   db_users->store_user(createTestUser("1"));
   db_users->store_user(createTestUser("2"));
@@ -242,7 +251,9 @@ TEST_F(TestSFSSQLiteUsers, RemoveUser) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
 
   db_users->store_user(createTestUser("1"));
   db_users->store_user(createTestUser("2"));
@@ -263,7 +274,9 @@ TEST_F(TestSFSSQLiteUsers, RemoveUserThatDoesNotExist) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
 
   db_users->store_user(createTestUser("1"));
   db_users->store_user(createTestUser("2"));
@@ -282,7 +295,9 @@ TEST_F(TestSFSSQLiteUsers, CreateAndUpdate) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
   auto user = createTestUser("1");
   db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -304,7 +319,9 @@ TEST_F(TestSFSSQLiteUsers, GetExisting) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
   auto user = createTestUser("1");
   db_users->store_user(user);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -314,7 +331,7 @@ TEST_F(TestSFSSQLiteUsers, GetExisting) {
   compareUsers(user, *ret_user);
 
   // create a new instance, user should exist
-  auto db_users_2 = std::make_shared<SQLiteUsers>(ceph_context.get());
+  auto db_users_2 = std::make_shared<SQLiteUsers>(conn);
   ret_user = db_users_2->get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user, *ret_user);
@@ -325,7 +342,9 @@ TEST_F(TestSFSSQLiteUsers, AddMoreThanOneUserWithSameEmail) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
   auto user1 = createTestUser("1");
   auto user2 = createTestUser("2");
   auto user3 = createTestUser("3");
@@ -347,7 +366,9 @@ TEST_F(TestSFSSQLiteUsers, AddMoreThanOneUserWithSameAccessKey) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
   auto user1 = createTestUser("1");
   auto user2 = createTestUser("2");
   auto user3 = createTestUser("3");
@@ -372,8 +393,9 @@ TEST_F(TestSFSSQLiteUsers, UseStorage) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
-  SQLiteUsers db_users(ceph_context.get());
-  auto storage = db_users.get_storage();
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+  SQLiteUsers db_users(conn);
+  auto storage = conn->get_storage();
 
   DBUser db_user;
   db_user.user_id = "test_storage";
@@ -422,7 +444,8 @@ TEST_F(TestSFSSQLiteUsers, StoreListUsers) {
   auto user1 = createTestUser("1");
   auto user2 = createTestUser("2");
   auto user3 = createTestUser("3");
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(store->db_conn);
   db_users->store_user(user1);
   db_users->store_user(user2);
   db_users->store_user(user3);
@@ -456,7 +479,7 @@ TEST_F(TestSFSSQLiteUsers, StoreAddUser) {
   ASSERT_EQ(userIds.size(), 1);
 
   // read the user straight from the db
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  auto db_users = std::make_shared<SQLiteUsers>(store->db_conn);
   auto ret_user = db_users->get_user("test1");
   ASSERT_TRUE(ret_user.has_value());
   compareUsers(user1, *ret_user);
@@ -626,7 +649,7 @@ TEST_F(TestSFSSQLiteUsers, StoreRemoveUser) {
   auto user1 = createTestUser("1");
   auto user2 = createTestUser("2");
   auto user3 = createTestUser("3");
-  auto db_users = std::make_shared<SQLiteUsers>(ceph_context.get());
+  auto db_users = std::make_shared<SQLiteUsers>(store->db_conn);
   db_users->store_user(user1);
   db_users->store_user(user2);
   db_users->store_user(user3);

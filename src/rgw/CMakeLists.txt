@@ -221,6 +221,7 @@ if(WITH_RADOSGW_SFS)
     driver/sfs/multipart.cc
     driver/sfs/object.cc
     driver/sfs/user.cc
+    driver/sfs/types.cc
     driver/sfs/zone.cc
     driver/sfs/writer.cc
     driver/sfs/sfs_bucket.cc
@@ -229,7 +230,6 @@ if(WITH_RADOSGW_SFS)
     driver/sfs/sqlite/sqlite_buckets.cc
     driver/sfs/sqlite/sqlite_objects.cc
     driver/sfs/sqlite/sqlite_versioned_objects.cc
-    driver/sfs/sqlite/sqlite_schema.cc
     driver/sfs/sqlite/users/users_conversions.cc
     driver/sfs/sqlite/buckets/bucket_conversions.cc
     driver/sfs/sqlite/objects/object_conversions.cc

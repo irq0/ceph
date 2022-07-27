@@ -28,7 +28,7 @@ int SFStore::get_user_by_access_key(
     std::unique_ptr<User>* user
 ) {
   int err = 0;
-  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(db_conn);
   auto db_user = sqlite_users.get_user_by_access_key(key);
   if (db_user) {
     user->reset(new SFSUser(db_user->uinfo, this));
@@ -44,7 +44,7 @@ int SFStore::get_user_by_email(
     std::unique_ptr<User>* user
 ) {
   int err = 0;
-  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(db_conn);
   auto db_user = sqlite_users.get_user_by_email(email);
   if (db_user) {
     user->reset(new SFSUser(db_user->uinfo, this));

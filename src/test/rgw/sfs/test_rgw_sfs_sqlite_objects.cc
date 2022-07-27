@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "common/ceph_context.h"
+#include "rgw/driver/sfs/sqlite/dbconn.h"
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
@@ -45,16 +46,16 @@ protected:
     return getDBFullPath(getTestDir());
   }
 
-  void createUser(const std::string & username, CephContext *context) {
-    SQLiteUsers users(context);
+  void createUser(const std::string & username, DBConnRef conn) {
+    SQLiteUsers users(conn);
     DBOPUserInfo user;
     user.uinfo.user_id.id = username;
     users.store_user(user);
   }
 
-  void createBucket(const std::string & username, const std::string & bucketname, CephContext *context) {
-    createUser(username, context);
-    SQLiteBuckets buckets(context);
+  void createBucket(const std::string & username, const std::string & bucketname, DBConnRef conn) {
+    createUser(username, conn);
+    SQLiteBuckets buckets(conn);
     DBOPBucketInfo bucket;
     bucket.binfo.bucket.name = bucketname;
     bucket.binfo.owner.id = username;
@@ -111,10 +112,11 @@ TEST_F(TestSFSSQLiteObjects, CreateAndGet) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_objects = std::make_shared<SQLiteObjects>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+  auto db_objects = std::make_shared<SQLiteObjects>(conn);
 
   // Create the bucket, we need it because BucketName is a foreign key of Bucket::BucketID
-  createBucket("usertest", "test_bucket", ceph_context.get());
+  createBucket("usertest", "test_bucket", conn);
 
   auto object = createTestObject("1", ceph_context.get());
 
@@ -132,11 +134,12 @@ TEST_F(TestSFSSQLiteObjects, ListObjectsIDs) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the bucket, we need it because BucketName is a foreign key of Bucket::BucketID
-  createBucket("usertest", "test_bucket", ceph_context.get());
+  createBucket("usertest", "test_bucket", conn);
 
-  auto db_objects = std::make_shared<SQLiteObjects>(ceph_context.get());
+  auto db_objects = std::make_shared<SQLiteObjects>(conn);
 
   auto obj1 = createTestObject("1", ceph_context.get());
   db_objects->store_object(obj1);
@@ -160,12 +163,13 @@ TEST_F(TestSFSSQLiteObjects, ListBucketsIDsPerBucket) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  createBucket("usertest", "test_bucket_1", ceph_context.get());
-  createBucket("usertest", "test_bucket_2", ceph_context.get());
-  createBucket("usertest", "test_bucket_3", ceph_context.get());
+  createBucket("usertest", "test_bucket_1", conn);
+  createBucket("usertest", "test_bucket_2", conn);
+  createBucket("usertest", "test_bucket_3", conn);
 
-  auto db_objects = std::make_shared<SQLiteObjects>(ceph_context.get());
+  auto db_objects = std::make_shared<SQLiteObjects>(conn);
 
   auto test_object_1 = createTestObject("1", ceph_context.get());
   test_object_1.bucket_name = "test_bucket_1";
@@ -198,11 +202,12 @@ TEST_F(TestSFSSQLiteObjects, remove_object) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the bucket, we need it because BucketName is a foreign key of Bucket::BucketID
-  createBucket("usertest", "test_bucket", ceph_context.get());
+  createBucket("usertest", "test_bucket", conn);
 
-  auto db_objects = std::make_shared<SQLiteObjects>(ceph_context.get());
+  auto db_objects = std::make_shared<SQLiteObjects>(conn);
 
   auto obj1 = createTestObject("1", ceph_context.get());
   db_objects->store_object(obj1);
@@ -228,11 +233,12 @@ TEST_F(TestSFSSQLiteObjects, remove_objectThatDoesNotExist) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the bucket, we need it because BucketName is a foreign key of Bucket::BucketID
-  createBucket("usertest", "test_bucket", ceph_context.get());
+  createBucket("usertest", "test_bucket", conn);
 
-  auto db_objects = std::make_shared<SQLiteObjects>(ceph_context.get());
+  auto db_objects = std::make_shared<SQLiteObjects>(conn);
 
   auto obj1 = createTestObject("1", ceph_context.get());
   db_objects->store_object(obj1);
@@ -256,11 +262,12 @@ TEST_F(TestSFSSQLiteObjects, CreateAndUpdate) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the bucket, we need it because BucketName is a foreign key of Bucket::BucketID
-  createBucket("usertest", "test_bucket", ceph_context.get());
+  createBucket("usertest", "test_bucket", conn);
 
-  auto db_objects = std::make_shared<SQLiteObjects>(ceph_context.get());
+  auto db_objects = std::make_shared<SQLiteObjects>(conn);
   auto object = createTestObject("1", ceph_context.get());
   db_objects->store_object(object);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -282,11 +289,12 @@ TEST_F(TestSFSSQLiteObjects, GetExisting) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the bucket, we need it because BucketName is a foreign key of Bucket::BucketID
-  createBucket("usertest", "test_bucket", ceph_context.get());
+  createBucket("usertest", "test_bucket", conn);
 
-  auto db_objects = std::make_shared<SQLiteObjects>(ceph_context.get());
+  auto db_objects = std::make_shared<SQLiteObjects>(conn);
   auto object = createTestObject("1", ceph_context.get());
   db_objects->store_object(object);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -296,7 +304,7 @@ TEST_F(TestSFSSQLiteObjects, GetExisting) {
   compareObjects(object, *ret_object);
 
   // create a new instance, bucket should exist
-  auto db_objects_2 = std::make_shared<SQLiteObjects>(ceph_context.get());
+  auto db_objects_2 = std::make_shared<SQLiteObjects>(conn);
   ret_object = db_objects->get_object(object.uuid);
   ASSERT_TRUE(ret_object.has_value());
   compareObjects(object, *ret_object);
@@ -306,11 +314,13 @@ TEST_F(TestSFSSQLiteObjects, CreateObjectForNonExistingBucket) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
-  // Create the bucket, we need it because BucketName is a foreign key of Bucket::BucketID
-  createBucket("usertest", "test_bucket", ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  SQLiteObjects db_objects(ceph_context.get());
-  auto storage = db_objects.get_storage();
+  // Create the bucket, we need it because BucketName is a foreign key of Bucket::BucketID
+  createBucket("usertest", "test_bucket", conn);
+
+  SQLiteObjects db_objects(conn);
+  auto storage = conn->get_storage();
 
   DBObject db_object;
 
@@ -332,13 +342,14 @@ TEST_F(TestSFSSQLiteObjects, GetObjectByBucketAndObjectName) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create a few buckets
-  createBucket("usertest", "test_bucket", ceph_context.get());
-  createBucket("usertest", "test_bucket_2", ceph_context.get());
-  createBucket("usertest", "test_bucket_3", ceph_context.get());
+  createBucket("usertest", "test_bucket", conn);
+  createBucket("usertest", "test_bucket_2", conn);
+  createBucket("usertest", "test_bucket_3", conn);
 
-  auto db_objects = std::make_shared<SQLiteObjects>(ceph_context.get());
+  auto db_objects = std::make_shared<SQLiteObjects>(conn);
 
   // create objects with names "test1", "test2" and "test3"... in bucket "test_bucket"
   auto object_1 = createTestObject("1", ceph_context.get()); // name is "test1", bucket is "test_bucket"

@@ -255,7 +255,7 @@ int SFStore::meta_list_keys_next(
     bool* truncated
 ) {
   *truncated = false;
-  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(db_conn);
   auto ids = sqlite_users.get_user_ids();
   std::copy(ids.begin(), ids.end(), std::back_inserter(keys));
   return 0;
@@ -390,9 +390,9 @@ void SFStore::init_buckets() {
 SFStore::SFStore(CephContext* c, const std::filesystem::path& data_path)
     : sync_module(), zone(this), data_path(data_path), cctx(c) {
   maybe_init_store();
+  db_conn = std::make_shared<sfs::sqlite::DBConn>(cctx);
   init_buckets();
 
-  meta_buckets = sfs::get_meta_buckets(c);
   // no need to be safe, we're in the ctor.
   _refresh_buckets();
 

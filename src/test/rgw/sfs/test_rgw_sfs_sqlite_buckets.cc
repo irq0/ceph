@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "common/ceph_context.h"
+#include "rgw/driver/sfs/sqlite/dbconn.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
 #include "rgw/driver/sfs/sqlite/buckets/bucket_conversions.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
@@ -44,8 +45,8 @@ protected:
     return getDBFullPath(getTestDir());
   }
 
-  void createUser(const std::string & username, CephContext *context) {
-    SQLiteUsers users(context);
+  void createUser(const std::string & username, DBConnRef conn) {
+    SQLiteUsers users(conn);
     DBOPUserInfo user;
     user.uinfo.user_id.id = username;
     users.store_user(user);
@@ -86,10 +87,11 @@ TEST_F(TestSFSSQLiteBuckets, CreateAndGet) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
   auto bucket = createTestBucket("1");
   db_buckets->store_bucket(bucket);
@@ -105,11 +107,12 @@ TEST_F(TestSFSSQLiteBuckets, ListBucketsIDs) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
 
   db_buckets->store_bucket(createTestBucket("1"));
   db_buckets->store_bucket(createTestBucket("2"));
@@ -128,11 +131,12 @@ TEST_F(TestSFSSQLiteBuckets, ListBuckets) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
 
   auto bucket_1 = createTestBucket("1");
   db_buckets->store_bucket(bucket_1);
@@ -155,14 +159,15 @@ TEST_F(TestSFSSQLiteBuckets, ListBucketsByOwner) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
-  createUser("user1", ceph_context.get());
-  createUser("user2", ceph_context.get());
-  createUser("user3", ceph_context.get());
+  createUser("usertest", conn);
+  createUser("user1", conn);
+  createUser("user2", conn);
+  createUser("user3", conn);
 
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
 
   auto bucket_1 = createTestBucket("1");
   bucket_1.binfo.owner.id = "user1";
@@ -197,17 +202,18 @@ TEST_F(TestSFSSQLiteBuckets, ListBucketsIDsPerUser) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
   // Create the rest of users
-  createUser("user1", ceph_context.get());
-  createUser("user2", ceph_context.get());
-  createUser("user3", ceph_context.get());
+  createUser("user1", conn);
+  createUser("user2", conn);
+  createUser("user3", conn);
 
 
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
 
   auto test_bucket_1 = createTestBucket("1");
   test_bucket_1.binfo.owner.id = "user1";
@@ -239,11 +245,12 @@ TEST_F(TestSFSSQLiteBuckets, remove_bucket) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
 
   db_buckets->store_bucket(createTestBucket("1"));
   db_buckets->store_bucket(createTestBucket("2"));
@@ -264,11 +271,12 @@ TEST_F(TestSFSSQLiteBuckets, RemoveUserThatDoesNotExist) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
 
   db_buckets->store_bucket(createTestBucket("1"));
   db_buckets->store_bucket(createTestBucket("2"));
@@ -287,11 +295,12 @@ TEST_F(TestSFSSQLiteBuckets, CreateAndUpdate) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
   auto bucket = createTestBucket("1");
   db_buckets->store_bucket(bucket);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -313,11 +322,12 @@ TEST_F(TestSFSSQLiteBuckets, GetExisting) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
-  auto db_buckets = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
   auto bucket = createTestBucket("1");
   db_buckets->store_bucket(bucket);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
@@ -327,7 +337,7 @@ TEST_F(TestSFSSQLiteBuckets, GetExisting) {
   compareBuckets(bucket, *ret_bucket);
 
   // create a new instance, bucket should exist
-  auto db_buckets_2 = std::make_shared<SQLiteBuckets>(ceph_context.get());
+  auto db_buckets_2 = std::make_shared<SQLiteBuckets>(conn);
   ret_bucket = db_buckets_2->get_bucket("test1");
   ASSERT_TRUE(ret_bucket.has_value());
   compareBuckets(bucket, *ret_bucket);
@@ -337,11 +347,13 @@ TEST_F(TestSFSSQLiteBuckets, UseStorage) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
-  // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  SQLiteBuckets db_buckets(ceph_context.get());
-  auto storage = db_buckets.get_storage();
+  // Create the user, we need it because OwnerID is a foreign key of User::UserID
+  createUser("usertest", conn);
+
+  SQLiteBuckets db_buckets(conn);
+  auto storage = conn->get_storage();
 
   DBBucket db_bucket;
   db_bucket.bucket_name = "test_storage";
@@ -377,12 +389,13 @@ TEST_F(TestSFSSQLiteBuckets, UseStorage) {
 TEST_F(TestSFSSQLiteBuckets, CreateBucketForNonExistingUser) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
-
+  
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
-  SQLiteBuckets db_buckets(ceph_context.get());
-  auto storage = db_buckets.get_storage();
+  SQLiteBuckets db_buckets(conn);
+  auto storage = conn->get_storage();
 
   DBBucket db_bucket;
   db_bucket.bucket_name = "test_storage";
@@ -403,11 +416,12 @@ TEST_F(TestSFSSQLiteBuckets, CreateBucketOwnerNotSet) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
   // Create the user, we need it because OwnerID is a foreign key of User::UserID
-  createUser("usertest", ceph_context.get());
+  createUser("usertest", conn);
 
-  SQLiteBuckets db_buckets(ceph_context.get());
-  auto storage = db_buckets.get_storage();
+  SQLiteBuckets db_buckets(conn);
+  auto storage = conn->get_storage();
 
   DBBucket db_bucket;
   db_bucket.bucket_name = "test_storage";

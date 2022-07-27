@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "common/ceph_context.h"
+#include "rgw/driver/sfs/sqlite/dbconn.h"
 #include "rgw/driver/sfs/sqlite/sqlite_versioned_objects.h"
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
@@ -54,25 +55,31 @@ protected:
     return getDBFullPath(getTestDir());
   }
 
-  void createUser(const std::string & username, CephContext *context) {
-    SQLiteUsers users(context);
+  void createUser(const std::string & username, DBConnRef conn) {
+    SQLiteUsers users(conn);
     DBOPUserInfo user;
     user.uinfo.user_id.id = username;
     users.store_user(user);
   }
 
-  void createBucket(const std::string & username, const std::string & bucketname, CephContext *context) {
-    createUser(username, context);
-    SQLiteBuckets buckets(context);
+  void createBucket(const std::string & username, const std::string & bucketname, DBConnRef conn) {
+    createUser(username, conn);
+    SQLiteBuckets buckets(conn);
     DBOPBucketInfo bucket;
     bucket.binfo.bucket.name = bucketname;
     bucket.binfo.owner.id = username;
     buckets.store_bucket(bucket);
   }
 
-  void createObject(const std::string & username, const std::string & bucketname, const std::string object_id, CephContext *context) {
-    createBucket(username, bucketname, context);
-    SQLiteObjects objects(context);
+  void createObject(
+    const std::string & username,
+    const std::string & bucketname,
+    const std::string object_id,
+    CephContext *context,
+    DBConnRef conn
+  ) {
+    createBucket(username, bucketname, conn);
+    SQLiteObjects objects(conn);
 
     DBOPObjectInfo object;
     object.uuid.parse(object_id.c_str());
@@ -126,10 +133,13 @@ TEST_F(TestSFSSQLiteVersionedObjects, CreateAndGet) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
 
   auto versioned_object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
 
@@ -146,11 +156,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, ListObjectsIDs) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
 
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   auto obj1 = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   db_versioned_objects->store_versioned_object(obj1);
@@ -174,12 +187,19 @@ TEST_F(TestSFSSQLiteVersionedObjects, ListBucketsIDsPerObject) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID_1, ceph_context.get());
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID_2, ceph_context.get());
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID_3, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID_1, ceph_context.get(), conn
+  );
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID_2, ceph_context.get(), conn
+  );
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID_3, ceph_context.get(), conn
+  );
 
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   auto test_object_1 = createTestVersionedObject(1, TEST_OBJECT_ID_1, "1");
   db_versioned_objects->store_versioned_object(test_object_1);
@@ -214,11 +234,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, RemoveObject) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
 
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   auto obj1 = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   db_versioned_objects->store_versioned_object(obj1);
@@ -243,11 +266,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, RemoveObjectThatDoesNotExist) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
   // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
 
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   auto obj1 = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   db_versioned_objects->store_versioned_object(obj1);
@@ -273,10 +299,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, CreateAndUpdate) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
 
   auto versioned_object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
 
@@ -322,11 +352,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, GetExisting) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
 
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   db_versioned_objects->store_versioned_object(object);
@@ -337,7 +370,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, GetExisting) {
   compareVersionedObjects(object, *ret_object);
 
   // create a new instance, bucket should exist
-  auto db_objects_2 = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  auto db_objects_2 = std::make_shared<SQLiteVersionedObjects>(conn);
   ret_object = db_objects_2->get_versioned_object(object.id);
   ASSERT_TRUE(ret_object.has_value());
   compareVersionedObjects(object, *ret_object);
@@ -347,11 +380,15 @@ TEST_F(TestSFSSQLiteVersionedObjects, CreateObjectForNonExistingBucket) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
-  // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  SQLiteVersionedObjects db_objects(ceph_context.get());
-  auto storage = db_objects.get_storage();
+  // Create the object, we need it because of foreign key constrains
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
+
+  SQLiteVersionedObjects db_objects(conn);
+  auto storage = conn->get_storage();
 
   DBVersionedObject db_object;
 
@@ -374,11 +411,15 @@ TEST_F(TestSFSSQLiteVersionedObjects, Testobject_stateConversion) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
-  // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  SQLiteVersionedObjects db_objects(ceph_context.get());
-  auto storage = db_objects.get_storage();
+  // Create the object, we need it because of foreign key constrains
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
+
+  SQLiteVersionedObjects db_objects(conn);
+  auto storage = conn->get_storage();
 
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   auto db_object = get_db_versioned_object(object);
@@ -417,11 +458,15 @@ TEST_F(TestSFSSQLiteVersionedObjects, Testobject_stateBadValue) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
-  // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  SQLiteVersionedObjects db_objects(ceph_context.get());
-  auto storage = db_objects.get_storage();
+  // Create the object, we need it because of foreign key constrains
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
+
+  SQLiteVersionedObjects db_objects(conn);
+  auto storage = conn->get_storage();
 
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   auto db_object = get_db_versioned_object(object);
@@ -445,11 +490,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, StoreCreatesNewVersions) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
 
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   db_versioned_objects->store_versioned_object(object);
@@ -496,11 +544,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, GetLastVersion) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
 
   EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
 
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(ceph_context.get());
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   // Create the object, we need it because of foreign key constrains
-  createObject(TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get());
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
 
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   db_versioned_objects->store_versioned_object(object);

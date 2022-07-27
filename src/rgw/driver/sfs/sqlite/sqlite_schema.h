@@ -14,19 +14,13 @@
 #pragma once
 
 #include "buckets/bucket_definitions.h"
+#include "dbconn.h"
 #include "objects/object_definitions.h"
 #include "sqlite_orm.h"
 #include "users/users_definitions.h"
 #include "versioned_object/versioned_object_definitions.h"
 
 namespace rgw::sal::sfs::sqlite {
-
-constexpr std::string_view SCHEMA_DB_NAME = "s3gw.db";
-
-constexpr std::string_view USERS_TABLE = "users";
-constexpr std::string_view BUCKETS_TABLE = "buckets";
-constexpr std::string_view OBJECTS_TABLE = "objects";
-constexpr std::string_view VERSIONED_OBJECTS_TABLE = "versioned_objects";
 
 class SQLiteSchema {
  public:
