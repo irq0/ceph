@@ -28,7 +28,7 @@ class UUIDPath {
   std::string fname;
 
  public:
-  UUIDPath(uuid_d &_uuid) : uuid(_uuid) {
+  UUIDPath(const uuid_d &_uuid) : uuid(_uuid) {
     std::string uuidstr = _uuid.to_string();
     first = uuidstr.substr(0, 2);
     second = uuidstr.substr(2, 2);
@@ -45,6 +45,10 @@ class UUIDPath {
 
   bool match(const UUIDPath &other) {
     return uuid == other.uuid;
+  }
+
+  uuid_d get_uuid() const {
+    return uuid;
   }
 
   static UUIDPath create() {
