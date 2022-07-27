@@ -392,6 +392,10 @@ SFStore::SFStore(CephContext* c, const std::filesystem::path& data_path)
   maybe_init_store();
   init_buckets();
 
+  meta_buckets = sfs::get_meta_buckets(c);
+  // no need to be safe, we're in the ctor.
+  _refresh_buckets();
+
   ldout(ctx(), 0) << "sfs serving data from " << data_path << dendl;
 }
 

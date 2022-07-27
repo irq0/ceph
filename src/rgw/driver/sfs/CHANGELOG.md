@@ -7,6 +7,13 @@ and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Added
+- rgw/sfs: new on-disk format, based on filesystem hash tree for data
+  and sqlite for metadata.
+
+
 ## [0.2.0] - 2022-07-28
 
 - Nothing changed on this version.
