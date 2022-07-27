@@ -13,7 +13,7 @@
  */
 #pragma once
 
-#include "rgw_common.h"
+#include "rgw/rgw_common.h"
 #include "rgw/driver/sfs/object_state.h"
 
 #include <string>
