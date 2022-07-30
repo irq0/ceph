@@ -152,7 +152,7 @@ int SFSObject::delete_object(
 
 int SFSObject::copy_object(
     User* user, req_info* info, const rgw_zone_id& source_zone,
-    rgw::sal::Object* dest_object, rgw::sal::Bucket* dest_bucket,
+    rgw::sal::Object* dst_object, rgw::sal::Bucket* dst_bucket,
     rgw::sal::Bucket* src_bucket, const rgw_placement_rule& dest_placement,
     ceph::real_time* src_mtime, ceph::real_time* mtime,
     const ceph::real_time* mod_ptr, const ceph::real_time* unmod_ptr,
@@ -163,8 +163,51 @@ int SFSObject::copy_object(
     std::string* tag, std::string* etag, void (*progress_cb)(off_t, void*),
     void* progress_data, const DoutPrefixProvider* dpp, optional_yield y
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  lsfs_dout(dpp, 10) << "source(bucket: " << src_bucket->get_name()
+                     << ", obj: " << get_name()
+                     << "), dest(bucket: " << dst_bucket->get_name()
+                     << ", obj: " << dst_object->get_name() << ")" << dendl;
+
+  refresh_meta();
+  ceph_assert(objref);
+  ceph_assert(bucketref);
+  ceph_assert(dst_object);
+  ceph_assert(dst_bucket);
+
+  sfs::BucketRef dst_bucket_ref = store->get_bucket_ref(dst_bucket->get_name());
+  ceph_assert(dst_bucket_ref);
+
+  std::filesystem::path srcpath =
+      store->get_data_path() / objref->path.to_path();
+
+  sfs::ObjectRef dstref = dst_bucket_ref->get_or_create(dst_object->get_name());
+  std::filesystem::path dstpath =
+      store->get_data_path() / dstref->path.to_path();
+
+  if (std::filesystem::exists(dstpath)) {
+    // this breaks S3 semantics: as far as we understand, a copy to an existing
+    // destination object is essentially a put on that object -- meaning, the
+    // object is clobbered.
+    lsfs_dout(dpp, 10) << "destination file already exists at '" << dstpath
+                       << "'" << dendl;
+    return -EEXIST;
+  }
+
+  lsfs_dout(dpp, 10) << "copying file from '" << srcpath << "' to '" << dstpath
+                     << "'" << dendl;
+  std::filesystem::create_directories(dstpath.parent_path());
+  bool res = std::filesystem::copy_file(srcpath, dstpath);
+  if (!res) {
+    lsfs_dout(dpp, 0) << "error copying file from '" << srcpath << "' to '"
+                      << dstpath << "'" << dendl;
+    return -EIO;
+  }
+
+  dstref->meta = objref->meta;
+  dstref->meta.mtime = ceph::real_clock::now();
+  dst_bucket_ref->finish(dpp, dst_object->get_name());
+
+  return 0;
 }
 
 /** TODO Create a randomized instance ID for this object */
