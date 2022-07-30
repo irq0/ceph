@@ -100,18 +100,34 @@ class SFSObject : public StoreObject {
   virtual int delete_object(const DoutPrefixProvider *dpp, optional_yield y,
                             bool prevent_versioning = false) override;
   virtual int copy_object(
-      User *user, req_info *info, const rgw_zone_id &source_zone,
-      rgw::sal::Object *dest_object, rgw::sal::Bucket *dest_bucket,
-      rgw::sal::Bucket *src_bucket, const rgw_placement_rule &dest_placement,
-      ceph::real_time *src_mtime, ceph::real_time *mtime,
-      const ceph::real_time *mod_ptr, const ceph::real_time *unmod_ptr,
-      bool high_precision_time, const char *if_match, const char *if_nomatch,
-      AttrsMod attrs_mod, bool copy_if_newer, Attrs &attrs,
-      RGWObjCategory category, uint64_t olh_epoch,
-      boost::optional<ceph::real_time> delete_at, std::string *version_id,
-      std::string *tag, std::string *etag, void (*progress_cb)(off_t, void *),
-      void *progress_data, const DoutPrefixProvider *dpp,
-      optional_yield y) override;
+    User *user,
+    req_info *info,
+    const rgw_zone_id &source_zone,
+    rgw::sal::Object *dest_object,
+    rgw::sal::Bucket *dest_bucket,
+    rgw::sal::Bucket *src_bucket,
+    const rgw_placement_rule &dest_placement,
+    ceph::real_time *src_mtime,
+    ceph::real_time *mtime,
+    const ceph::real_time *mod_ptr,
+    const ceph::real_time *unmod_ptr,
+    bool high_precision_time,
+    const char *if_match,
+    const char *if_nomatch,
+    AttrsMod attrs_mod,
+    bool copy_if_newer,
+    Attrs &attrs,
+    RGWObjCategory category,
+    uint64_t olh_epoch,
+    boost::optional<ceph::real_time> delete_at,
+    std::string *version_id,
+    std::string *tag,
+    std::string *etag,
+    void (*progress_cb)(off_t, void *),
+    void *progress_data,
+    const DoutPrefixProvider *dpp,
+    optional_yield y
+  ) override;
 
   virtual RGWAccessControlPolicy &get_acl(void) override { return acls; }
   virtual int set_acl(const RGWAccessControlPolicy &acl) override {

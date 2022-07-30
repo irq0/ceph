@@ -15,6 +15,13 @@ and this project adheres to
 - rgw/sfs: maintain one single sqlite database connection.
 - rgw/sfs: protect sqlite access with 'std::shared_lock'; allows multiple
   parallel reads, but only one write at a time.
+- rgw/sfs: allow copying objects; the current implementation breaks S3
+  semantics by returning EEXIST if the destination object exists.
+
+### Known Issues
+
+- object copy fails if the destination object exists; this will be addressed at
+  a later stage.
 
 
 ### Changed
