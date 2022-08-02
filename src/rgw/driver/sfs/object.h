@@ -199,9 +199,6 @@ class SFSObject : public StoreObject {
     return objref;
   }
 
-  std::filesystem::path get_data_path();
-  std::filesystem::path get_metadata_path();
-
   void refresh_meta();
 
   const std::string get_cls_name() { return "object"; }

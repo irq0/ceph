@@ -382,28 +382,10 @@ void SFStore::finalize(void) {
 
 void SFStore::maybe_init_store() {
 
-  auto meta = meta_path();
-  if (std::filesystem::exists(meta)) {
-    // store must have been inited, so let's just return.
-    return;
-  }
-  ldout(ctx(), 10) << __func__ << ": creating store layout." << dendl;
-  // init store.
-  try {
-    std::filesystem::create_directories(meta);
-    std::filesystem::create_directories(buckets_path());
-    std::filesystem::create_directories(users_path());
-  } catch (std::filesystem::filesystem_error &e) {
-    lderr(ctx()) << __func__ << ": creating store layout: "
-                 << e.what() << dendl;
-    throw e;
+  if (!std::filesystem::exists(data_path)) {
+    std::filesystem::create_directories(data_path);
   }
 
-}
-
-void SFStore::init_buckets() {
-  ldout(cctx, 10) << "init buckets" << dendl;
-  // TODO
 }
 
 SFStore::SFStore(
@@ -416,7 +398,6 @@ SFStore::SFStore(
 
   maybe_init_store();
   db_conn = std::make_shared<sfs::sqlite::DBConn>(cctx);
-  init_buckets();
 
   // no need to be safe, we're in the ctor.
   _refresh_buckets();
