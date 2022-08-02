@@ -293,11 +293,4 @@ void SFSObject::refresh_meta() {
   state.mtime = objref->meta.mtime;
 }
 
-std::filesystem::path SFSObject::get_data_path() {
-  return store->object_path(get_bucket()->get_key(), get_key());
-}
-std::filesystem::path SFSObject::get_metadata_path() {
-  return store->object_metadata_path(get_bucket()->get_key(), get_key());
-};
-
 }  // namespace rgw::sal

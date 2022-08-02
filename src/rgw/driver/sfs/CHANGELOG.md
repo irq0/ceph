@@ -17,6 +17,16 @@ and this project adheres to
   parallel reads, but only one write at a time.
 
 
+### Changed
+- rgw/sfs: no longer create directory hierarchy when initing the store; instead,
+  ensure the sfs path exists by creating its directory if missing.
+
+
+### Removed
+- rgw/sfs: remove unused data and metadata functions, artifacts from our
+  previous file-based implementation.
+
+
 ## [0.2.0] - 2022-07-28
 
 - Nothing changed on this version.
