@@ -220,6 +220,7 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
     user->get_info().max_buckets = RGW_DEFAULT_MAX_BUCKETS;
     user->get_info().system = system;
     user->get_info().admin = 1;   // TODO remove when ACL is implemented
+    user->get_info().type = TYPE_RGW;
     if (assumed_role_arn != nullptr) {
         user->get_info().assumed_role_arn = assumed_role_arn;
     }
