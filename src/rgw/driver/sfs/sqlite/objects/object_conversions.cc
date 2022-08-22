@@ -21,8 +21,8 @@ DBOPObjectInfo get_rgw_object(const DBObject & object) {
   rgw_object.uuid.parse(object.object_id.c_str());
   rgw_object.bucket_name = object.bucket_name;
   rgw_object.name = object.name;
-  rgw_object.size = object.size;
-  rgw_object.etag = object.etag;
+  assign_optional_value(object.size, rgw_object.size);
+  assign_optional_value(object.etag, rgw_object.etag);
   assign_optional_value(object.mtime, rgw_object.mtime);
   assign_optional_value(object.set_mtime, rgw_object.set_mtime);
   assign_optional_value(object.delete_at_time, rgw_object.delete_at);
@@ -36,8 +36,8 @@ DBObject get_db_object(const DBOPObjectInfo & object) {
   db_object.object_id = object.uuid.to_string();
   db_object.bucket_name = object.bucket_name;
   db_object.name = object.name;
-  db_object.size = object.size;
-  db_object.etag = object.etag;
+  assign_db_value(object.size, db_object.size);
+  assign_db_value(object.etag, db_object.etag);
   assign_db_value(object.mtime, db_object.mtime);
   assign_db_value(object.set_mtime, db_object.set_mtime);
   assign_db_value(object.delete_at, db_object.delete_at_time);

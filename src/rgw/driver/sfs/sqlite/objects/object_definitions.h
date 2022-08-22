@@ -25,8 +25,8 @@ struct DBObject {
   std::string object_id;
   std::string bucket_name;
   std::string name;
-  size_t size;
-  std::string etag;
+  std::optional<size_t> size;
+  std::optional<std::string> etag;
   std::optional<BLOB> mtime;
   std::optional<BLOB> set_mtime;
   std::optional<BLOB> delete_at_time;

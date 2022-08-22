@@ -37,6 +37,7 @@ struct DBBucket {
   std::optional<std::string> placement_name;
   std::optional<std::string> placement_storage_class;
   std::string owner_id;
+  std::optional<uint32_t> flags;
   std::optional<std::string> zone_group;
   std::optional<bool> has_instance_obj;
   std::optional<BLOB> quota;

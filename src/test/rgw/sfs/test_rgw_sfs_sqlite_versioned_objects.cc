@@ -115,6 +115,7 @@ DBOPVersionedObjectInfo createTestVersionedObject(uint id, const std::string & o
   test_versioned_object.size = rand();
   test_versioned_object.creation_time = ceph::real_clock::now();
   test_versioned_object.object_state = rgw::sal::ObjectState::OPEN;
+  test_versioned_object.version_id = "test_version_id_" + suffix;
   return test_versioned_object;
 }
 
@@ -126,6 +127,7 @@ void compareVersionedObjects(const DBOPVersionedObjectInfo & origin, const DBOPV
   ASSERT_EQ(origin.size, dest.size);
   ASSERT_EQ(origin.creation_time, dest.creation_time);
   ASSERT_EQ(origin.object_state, dest.object_state);
+  ASSERT_EQ(origin.version_id, dest.version_id);
 }
 
 TEST_F(TestSFSSQLiteVersionedObjects, CreateAndGet) {
@@ -143,10 +145,15 @@ TEST_F(TestSFSSQLiteVersionedObjects, CreateAndGet) {
 
   auto versioned_object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
 
-  db_versioned_objects->store_versioned_object(versioned_object);
+  db_versioned_objects->insert_versioned_object(versioned_object);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
   auto ret_ver_object = db_versioned_objects->get_versioned_object(versioned_object.id);
+  ASSERT_TRUE(ret_ver_object.has_value());
+  compareVersionedObjects(versioned_object, *ret_ver_object);
+
+  // get by version id
+  ret_ver_object = db_versioned_objects->get_versioned_object("test_version_id_1");
   ASSERT_TRUE(ret_ver_object.has_value());
   compareVersionedObjects(versioned_object, *ret_ver_object);
 }
@@ -166,11 +173,11 @@ TEST_F(TestSFSSQLiteVersionedObjects, ListObjectsIDs) {
   auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   auto obj1 = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
-  db_versioned_objects->store_versioned_object(obj1);
+  db_versioned_objects->insert_versioned_object(obj1);
   auto obj2 = createTestVersionedObject(2, TEST_OBJECT_ID, "2");
-  db_versioned_objects->store_versioned_object(obj2);
+  db_versioned_objects->insert_versioned_object(obj2);
   auto obj3 = createTestVersionedObject(3, TEST_OBJECT_ID, "3");
-  db_versioned_objects->store_versioned_object(obj3);
+  db_versioned_objects->insert_versioned_object(obj3);
 
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
@@ -180,6 +187,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, ListObjectsIDs) {
   EXPECT_EQ(1, object_ids[0]);
   EXPECT_EQ(2, object_ids[1]);
   EXPECT_EQ(3, object_ids[2]);
+
+  uuid_d uuid;
+  uuid.parse(TEST_OBJECT_ID.c_str());
+  auto objects = db_versioned_objects->get_versioned_objects(uuid);
+  ASSERT_EQ(objects.size(), 3);
+  compareVersionedObjects(objects[0], obj1);
+  compareVersionedObjects(objects[1], obj2);
+  compareVersionedObjects(objects[2], obj3);
 }
 
 TEST_F(TestSFSSQLiteVersionedObjects, ListBucketsIDsPerObject) {
@@ -202,13 +217,13 @@ TEST_F(TestSFSSQLiteVersionedObjects, ListBucketsIDsPerObject) {
   auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   auto test_object_1 = createTestVersionedObject(1, TEST_OBJECT_ID_1, "1");
-  db_versioned_objects->store_versioned_object(test_object_1);
+  db_versioned_objects->insert_versioned_object(test_object_1);
 
   auto test_object_2 = createTestVersionedObject(2, TEST_OBJECT_ID_2, "2");
-  db_versioned_objects->store_versioned_object(test_object_2);
+  db_versioned_objects->insert_versioned_object(test_object_2);
 
   auto test_object_3 = createTestVersionedObject(3, TEST_OBJECT_ID_3, "3");
-  db_versioned_objects->store_versioned_object(test_object_3);
+  db_versioned_objects->insert_versioned_object(test_object_3);
 
   uuid_d uuid1;
   uuid1.parse(TEST_OBJECT_ID_1.c_str());
@@ -244,11 +259,11 @@ TEST_F(TestSFSSQLiteVersionedObjects, RemoveObject) {
   auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   auto obj1 = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
-  db_versioned_objects->store_versioned_object(obj1);
+  db_versioned_objects->insert_versioned_object(obj1);
   auto obj2 = createTestVersionedObject(2, TEST_OBJECT_ID, "2");
-  db_versioned_objects->store_versioned_object(obj2);
+  db_versioned_objects->insert_versioned_object(obj2);
   auto obj3 = createTestVersionedObject(3, TEST_OBJECT_ID, "3");
-  db_versioned_objects->store_versioned_object(obj3);
+  db_versioned_objects->insert_versioned_object(obj3);
 
   db_versioned_objects->remove_versioned_object(obj2.id);
   auto object_ids = db_versioned_objects->get_versioned_object_ids();
@@ -276,11 +291,11 @@ TEST_F(TestSFSSQLiteVersionedObjects, RemoveObjectThatDoesNotExist) {
   auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
 
   auto obj1 = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
-  db_versioned_objects->store_versioned_object(obj1);
+  db_versioned_objects->insert_versioned_object(obj1);
   auto obj2 = createTestVersionedObject(2, TEST_OBJECT_ID, "2");
-  db_versioned_objects->store_versioned_object(obj2);
+  db_versioned_objects->insert_versioned_object(obj2);
   auto obj3 = createTestVersionedObject(3, TEST_OBJECT_ID, "3");
-  db_versioned_objects->store_versioned_object(obj3);
+  db_versioned_objects->insert_versioned_object(obj3);
 
   db_versioned_objects->remove_versioned_object(10);
   auto object_ids = db_versioned_objects->get_versioned_object_ids();
@@ -310,7 +325,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, CreateAndUpdate) {
 
   auto versioned_object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
 
-  db_versioned_objects->store_versioned_object(versioned_object);
+  db_versioned_objects->insert_versioned_object(versioned_object);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
   auto ret_ver_object = db_versioned_objects->get_versioned_object(versioned_object.id);
@@ -321,7 +336,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, CreateAndUpdate) {
   auto original_size = versioned_object.size;
   versioned_object.size = 1999;
   //versioned_object.id = 2;
-  db_versioned_objects->store_versioned_object(versioned_object);
+  db_versioned_objects->insert_versioned_object(versioned_object);
 
   // get the first version
   ret_ver_object = db_versioned_objects->get_versioned_object(versioned_object.id);
@@ -362,7 +377,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, GetExisting) {
   );
 
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
-  db_versioned_objects->store_versioned_object(object);
+  db_versioned_objects->insert_versioned_object(object);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
   auto ret_object = db_versioned_objects->get_versioned_object(object.id);
@@ -500,7 +515,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, StoreCreatesNewVersions) {
   );
 
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
-  db_versioned_objects->store_versioned_object(object);
+  db_versioned_objects->insert_versioned_object(object);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
   auto ret_object = db_versioned_objects->get_versioned_object(object.id);
@@ -510,10 +525,10 @@ TEST_F(TestSFSSQLiteVersionedObjects, StoreCreatesNewVersions) {
   // just update the size
   auto original_size = object.size;
   object.size = 1;
-  db_versioned_objects->store_versioned_object(object);
+  db_versioned_objects->insert_versioned_object(object);
 
   // change nothing, but it should also create a new version
-  db_versioned_objects->store_versioned_object(object);
+  db_versioned_objects->insert_versioned_object(object);
   auto ids = db_versioned_objects->get_versioned_object_ids();
   ASSERT_EQ(3, ids.size());
   EXPECT_EQ(1, ids[0]);
@@ -554,7 +569,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, GetLastVersion) {
   );
 
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
-  db_versioned_objects->store_versioned_object(object);
+  db_versioned_objects->insert_versioned_object(object);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
   uuid_d uuid;
@@ -565,7 +580,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, GetLastVersion) {
 
   // just update the size, and add a new version
   object.size = 1999;
-  db_versioned_objects->store_versioned_object(object);
+  db_versioned_objects->insert_versioned_object(object);
 
   // now it should return the last one
   ret_object = db_versioned_objects->get_last_versioned_object(uuid);
@@ -578,4 +593,79 @@ TEST_F(TestSFSSQLiteVersionedObjects, GetLastVersion) {
 
   ret_object = db_versioned_objects->get_last_versioned_object(uuid_that_does_not_exist);
   ASSERT_FALSE(ret_object.has_value());
+}
+
+TEST_F(TestSFSSQLiteVersionedObjects, TestInsertIncreaseID) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+
+  EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
+
+  // Create the object, we need it because of foreign key constrains
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
+
+  auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
+  EXPECT_EQ(1, db_versioned_objects->insert_versioned_object(object));
+  EXPECT_EQ(2, db_versioned_objects->insert_versioned_object(object));
+  EXPECT_EQ(3, db_versioned_objects->insert_versioned_object(object));
+  EXPECT_EQ(4, db_versioned_objects->insert_versioned_object(object));
+
+  auto ret_ver_object = db_versioned_objects->get_versioned_object(1);
+  ASSERT_TRUE(ret_ver_object.has_value());
+  compareVersionedObjects(object, *ret_ver_object);
+
+  ret_ver_object = db_versioned_objects->get_versioned_object(2);
+  ASSERT_TRUE(ret_ver_object.has_value());
+  object.id = 2;
+  compareVersionedObjects(object, *ret_ver_object);
+
+  ret_ver_object = db_versioned_objects->get_versioned_object(3);
+  ASSERT_TRUE(ret_ver_object.has_value());
+  object.id = 3;
+  compareVersionedObjects(object, *ret_ver_object);
+
+  ret_ver_object = db_versioned_objects->get_versioned_object(4);
+  ASSERT_TRUE(ret_ver_object.has_value());
+  object.id = 4;
+  compareVersionedObjects(object, *ret_ver_object);
+
+  ret_ver_object = db_versioned_objects->get_versioned_object(5);
+  ASSERT_FALSE(ret_ver_object.has_value());
+}
+
+TEST_F(TestSFSSQLiteVersionedObjects, TestUpdate) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+
+  EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
+
+  // Create the object, we need it because of foreign key constrains
+  createObject(
+    TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
+  );
+
+  auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
+  EXPECT_EQ(1, db_versioned_objects->insert_versioned_object(object));
+
+  auto ret_ver_object = db_versioned_objects->get_versioned_object(1);
+  ASSERT_TRUE(ret_ver_object.has_value());
+  compareVersionedObjects(object, *ret_ver_object);
+
+  object.object_state = rgw::sal::ObjectState::WRITING;
+  db_versioned_objects->store_versioned_object(object);
+
+  ret_ver_object = db_versioned_objects->get_versioned_object(1);
+  ASSERT_TRUE(ret_ver_object.has_value());
+  compareVersionedObjects(object, *ret_ver_object);
+
+  ret_ver_object = db_versioned_objects->get_versioned_object(2);
+  ASSERT_FALSE(ret_ver_object.has_value());
 }

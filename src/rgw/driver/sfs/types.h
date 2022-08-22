@@ -46,16 +46,27 @@ struct Object {
   };
 
   std::string name;
+  std::string instance;
+  uint version_id{0};
   UUIDPath path;
   Meta meta;
   bool deleted;
 
-  Object(const std::string &_name) 
+  Object(const std::string &_name)
   : name(_name), path(UUIDPath::create()), deleted(false) { }
 
   Object(const std::string &_name, const uuid_d &_uuid, bool _deleted)
   : name(_name), path(_uuid), deleted(_deleted) { }
 
+  Object(const rgw_obj_key &key)
+  : name(key.name), instance(key.instance), path(UUIDPath::create()), deleted(false) { }
+
+  std::filesystem::path get_storage_path() const;
+
+  void metadata_init(SFStore *store, const std::string & bucket_name,
+                     bool new_object, bool new_version);
+  void metadata_change_version_state(SFStore *store, ObjectState state);
+  void metadata_finish(SFStore *store);
 };
 
 using ObjectRef = std::shared_ptr<Object>;
@@ -69,13 +80,11 @@ class Bucket {
   RGWUserInfo owner;
   ceph::real_time creation_time;
   rgw_placement_rule placement_rule;
-
+  uint32_t flags{0};
 
  public:
   std::map<std::string, ObjectRef> objects;
   ceph::mutex obj_map_lock = ceph::make_mutex("obj_map_lock");
-  std::map<std::string, ObjectRef> creating;
-  std::set<ObjectRef> deleted;
 
   Bucket(const Bucket&) = default;
 
@@ -91,7 +100,8 @@ class Bucket {
   ) : cct(_cct), store(_store), name(_bucket_info.bucket.name),
       bucket(_bucket_info.bucket), owner(_owner),
       creation_time(_bucket_info.creation_time),
-      placement_rule(_bucket_info.placement_rule) {
+      placement_rule(_bucket_info.placement_rule),
+      flags(_bucket_info.flags) {
     _refresh_objects();
   }
 
@@ -101,6 +111,7 @@ class Bucket {
     out_info.creation_time = get_creation_time();
     out_info.placement_rule.name = placement_rule.name;
     out_info.placement_rule.storage_class = placement_rule.storage_class; 
+    out_info.flags = get_flags();
     return out_info;
   }
 
@@ -128,31 +139,11 @@ class Bucket {
     return creation_time;
   }
 
-  ObjectRef get_or_create(const std::string &name) {
-    std::lock_guard l(obj_map_lock);
-
-    {
-      auto it = objects.find(name);
-      if (it != objects.end()) {
-        return it->second;
-      }
-    }
-
-    // is object already being created?
-    //   this will potentially clash between two competing tasks.
-    //   deal with that later.
-    {
-      auto it = creating.find(name);
-      if (it != creating.end()) {
-        return it->second;
-      }
-    }
-
-    // create new object
-    ObjectRef obj = std::make_shared<Object>(name);
-    creating[name] = obj;
-    return obj;
+  uint32_t get_flags() const {
+    return flags;
   }
+
+  ObjectRef get_or_create(const rgw_obj_key &key);
 
   ObjectRef get(const std::string &name) {
     auto it = objects.find(name);
@@ -164,26 +155,7 @@ class Bucket {
 
   void finish(const DoutPrefixProvider *dpp, const std::string &objname);
 
-  void delete_object(ObjectRef objref) {
-    std::lock_guard l(obj_map_lock);
-
-    objref->deleted = true;
-
-    auto it = objects.find(objref->name);
-    if (it == objects.end()) {
-      // nothing to do.
-      return;
-    }
-
-    ObjectRef found = it->second;
-    if (!found->path.match(objref->path)) {
-      // different objects, nothing to do.
-      return;
-    }
-
-    deleted.insert(objref);
-    objects.erase(it);
-  }
+  void delete_object(ObjectRef objref);
 
   inline std::string get_cls_name() { return "sfs::bucket"; }
 };

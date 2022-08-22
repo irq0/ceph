@@ -30,6 +30,7 @@ struct DBVersionedObject {
   size_t size;
   BLOB creation_time;
   uint object_state;
+  std::string version_id;
 };
 
 struct DBOPVersionedObjectInfo {
@@ -40,6 +41,7 @@ struct DBOPVersionedObjectInfo {
   size_t size;
   ceph::real_time creation_time;
   ObjectState object_state;
+  std::string version_id;
 };
 
 }  // namespace rgw::sal::sfs::sqlite

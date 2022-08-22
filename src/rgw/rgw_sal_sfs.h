@@ -113,7 +113,7 @@ class SFStore : public StoreDriver {
    * Obtain an internal representation of an object by its key. This does not
    * directly specify the bucket, so there's no direct mapping to an actual
    * object (existing or not).
-   * 
+   *
    * The SAL layer will often call this function during its operation, setting
    * the bucket accordingly at some point.
    */

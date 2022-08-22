@@ -29,12 +29,15 @@ class SQLiteVersionedObjects {
   SQLiteVersionedObjects& operator=(const SQLiteVersionedObjects&) = delete;
 
   std::optional<DBOPVersionedObjectInfo> get_versioned_object(uint id) const;
+  std::optional<DBOPVersionedObjectInfo> get_versioned_object(const std::string & version_id) const;
 
+  uint insert_versioned_object(const DBOPVersionedObjectInfo & object) const;
   void store_versioned_object(const DBOPVersionedObjectInfo & object) const;
   void remove_versioned_object(uint id) const;
 
   std::vector<uint> get_versioned_object_ids() const;
   std::vector<uint> get_versioned_object_ids(const uuid_d & object_id) const;
+  std::vector<DBOPVersionedObjectInfo> get_versioned_objects(const uuid_d & object_id) const;
 
   std::optional<DBOPVersionedObjectInfo> get_last_versioned_object(const uuid_d & object_id) const;
 };

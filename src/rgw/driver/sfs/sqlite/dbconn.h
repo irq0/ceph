@@ -70,6 +70,7 @@ inline auto _make_storage(const std::string &path) {
           sqlite_orm::make_column("marker", &DBBucket::marker),
           sqlite_orm::make_column("bucket_id", &DBBucket::bucket_id),
           sqlite_orm::make_column("owner_id", &DBBucket::owner_id),
+          sqlite_orm::make_column("flags", &DBBucket::flags),
           sqlite_orm::make_column("creation_time", &DBBucket::creation_time),
           sqlite_orm::make_column("placement_name", &DBBucket::placement_name),
           sqlite_orm::make_column("placement_storage_class", &DBBucket::placement_storage_class),
@@ -94,6 +95,7 @@ inline auto _make_storage(const std::string &path) {
           sqlite_orm::make_column("size", &DBVersionedObject::size),
           sqlite_orm::make_column("creation_time", &DBVersionedObject::creation_time),
           sqlite_orm::make_column("object_state", &DBVersionedObject::object_state),
+          sqlite_orm::make_column("version_id", &DBVersionedObject::version_id),
           sqlite_orm::foreign_key(&DBVersionedObject::object_id).references(&DBObject::object_id))
   );  
 }
