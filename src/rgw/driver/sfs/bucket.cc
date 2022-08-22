@@ -26,7 +26,7 @@ SFSBucket::SFSBucket(SFStore* _store, sfs::BucketRef _bucket)
     : store(_store), bucket(_bucket), acls() {
   info.bucket = bucket->get_bucket();
   info.owner = bucket->get_owner().user_id;
-  info.creation_time = ceph::real_clock::now();
+  info.creation_time = _bucket->get_creation_time();
   info.placement_rule.name = "default";
   info.placement_rule.storage_class = "STANDARD";
 }

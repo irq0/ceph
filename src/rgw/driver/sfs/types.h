@@ -79,15 +79,15 @@ class Bucket {
 
  public:
   Bucket(
-      CephContext* _cct, SFStore* _store, const rgw_bucket& _bucket,
+      CephContext* _cct, SFStore* _store, const RGWBucketInfo& _bucket_info,
       const RGWUserInfo& _owner
   )
       : cct(_cct),
         store(_store),
-        name(_bucket.name),
-        bucket(_bucket),
-        owner(_owner) {
-    creation_time = ceph::real_clock::now();
+        name(_bucket_info.bucket.name),
+        bucket(_bucket_info.bucket),
+        owner(_owner),
+        creation_time(_bucket_info.creation_time) {
     _refresh_objects();
   }
 
