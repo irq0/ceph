@@ -91,10 +91,13 @@ class SFSObject : public StoreObject {
   SFSObject(SFStore* _st, const rgw_obj_key& _k)
       : StoreObject(_k), store(_st) {}
   SFSObject(
-      SFStore* _st, const rgw_obj_key& _k, Bucket* _b, sfs::BucketRef _bucket
+      SFStore* _st, const rgw_obj_key& _k, Bucket* _b, sfs::BucketRef _bucket,
+      bool load_metadata = true
   )
       : StoreObject(_k, _b), store(_st), bucketref(_bucket) {
-    refresh_meta();
+    if (load_metadata) {
+      refresh_meta();
+    }
   }
 
   virtual std::unique_ptr<Object> clone() override {

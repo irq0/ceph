@@ -11,9 +11,13 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
+#include "bucket.h"
+
 #include <fstream>
 
 #include "driver/sfs/multipart.h"
+#include "driver/sfs/object.h"
+#include "driver/sfs/sqlite/sqlite_versioned_objects.h"
 #include "rgw_sal_sfs.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -57,10 +61,14 @@ std::unique_ptr<Object> SFSBucket::get_object(const rgw_obj_key& key) {
  * List objects in this bucket.
  */
 int SFSBucket::list(
-    const DoutPrefixProvider* dpp, ListParams&, int, ListResults& results,
-    optional_yield y
+    const DoutPrefixProvider* dpp, ListParams& params, int max,
+    ListResults& results, optional_yield y
 ) {
   lsfs_dout(dpp, 10) << "iterate bucket " << get_name() << dendl;
+
+  if (params.list_versions) {
+    return list_versions(dpp, params, max, results, y);
+  }
 
   std::lock_guard l(bucket->obj_map_lock);
   for (const auto& [name, objref] : bucket->objects) {
@@ -68,12 +76,47 @@ int SFSBucket::list(
 
     auto obj = _get_object(objref);
     rgw_bucket_dir_entry dirent;
-    dirent.key = cls_rgw_obj_key(name);
+    dirent.key = cls_rgw_obj_key(name, objref->instance);
     dirent.meta.accounted_size = obj->get_obj_size();
     dirent.meta.mtime = obj->get_mtime();
+    dirent.meta.etag = objref->meta.etag;
+    dirent.meta.owner_display_name = bucket->get_owner().display_name;
+    dirent.meta.owner = bucket->get_owner().user_id.id;
     results.objs.push_back(dirent);
   }
 
+  lsfs_dout(dpp, 10) << "found " << results.objs.size() << " objects" << dendl;
+  return 0;
+}
+
+int SFSBucket::list_versions(
+    const DoutPrefixProvider* dpp, ListParams& params, int,
+    ListResults& results, optional_yield y
+) {
+  std::lock_guard l(bucket->obj_map_lock);
+  for (const auto& [name, objref] : bucket->objects) {
+    lsfs_dout(dpp, 10) << "object: " << name << dendl;
+    // get all available versions from db
+    sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
+    auto last_version =
+        db_versioned_objects.get_last_versioned_object(objref->path.get_uuid());
+    auto object_versions =
+        db_versioned_objects.get_versioned_objects(objref->path.get_uuid());
+    for (const auto& object_version : object_versions) {
+      rgw_bucket_dir_entry dirent;
+      dirent.key = cls_rgw_obj_key(objref->name, object_version.version_id);
+      dirent.meta.accounted_size = object_version.size;
+      dirent.meta.mtime = object_version.creation_time;
+      dirent.meta.etag = objref->meta.etag;
+      dirent.flags = rgw_bucket_dir_entry::FLAG_VER;
+      if (last_version.has_value() && last_version->id == object_version.id) {
+        dirent.flags |= rgw_bucket_dir_entry::FLAG_CURRENT;
+      }
+      dirent.meta.owner_display_name = bucket->get_owner().display_name;
+      dirent.meta.owner = bucket->get_owner().user_id.id;
+      results.objs.push_back(dirent);
+    }
+  }
   lsfs_dout(dpp, 10) << "found " << results.objs.size() << " objects" << dendl;
   return 0;
 }
@@ -239,8 +282,13 @@ int SFSBucket::check_bucket_shards(const DoutPrefixProvider* dpp) {
 int SFSBucket::put_info(
     const DoutPrefixProvider* dpp, bool exclusive, ceph::real_time mtime
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  sfs::sqlite::DBOPBucketInfo store_info;
+  store_info.binfo = info;
+
+  auto meta_buckets = sfs::get_meta_buckets(store->db_conn);
+  meta_buckets->store_bucket(store_info);
+  store->_refresh_buckets_safe();
+  return 0;
 }
 
 }  // namespace rgw::sal

@@ -13,6 +13,7 @@
  */
 #include "driver/sfs/object.h"
 
+#include "driver/sfs/sqlite/sqlite_versioned_objects.h"
 #include "rgw_sal_sfs.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -28,13 +29,13 @@ int SFSObject::SFSReadOp::prepare(
 ) {
   source->refresh_meta();
   objref = source->get_object_ref();
-  if (!objref) {
+  if (!objref || objref->deleted) {
     // at this point, we don't have an objectref because
     // the object does not exist.
     return -ENOENT;
   }
 
-  objdata = source->store->get_data_path() / objref->path.to_path();
+  objdata = source->store->get_data_path() / objref->get_storage_path();
   if (!std::filesystem::exists(objdata)) {
     lsfs_dout(dpp, 10) << "object data not found at " << objdata << dendl;
     return -ENOENT;
@@ -75,8 +76,6 @@ int SFSObject::SFSReadOp::read(
                      << ", offset: " << ofs << ", end: " << end
                      << ", len: " << len << dendl;
 
-  // auto objpath = source->get_data_path();
-  // ceph_assert(std::filesystem::exists(objpath));
   ceph_assert(std::filesystem::exists(objdata));
 
   std::string error;
@@ -129,7 +128,8 @@ int SFSObject::SFSDeleteOp::delete_obj(
     const DoutPrefixProvider* dpp, optional_yield y
 ) {
   lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
-                     << ", object: " << source->get_name() << dendl;
+                     << ", object: " << source->get_name()
+                     << ", instance: " << source->get_instance() << dendl;
 
   // do the quick and dirty thing for now
   ceph_assert(bucketref);
@@ -178,11 +178,11 @@ int SFSObject::copy_object(
   ceph_assert(dst_bucket_ref);
 
   std::filesystem::path srcpath =
-      store->get_data_path() / objref->path.to_path();
+      store->get_data_path() / objref->get_storage_path();
 
-  sfs::ObjectRef dstref = dst_bucket_ref->get_or_create(dst_object->get_name());
+  sfs::ObjectRef dstref = dst_bucket_ref->get_or_create(dst_object->get_key());
   std::filesystem::path dstpath =
-      store->get_data_path() / dstref->path.to_path();
+      store->get_data_path() / dstref->get_storage_path();
 
   if (std::filesystem::exists(dstpath)) {
     // this breaks S3 semantics: as far as we understand, a copy to an existing
@@ -193,6 +193,7 @@ int SFSObject::copy_object(
     return -EEXIST;
   }
 
+  dstref->metadata_change_version_state(store, ObjectState::WRITING);
   lsfs_dout(dpp, 10) << "copying file from '" << srcpath << "' to '" << dstpath
                      << "'" << dendl;
   std::filesystem::create_directories(dstpath.parent_path());
@@ -205,15 +206,20 @@ int SFSObject::copy_object(
 
   dstref->meta = objref->meta;
   dstref->meta.mtime = ceph::real_clock::now();
-  dst_bucket_ref->finish(dpp, dst_object->get_name());
+  dstref->metadata_finish(store);
 
   return 0;
 }
 
-/** TODO Create a randomized instance ID for this object */
 void SFSObject::gen_rand_obj_instance_name() {
-  ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
-  return;
+#define OBJ_INSTANCE_LEN 32
+  char buf[OBJ_INSTANCE_LEN + 1];
+
+  gen_rand_alphanumeric_no_underscore(
+      store->ceph_context(), buf, OBJ_INSTANCE_LEN
+  );
+
+  state.obj.key.set_instance(buf);
 }
 
 int SFSObject::get_obj_attrs(
@@ -326,14 +332,25 @@ void SFSObject::refresh_meta() {
   }
   try {
     objref = bucketref->get(get_name());
-    ;
   } catch (sfs::UnknownObjectException& e) {
     // object probably not created yet?
     return;
   }
-  set_obj_size(objref->meta.size);
-  set_attrs(objref->meta.attrs);
-  state.mtime = objref->meta.mtime;
+  auto meta = objref->meta;
+  if (!get_instance().empty() && get_instance() != objref->instance) {
+    // object specific version requested and it's not the last one
+    sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
+    auto db_version = db_versioned_objects.get_versioned_object(get_instance());
+    auto uuid = objref->path.get_uuid();
+    auto deleted = db_version->object_state == ObjectState::DELETED;
+    objref = std::make_shared<sfs::Object>(get_name(), uuid, deleted);
+    objref->version_id = db_version->id;
+    set_obj_size(db_version->size);
+  } else {
+    set_obj_size(meta.size);
+  }
+  set_attrs(meta.attrs);
+  state.mtime = meta.mtime;
 }
 
 }  // namespace rgw::sal

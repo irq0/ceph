@@ -34,7 +34,8 @@ SFSAtomicWriter::SFSAtomicWriter(
 )
     : StoreWriter(_dpp, _y),
       store(_store),
-      obj(_store, _head_obj->get_key(), _head_obj->get_bucket(), _bucketref),
+      obj(_store, _head_obj->get_key(), _head_obj->get_bucket(), _bucketref,
+          false),
       bucketref(_bucketref),
       owner(_owner),
       placement_rule(_ptail_placement_rule),
@@ -47,9 +48,10 @@ SFSAtomicWriter::SFSAtomicWriter(
 }
 
 int SFSAtomicWriter::prepare(optional_yield y) {
-  objref = bucketref->get_or_create(obj.get_name());
+  objref = bucketref->get_or_create(obj.get_key());
+
   std::filesystem::path object_path =
-      store->get_data_path() / objref->path.to_path();
+      store->get_data_path() / objref->get_storage_path();
   std::filesystem::create_directories(object_path.parent_path());
 
   lsfs_dout(dpp, 10) << "truncate file at " << object_path << dendl;
@@ -64,8 +66,10 @@ int SFSAtomicWriter::process(bufferlist&& data, uint64_t offset) {
   lsfs_dout(dpp, 10) << "data len: " << data.length() << ", offset: " << offset
                      << dendl;
 
+  objref->metadata_change_version_state(store, ObjectState::WRITING);
+
   std::filesystem::path object_path =
-      store->get_data_path() / objref->path.to_path();
+      store->get_data_path() / objref->get_storage_path();
   ceph_assert(std::filesystem::exists(object_path));
 
   lsfs_dout(dpp, 10) << "write to object at " << object_path << dendl;
@@ -113,6 +117,7 @@ int SFSAtomicWriter::complete(
   bucketref->finish(dpp, obj.get_name());
 
   *mtime = meta.mtime;
+  objref->metadata_finish(store);
   return 0;
 }
 

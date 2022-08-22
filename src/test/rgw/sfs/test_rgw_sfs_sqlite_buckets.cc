@@ -63,6 +63,7 @@ void compareBucketRGWInfo(const RGWBucketInfo & origin, const RGWBucketInfo & de
   ASSERT_EQ(origin.placement_rule.name, dest.placement_rule.name);
   ASSERT_EQ(origin.placement_rule.storage_class, dest.placement_rule.storage_class);
   ASSERT_EQ(origin.owner.id, dest.owner.id);
+  ASSERT_EQ(origin.flags, dest.flags);
 }
 
 void compareBuckets(const DBOPBucketInfo & origin, const DBOPBucketInfo & dest) {
@@ -79,6 +80,7 @@ DBOPBucketInfo createTestBucket(const std::string & suffix) {
   bucket.binfo.placement_rule.name = "default";
   bucket.binfo.placement_rule.storage_class = "STANDARD";
   bucket.binfo.owner.id = "usertest";
+  bucket.binfo.flags = static_cast<uint32_t>(rand());
   return bucket;
 }
 

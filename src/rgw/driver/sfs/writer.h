@@ -36,6 +36,7 @@ class SFSAtomicWriter : public StoreWriter {
   uint64_t olh_epoch;
   const std::string& unique_tag;
   uint64_t bytes_written;
+  uint versioned_object_id;
 
  public:
   SFSAtomicWriter(
