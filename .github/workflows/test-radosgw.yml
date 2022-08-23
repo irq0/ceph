@@ -22,12 +22,12 @@ jobs:
       short_sha: ${{ steps.short_sha.outputs.short_sha }}
 
     steps:
-      - name: Checkout s3gw-core
+      - name: Checkout s3gw-tools
         uses: actions/checkout@v3
         with:
-          repository: 'aquarist-labs/s3gw-core'
+          repository: 'aquarist-labs/s3gw-tools'
           ref: 'main'
-          path: 's3gw-core'
+          path: 's3gw-tools'
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -53,7 +53,7 @@ jobs:
           push: true
           tags: |
             localhost:5000/s3gw:latest
-          file: s3gw-core/build/Dockerfile.build-container
+          file: s3gw-tools/build/Dockerfile.build-container
           context: ceph/build
 
       - name: Install S3cmd
@@ -77,5 +77,5 @@ jobs:
           # to boot up.
 
           echo "Running Tests:\n"
-          s3gw-core/tests/s3gw-smoke-test.sh localhost:7480
+          s3gw-tools/tests/s3gw-smoke-test.sh localhost:7480
           # TODO: Run tests here
