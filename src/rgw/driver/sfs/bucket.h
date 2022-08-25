@@ -62,7 +62,7 @@ class SFSBucket : public StoreBucket {
   std::unique_ptr<Object> _get_object(sfs::ObjectRef obj);
 
  public:
-  SFSBucket(SFStore* _store, sfs::BucketRef _bucket);
+  SFSBucket(SFStore* _store, sfs::BucketRef _bucket, const RGWBucketInfo& info);
   SFSBucket& operator=(const SFSBucket&) = delete;
 
   virtual std::unique_ptr<Bucket> clone() override {

@@ -65,6 +65,7 @@ class Bucket {
   rgw_bucket bucket;
   RGWUserInfo owner;
   ceph::real_time creation_time;
+  rgw_placement_rule placement_rule;
 
  public:
   std::map<std::string, ObjectRef> objects;
@@ -87,17 +88,31 @@ class Bucket {
         name(_bucket_info.bucket.name),
         bucket(_bucket_info.bucket),
         owner(_owner),
-        creation_time(_bucket_info.creation_time) {
+        creation_time(_bucket_info.creation_time),
+        placement_rule(_bucket_info.placement_rule) {
     _refresh_objects();
+  }
+
+  RGWBucketInfo& to_rgw_bucket_info(RGWBucketInfo& out_info) const {
+    out_info.bucket = get_bucket();
+    out_info.owner = get_owner().user_id;
+    out_info.creation_time = get_creation_time();
+    out_info.placement_rule.name = placement_rule.name;
+    out_info.placement_rule.storage_class = placement_rule.storage_class;
+    return out_info;
   }
 
   const std::string get_name() const { return name; }
 
   rgw_bucket& get_bucket() { return bucket; }
 
+  const rgw_bucket& get_bucket() const { return bucket; }
+
   RGWUserInfo& get_owner() { return owner; }
 
-  ceph::real_time get_creation_time() { return creation_time; }
+  const RGWUserInfo& get_owner() const { return owner; }
+
+  ceph::real_time get_creation_time() const { return creation_time; }
 
   ObjectRef get_or_create(const std::string& name) {
     std::lock_guard l(obj_map_lock);

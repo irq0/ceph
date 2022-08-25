@@ -338,25 +338,56 @@ class SFStore : public StoreDriver {
   }
 
   sfs::BucketRef bucket_create(
-      const rgw_bucket& bucket, const RGWUserInfo& owner
+      const rgw_bucket& bucket, const RGWUserInfo& owner,
+      const std::string& zonegroup_id, const rgw_placement_rule& placement_rule,
+      const std::string& swift_ver_location, const RGWQuotaInfo* pquota_info,
+      std::map<std::string, bufferlist>& attrs, RGWBucketInfo& info,
+      obj_version& ep_objv
   ) {
     std::lock_guard l(buckets_map_lock);
     if (_bucket_exists(bucket.name)) {
       return nullptr;
     }
 
-    sfs::sqlite::DBOPBucketInfo info;
-    info.binfo.bucket = bucket;
-    info.binfo.owner = owner.user_id;
-    info.binfo.creation_time = ceph::real_clock::now();
-    info.binfo.placement_rule.name = "default";
-    info.binfo.placement_rule.storage_class = "STANDARD";
+    sfs::sqlite::DBOPBucketInfo db_binfo;
+    db_binfo.binfo.bucket = bucket;
+    db_binfo.binfo.owner = owner.user_id;
+    db_binfo.binfo.creation_time = ceph::real_clock::now();
+    db_binfo.binfo.placement_rule = placement_rule;
+    db_binfo.binfo.zonegroup = zonegroup_id;
+
+    RGWObjVersionTracker& objv_tracker = info.objv_tracker;
+    objv_tracker.read_version.clear();
+    objv_tracker.generate_new_write_ver(cctx);
+    objv_tracker.read_version = objv_tracker.write_version;
+
+    struct timespec ts;
+    ceph::real_clock::to_timespec(db_binfo.binfo.creation_time, ts);
+
+    info.bucket = bucket;
+
+    db_binfo.binfo.bucket.marker = db_binfo.binfo.bucket.bucket_id =
+        info.bucket.marker = info.bucket.bucket_id =
+            bucket.name + "." + std::to_string(ts.tv_sec) +
+            std::to_string(ts.tv_nsec);
+
+    info.owner = owner.user_id;
+    info.zonegroup = db_binfo.binfo.zonegroup;
+    info.creation_time = db_binfo.binfo.creation_time;
+    info.placement_rule = placement_rule;
+    info.swift_ver_location = swift_ver_location;
+    info.swift_versioning = (!swift_ver_location.empty());
+
+    info.requester_pays = false;
+    if (pquota_info) {
+      info.quota = *pquota_info;
+    }
 
     auto meta_buckets = sfs::get_meta_buckets(db_conn);
-    meta_buckets->store_bucket(info);
+    meta_buckets->store_bucket(db_binfo);
 
     sfs::BucketRef b =
-        std::make_shared<sfs::Bucket>(ctx(), this, info.binfo, owner);
+        std::make_shared<sfs::Bucket>(ctx(), this, db_binfo.binfo, owner);
     buckets[bucket.name] = b;
     return b;
   }
