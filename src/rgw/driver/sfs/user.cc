@@ -133,7 +133,8 @@ int SFSUser::list_buckets(const DoutPrefixProvider *dpp,
 
   std::list<sfs::BucketRef> lst = store->bucket_list();
   for (const auto &bucketref : lst) {
-    auto bucket = std::unique_ptr<Bucket>(new SFSBucket{store, bucketref});
+    RGWBucketInfo info;
+    auto bucket = std::unique_ptr<Bucket>(new SFSBucket{store, bucketref, bucketref->to_rgw_bucket_info(info)});
     buckets.add(std::move(bucket));
   }
   
@@ -157,30 +158,42 @@ int SFSUser::create_bucket(
     bool obj_lock_enabled,
     bool *existed,
     req_info &req_info,
-    std::unique_ptr<Bucket> *bucket,
+    std::unique_ptr<Bucket> *bucket_out,
     optional_yield y
 ) {
-  ceph_assert(bucket != nullptr);
+  ceph_assert(bucket_out != nullptr);
 
   auto f = new JSONFormatter(true);
   info.dump(f);
-  lsfs_dout(dpp, 10) << "bucket: " << b << ", attrs: " << attrs
-                     << ", info: ";
+  lsfs_dout(dpp, 10) << "bucket: " << b << ", attrs: " << attrs;
   f->flush(*_dout);
   *_dout << dendl;
 
   if (store->bucket_exists(b)) {
+    *existed = true;
     return -EEXIST;
   }
+  *existed = false;
 
-  sfs::BucketRef bucketref = store->bucket_create(b, this->get_info());
+  placement_rule.name = "default";
+  placement_rule.storage_class = "STANDARD";
+  info.placement_rule = placement_rule;
+
+  sfs::BucketRef bucketref = store->bucket_create(b, this->get_info(),
+                                                  zonegroup_id, placement_rule,
+                                                  swift_ver_location, pquota_info,
+                                                  attrs, info, ep_objv);
   if (!bucketref) {
     lsfs_dout(dpp, 10) << "error creating bucket '" << b << "'" << dendl;
     return -EINVAL;
   }
 
-  auto new_bucket = new SFSBucket{store, bucketref};
-  bucket->reset(new_bucket);
+  auto new_bucket = new SFSBucket{store, bucketref, info};
+  new_bucket->set_attrs(attrs);
+  new_bucket->set_version(ep_objv);
+
+  bucket_out->reset(new_bucket);
+
   return 0;
 }
 
