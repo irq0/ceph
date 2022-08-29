@@ -213,27 +213,37 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
     /* XXX: temporary - create testid user */
     rgw_user testid_user("", id, "");
     std::unique_ptr<rgw::sal::User> user = store->get_user(testid_user);
-    user->get_info().display_name = display_name;
-    user->get_info().user_email = email;
-    RGWAccessKey k1(access_key, secret_key);
-    user->get_info().access_keys[access_key] = k1;
-    user->get_info().max_buckets = RGW_DEFAULT_MAX_BUCKETS;
-    user->get_info().system = system;
-    user->get_info().admin = 1;   // TODO remove when ACL is implemented
-    user->get_info().type = TYPE_RGW;
-    if (assumed_role_arn != nullptr) {
-        user->get_info().assumed_role_arn = assumed_role_arn;
-    }
-    if (caps != nullptr) {
-        RGWUserCaps rgw_caps;
-        rgw_caps.add_from_string(caps);
-        user->get_info().caps = rgw_caps;
-    }
 
-    int r = user->store_user(dpp, null_yield, true);
-    if (r < 0) {
-      ldpp_dout(dpp, 0) << "ERROR: failed inserting " << id
-                        << " user in sfs error r=" << r << dendl;
+    if ( user->load_user(dpp, null_yield) == 0 ) {
+      /* if we're able to load a user with the defailt user id from the backing
+       * store, the store is already initialized and we don't need to create
+       * this user.
+       */
+      ldpp_dout(dpp, 0) << "Found default user \"" << id
+                        << "\" in database." << dendl;
+    } else {
+      user->get_info().display_name = display_name;
+      user->get_info().user_email = email;
+      RGWAccessKey k1(access_key, secret_key);
+      user->get_info().access_keys[access_key] = k1;
+      user->get_info().max_buckets = RGW_DEFAULT_MAX_BUCKETS;
+      user->get_info().system = system;
+      user->get_info().admin = 1;   // TODO remove when ACL is implemented
+      user->get_info().type = TYPE_RGW;
+      if (assumed_role_arn != nullptr) {
+          user->get_info().assumed_role_arn = assumed_role_arn;
+      }
+      if (caps != nullptr) {
+          RGWUserCaps rgw_caps;
+          rgw_caps.add_from_string(caps);
+          user->get_info().caps = rgw_caps;
+      }
+
+      int r = user->store_user(dpp, null_yield, true);
+      if (r < 0) {
+        ldpp_dout(dpp, 0) << "ERROR: failed inserting " << id
+                          << " user in sfs error r=" << r << dendl;
+      }
     }
     return store;
   }
