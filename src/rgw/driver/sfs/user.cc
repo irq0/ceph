@@ -42,8 +42,8 @@ int SFSUser::read_stats(const DoutPrefixProvider *dpp, optional_yield y,
                                ceph::real_time *last_stats_sync,
                                ceph::real_time *last_stats_update) {
   /** Read the User stats from the backing Store, synchronous */
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  ldpp_dout(dpp, 1) << __func__ << ": WARNING faked call" << dendl;
+  return 0;
 }
 
 int SFSUser::read_stats_async(const DoutPrefixProvider *dpp,
