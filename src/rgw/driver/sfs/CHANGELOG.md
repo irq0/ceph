@@ -6,8 +6,7 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
-## [Unreleased]
+## [0.4.0] - 2022-09-01
 
 ### Added
 - rgw/sfs: new on-disk format, based on filesystem hash tree for data
@@ -18,6 +17,11 @@ and this project adheres to
 - rgw/sfs: allow copying objects; the current implementation breaks S3
   semantics by returning EEXIST if the destination object exists.
 
+### Fixed
+- rgw/sfs: fix an issue where the creation time of a bucket is displayed
+  as the current machine time.
+- rgw/sfs: fix the json response for creation bucket rest call for system
+  users.
 ### Known Issues
 
 - object copy fails if the destination object exists; this will be addressed at
