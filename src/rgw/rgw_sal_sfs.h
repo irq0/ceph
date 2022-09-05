@@ -344,8 +344,7 @@ class SFStore : public StoreDriver {
     const std::string &swift_ver_location,
     const RGWQuotaInfo *pquota_info,
     std::map<std::string, bufferlist> &attrs,
-    RGWBucketInfo &info,
-    obj_version &ep_objv
+    RGWBucketInfo &info
   ) {
     std::lock_guard l(buckets_map_lock);
     if (_bucket_exists(bucket.name)) {
@@ -358,11 +357,9 @@ class SFStore : public StoreDriver {
     db_binfo.binfo.creation_time = ceph::real_clock::now();
     db_binfo.binfo.placement_rule = placement_rule;
     db_binfo.binfo.zonegroup = zonegroup_id;
-
-    RGWObjVersionTracker& objv_tracker = info.objv_tracker;
-    objv_tracker.read_version.clear();
-    objv_tracker.generate_new_write_ver(cctx);
-    objv_tracker.read_version = objv_tracker.write_version;
+    if (pquota_info) {
+      db_binfo.binfo.quota = *pquota_info;
+    }
 
     struct timespec ts;
     ceph::real_clock::to_timespec(db_binfo.binfo.creation_time, ts);
@@ -373,17 +370,12 @@ class SFStore : public StoreDriver {
       info.bucket.marker = info.bucket.bucket_id = 
         bucket.name + "." + std::to_string(ts.tv_sec) + std::to_string(ts.tv_nsec);
 
-    info.owner = owner.user_id;
+    info.owner = db_binfo.binfo.owner;
     info.zonegroup = db_binfo.binfo.zonegroup;
     info.creation_time = db_binfo.binfo.creation_time;
-    info.placement_rule = placement_rule;
-    info.swift_ver_location = swift_ver_location;
-    info.swift_versioning = (!swift_ver_location.empty());
-
+    info.placement_rule = db_binfo.binfo.placement_rule;
     info.requester_pays = false;
-    if (pquota_info) {
-      info.quota = *pquota_info;
-    }
+    info.quota = db_binfo.binfo.quota;
     
     auto meta_buckets = sfs::get_meta_buckets(db_conn);
     meta_buckets->store_bucket(db_binfo);

@@ -22,8 +22,8 @@ namespace rgw::sal::sfs::sqlite  {
 using BLOB = std::vector<char>;
 
 // bucket to be mapped in DB
-// Optinal values mean they might have (or not) a value defined.
-// Blobs are stored as std::vector<char> but we could specialise the encoder and decoder templates
+// Optional values mean they might have (or not) a value defined.
+// Blobs are stored as std::vector<char> but we could specialize the encoder and decoder templates
 // from sqlite_orm to store blobs in any user defined type.
 struct DBBucket {
   std::string bucket_name;

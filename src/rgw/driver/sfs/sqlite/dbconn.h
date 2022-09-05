@@ -71,6 +71,8 @@ inline auto _make_storage(const std::string &path) {
           sqlite_orm::make_column("bucket_id", &DBBucket::bucket_id),
           sqlite_orm::make_column("owner_id", &DBBucket::owner_id),
           sqlite_orm::make_column("flags", &DBBucket::flags),
+          sqlite_orm::make_column("zone_group", &DBBucket::zone_group),
+          sqlite_orm::make_column("quota", &DBBucket::quota),
           sqlite_orm::make_column("creation_time", &DBBucket::creation_time),
           sqlite_orm::make_column("placement_name", &DBBucket::placement_name),
           sqlite_orm::make_column("placement_storage_class", &DBBucket::placement_storage_class),

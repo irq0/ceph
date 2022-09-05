@@ -25,6 +25,8 @@ DBOPBucketInfo get_rgw_bucket(const DBBucket & bucket) {
   assign_optional_value(bucket.bucket_id, rgw_bucket.binfo.bucket.bucket_id);
   rgw_bucket.binfo.owner.id = bucket.owner_id;
   assign_optional_value(bucket.flags, rgw_bucket.binfo.flags);
+  assign_optional_value(bucket.zone_group, rgw_bucket.binfo.zonegroup);
+  assign_optional_value(bucket.quota, rgw_bucket.binfo.quota);
   assign_optional_value(bucket.creation_time, rgw_bucket.binfo.creation_time);
   assign_optional_value(bucket.placement_name, rgw_bucket.binfo.placement_rule.name);
   assign_optional_value(bucket.placement_storage_class, rgw_bucket.binfo.placement_rule.storage_class);
@@ -41,6 +43,8 @@ DBBucket get_db_bucket(const DBOPBucketInfo & bucket) {
   assign_db_value(bucket.binfo.bucket.bucket_id, db_bucket.bucket_id);
   db_bucket.owner_id = bucket.binfo.owner.id;
   assign_db_value(bucket.binfo.flags, db_bucket.flags);
+  assign_db_value(bucket.binfo.zonegroup, db_bucket.zone_group);
+  assign_db_value(bucket.binfo.quota, db_bucket.quota);
   assign_db_value(bucket.binfo.creation_time, db_bucket.creation_time);
   assign_db_value(bucket.binfo.placement_rule.name, db_bucket.placement_name);
   assign_db_value(bucket.binfo.placement_rule.storage_class, db_bucket.placement_storage_class);
