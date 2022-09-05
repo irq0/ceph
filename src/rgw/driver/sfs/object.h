@@ -17,6 +17,7 @@
 #include <filesystem>
 
 #include "rgw_sal.h"
+#include "rgw_sal_store.h"
 #include "uuid_path.h"
 #include "rgw/driver/sfs/bucket.h"
 #include "rgw/driver/sfs/types.h"
@@ -34,6 +35,8 @@ class SFSObject : public StoreObject {
   sfs::ObjectRef objref;
  protected:
   SFSObject(SFSObject&) = default;
+
+  void _refresh_meta_from_object();
 
  public:
 
@@ -94,6 +97,15 @@ class SFSObject : public StoreObject {
     if (load_metadata) {
       refresh_meta();
     }
+  }
+  SFSObject(
+    SFStore *_st,
+    const rgw_obj_key &_k,
+    Bucket *_b,
+    sfs::BucketRef _bucketref,
+    sfs::ObjectRef _objref
+  ) : StoreObject(_k, _b), store(_st), bucketref(_bucketref), objref(_objref) {
+    _refresh_meta_from_object();
   }
 
   virtual std::unique_ptr<Object> clone() override {

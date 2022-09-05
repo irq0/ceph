@@ -14,6 +14,7 @@
 #include "rgw_sal_sfs.h"
 #include "driver/sfs/object.h"
 #include "driver/sfs/sqlite/sqlite_versioned_objects.h"
+#include "driver/sfs/multipart.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -242,11 +243,13 @@ void SFSObject::gen_rand_obj_instance_name() {
   state.obj.key.set_instance(buf);
 }
 
-int SFSObject::get_obj_attrs(optional_yield y,
-                                    const DoutPrefixProvider *dpp,
-                                    rgw_obj *target_obj) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+int SFSObject::get_obj_attrs(
+  optional_yield y,
+  const DoutPrefixProvider *dpp,
+  rgw_obj *target_obj
+) {
+  lsfs_dout(dpp, 10) << " TODO" << dendl;
+  return 0;
 }
 int SFSObject::modify_obj_attrs(const char *attr_name,
                                        bufferlist &attr_val, optional_yield y,
@@ -263,9 +266,11 @@ int SFSObject::delete_obj_attrs(const DoutPrefixProvider *dpp,
 }
 
 std::unique_ptr<MPSerializer> SFSObject::get_serializer(
-  const DoutPrefixProvider *dpp, const std::string &lock_name) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return nullptr;
+  const DoutPrefixProvider *dpp,
+  const std::string &lock_name
+) {
+  lsfs_dout(dpp, 10) << "lock name: " << lock_name << dendl;
+  return std::make_unique<SFSMultipartSerializer>();
 }
 
 int SFSObject::transition(Bucket *bucket,
@@ -354,6 +359,11 @@ void SFSObject::refresh_meta() {
     // object probably not created yet?
     return;
   }
+  _refresh_meta_from_object();
+}
+
+void SFSObject::_refresh_meta_from_object() {
+  ceph_assert(objref);
   auto meta = objref->meta;
   if (!get_instance().empty() && get_instance() != objref->instance) {
     // object specific version requested and it's not the last one

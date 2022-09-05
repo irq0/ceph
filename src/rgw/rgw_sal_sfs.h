@@ -26,6 +26,7 @@
 #include "rgw_role.h"
 #include "rgw_sal.h"
 
+#include "driver/sfs/types.h"
 #include "driver/sfs/user.h"
 #include "driver/sfs/bucket.h"
 #include "driver/sfs/object.h"

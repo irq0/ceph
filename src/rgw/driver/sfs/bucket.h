@@ -22,14 +22,16 @@
 #include "common/ceph_json.h"
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
-#include "driver/sfs/multipart.h"
-#include "driver/sfs/types.h"
+#include "rgw/driver/sfs/types.h"
+#include "rgw/driver/sfs/object.h"
+#include "rgw/driver/sfs/types.h"
 
 
 namespace rgw::sal {
 
 class SFStore;
 class SFSObject;
+class SFSMultipartUpload;
 
 class SFSBucket : public StoreBucket {
  private:

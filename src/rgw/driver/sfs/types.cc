@@ -111,10 +111,14 @@ void Bucket::finish(const DoutPrefixProvider *dpp, const std::string &objname) {
   // finished creating the object
 
   ObjectRef ref = objects[objname];
+  _finish_object(ref);
+}
+
+void Bucket::_finish_object(ObjectRef ref) {
   sqlite::DBOPObjectInfo oinfo;
   oinfo.uuid = ref->path.get_uuid();
   oinfo.bucket_name = info.bucket.name;
-  oinfo.name = objname;
+  oinfo.name = ref->name;
   oinfo.size = ref->meta.size;
   oinfo.etag = ref->meta.etag;
   oinfo.mtime = ref->meta.mtime;
