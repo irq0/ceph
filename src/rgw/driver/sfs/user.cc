@@ -139,9 +139,8 @@ int SFSUser::list_buckets(
 
   std::list<sfs::BucketRef> lst = store->bucket_list();
   for (const auto& bucketref : lst) {
-    RGWBucketInfo info;
     auto bucket = std::unique_ptr<Bucket>(new SFSBucket{
-        store, bucketref, bucketref->to_rgw_bucket_info(info)});
+        store, bucketref, bucketref->to_rgw_bucket_info()});
     buckets.add(std::move(bucket));
   }
 
@@ -160,12 +159,6 @@ int SFSUser::create_bucket(
 ) {
   ceph_assert(bucket_out != nullptr);
 
-  auto f = new JSONFormatter(true);
-  info.dump(f);
-  lsfs_dout(dpp, 10) << "bucket: " << b << ", attrs: " << attrs;
-  f->flush(*_dout);
-  *_dout << dendl;
-
   if (store->bucket_exists(b)) {
     *existed = true;
     return -EEXIST;
@@ -178,16 +171,15 @@ int SFSUser::create_bucket(
 
   sfs::BucketRef bucketref = store->bucket_create(
       b, this->get_info(), zonegroup_id, placement_rule, swift_ver_location,
-      pquota_info, attrs, info, ep_objv
+      pquota_info, attrs, info
   );
   if (!bucketref) {
-    lsfs_dout(dpp, 10) << "error creating bucket '" << b << "'" << dendl;
+    lsfs_dout(dpp, 0) << "error creating bucket '" << b << "'" << dendl;
     return -EINVAL;
   }
 
   auto new_bucket = new SFSBucket{store, bucketref, info};
   new_bucket->set_attrs(attrs);
-  new_bucket->set_version(ep_objv);
 
   bucket_out->reset(new_bucket);
 

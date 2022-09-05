@@ -9,6 +9,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Added columns in the sqlite buckets table:
+  - zone_group
+  - quota
+
 ### Fixed
 
 - Fixed the admin API request: get-bucket-info where the client was receiving

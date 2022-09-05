@@ -120,6 +120,12 @@ class Bucket {
     return out_info;
   }
 
+  RGWBucketInfo to_rgw_bucket_info() const {
+    RGWBucketInfo rval;
+    to_rgw_bucket_info(rval);
+    return rval;
+  }
+
   const std::string get_name() const { return name; }
 
   rgw_bucket& get_bucket() { return bucket; }
