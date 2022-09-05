@@ -23,6 +23,7 @@
 #include "driver/sfs/sqlite/dbconn.h"
 #include "driver/sfs/sqlite/sqlite_buckets.h"
 #include "driver/sfs/sqlite/sqlite_users.h"
+#include "driver/sfs/types.h"
 #include "driver/sfs/user.h"
 #include "driver/sfs/zone.h"
 #include "rgw_multi.h"

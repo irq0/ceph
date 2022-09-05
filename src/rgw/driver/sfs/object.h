@@ -36,6 +36,8 @@ class SFSObject : public StoreObject {
  protected:
   SFSObject(SFSObject&) = default;
 
+  void _refresh_meta_from_object();
+
  public:
   /**
    * reads an object's contents.
@@ -98,6 +100,16 @@ class SFSObject : public StoreObject {
     if (load_metadata) {
       refresh_meta();
     }
+  }
+  SFSObject(
+      SFStore* _st, const rgw_obj_key& _k, Bucket* _b,
+      sfs::BucketRef _bucketref, sfs::ObjectRef _objref
+  )
+      : StoreObject(_k, _b),
+        store(_st),
+        bucketref(_bucketref),
+        objref(_objref) {
+    _refresh_meta_from_object();
   }
 
   virtual std::unique_ptr<Object> clone() override {

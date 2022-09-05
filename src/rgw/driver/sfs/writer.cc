@@ -121,26 +121,63 @@ int SFSAtomicWriter::complete(
   return 0;
 }
 
-SFSMultipartWriter::SFSMultipartWriter(
-    const DoutPrefixProvider* _dpp, optional_yield y, MultipartUpload* upload,
-    rgw::sal::Object* _head_obj, const SFStore* store, const rgw_user& _owner,
-    const rgw_placement_rule* _ptail_placement_rule, uint64_t _part_num,
-    const std::string& _part_num_str
-)
-    : StoreWriter(_dpp, y) {}
-
 int SFSMultipartWriter::prepare(optional_yield y) {
-  ldpp_dout(dpp, 10) << "multipart_writer::" << __func__
-                     << ": unimplemented, return success" << dendl;
+  lsfs_dout(dpp, 10) << "upload_id: " << partref->upload_id
+                     << ", part: " << partnum
+                     << ", obj: " << partref->objref->name
+                     << ", path: " << partref->objref->path.to_path() << dendl;
+
+  ceph_assert(
+      partref->state == sfs::MultipartObject::State::NONE ||
+      partref->state == sfs::MultipartObject::State::PREPARED ||
+      partref->state == sfs::MultipartObject::State::INPROGRESS
+  );
+
+  std::filesystem::path objpath =
+      store->get_data_path() / partref->objref->path.to_path();
+  std::filesystem::create_directories(objpath.parent_path());
+
+  // truncate file
+  std::ofstream ofs(objpath, std::ofstream::trunc);
+  ofs.seekp(0);
+  ofs.flush();
+  ofs.close();
+
+  partref->state = sfs::MultipartObject::State::PREPARED;
   return 0;
 }
 
 int SFSMultipartWriter::process(bufferlist&& data, uint64_t offset) {
-  ldpp_dout(dpp, 10) << "multipart_writer::" << __func__
-                     << ": unimplemented, return success" << dendl;
-  ldpp_dout(dpp, 10) << "multipart_writer::" << __func__
-                     << ": data len: " << data.length()
-                     << ", offset: " << offset << dendl;
+  auto len = data.length();
+  lsfs_dout(dpp, 10) << "upload_id: " << partref->upload_id
+                     << ", part: " << partnum << ", data(len: " << len
+                     << ", offset: " << offset
+                     << "), offset: " << internal_offset << dendl;
+
+  ceph_assert(
+      partref->state == sfs::MultipartObject::State::PREPARED ||
+      partref->state == sfs::MultipartObject::State::INPROGRESS
+  );
+
+  if (partref->state == sfs::MultipartObject::State::PREPARED) {
+    part_offset = offset;
+  }
+  partref->state = sfs::MultipartObject::State::INPROGRESS;
+
+  std::filesystem::path objpath =
+      store->get_data_path() / partref->objref->path.to_path();
+  ceph_assert(std::filesystem::exists(objpath));
+
+  auto mode = std::ofstream::binary | std::ofstream::out | std::ofstream::app;
+  std::ofstream ofs(objpath, mode);
+  ofs.seekp(internal_offset);
+  data.write_stream(ofs);
+  ofs.flush();
+  ofs.close();
+
+  internal_offset += len;
+  part_len += len;
+
   return 0;
 }
 
@@ -151,8 +188,14 @@ int SFSMultipartWriter::complete(
     const std::string* user_data, rgw_zone_set* zones_trace, bool* canceled,
     optional_yield y
 ) {
-  ldpp_dout(dpp, 10) << "multipart_writer::" << __func__
-                     << ": unimplemented, return success" << dendl;
+  lsfs_dout(dpp, 10) << "upload_id: " << partref->upload_id
+                     << ", part: " << partnum
+                     << ", accounted_size: " << accounted_size
+                     << ", etag: " << etag << ", mtime: " << to_iso_8601(*mtime)
+                     << ", part offset: " << part_offset
+                     << ", part len: " << part_len << dendl;
+
+  partref->finish_write(part_offset, part_len, etag);
   return 0;
 }
 

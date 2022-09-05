@@ -16,9 +16,18 @@ and this project adheres to
 - Delete buckets.
 - Support for bucket ACL.
 
+- Multipart uploads
+
 ### Fixed
 
 - Show delete markers when listing object versions.
+
+### Notes
+
+- Multipart uploads are currently tracked solely in memory. Should the gateway
+  be stopped, on-going multipart uploads will be lost.
+
+- Listing or aborting on-going multipart uploads is currently not supported.
 
 ## [0.5.0] - 2022-09-15
 

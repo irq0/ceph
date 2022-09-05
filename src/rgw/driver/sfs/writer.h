@@ -61,16 +61,25 @@ class SFSAtomicWriter : public StoreWriter {
 };
 
 class SFSMultipartWriter : public StoreWriter {
- protected:
   const rgw::sal::SFStore* store;
+  rgw::sal::sfs::MultipartObjectRef partref;
+  uint64_t partnum;
+  uint64_t internal_offset;
+  uint64_t part_offset;
+  uint64_t part_len;
 
  public:
   SFSMultipartWriter(
       const DoutPrefixProvider* _dpp, optional_yield y, MultipartUpload* upload,
-      rgw::sal::Object* _head_obj, const SFStore* store, const rgw_user& _owner,
-      const rgw_placement_rule* _ptail_placement_rule, uint64_t _part_num,
-      const std::string& _part_num_str
-  );
+      const SFStore* _store, sfs::MultipartObjectRef _partref, uint64_t _partnum
+  )
+      : StoreWriter(_dpp, y),
+        store(_store),
+        partref(_partref),
+        partnum(_partnum),
+        internal_offset(0),
+        part_offset(0),
+        part_len(0) {}
   ~SFSMultipartWriter() = default;
 
   virtual int prepare(optional_yield y) override;
@@ -82,6 +91,8 @@ class SFSMultipartWriter : public StoreWriter {
       const std::string* user_data, rgw_zone_set* zones_trace, bool* canceled,
       optional_yield y
   ) override;
+
+  const std::string get_cls_name() const { return "multipart_writer"; }
 };
 
 }  // namespace rgw::sal

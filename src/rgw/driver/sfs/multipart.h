@@ -14,6 +14,9 @@
 #ifndef RGW_STORE_SFS_MULTIPART_H
 #define RGW_STORE_SFS_MULTIPART_H
 
+#include "rgw/driver/sfs/bucket.h"
+#include "rgw/driver/sfs/object.h"
+#include "rgw/driver/sfs/types.h"
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
 
@@ -21,122 +24,104 @@ namespace rgw::sal {
 
 class SFStore;
 
-class SFSMultipartMeta {
-  ACLOwner owner;
-  Attrs attrs;
-  rgw_placement_rule dest_placement;
-  RGWObjCategory category;
-  int flags;
-  ceph::real_time mtime;
-
- public:
-  SFSMultipartMeta(
-      ACLOwner& _owner, Attrs& _attrs, rgw_placement_rule& _dest_placement,
-      RGWObjCategory _category, int _flags, ceph::real_time& _mtime
+/* This class comes as a hack to circumvent the SAL layer's
+ * requirement/expectation to for a meta object for a given multipart upload.
+ * Unlike other backends, we do not rely on a meta object during our process.
+ * Instead of returning an actual object, which entails meeting several
+ * criteria, we choose instead to extend the SFSObject class and overriding the
+ * bits that are relevant for the SAL layer's expected path.
+ *
+ * For reference, check 'rgw_op.cc', RGWCompleteMultipart::execute().
+ */
+struct SFSMultipartMetaObject : public SFSObject {
+  SFSMultipartMetaObject(SFSMultipartMetaObject&) = default;
+  SFSMultipartMetaObject(
+      SFStore* _st, const rgw_obj_key& _k, Bucket* _b, sfs::BucketRef _bucket
   )
-      : owner(_owner),
-        attrs(_attrs),
-        dest_placement(_dest_placement),
-        category(_category),
-        flags(_flags),
-        mtime(_mtime) {}
+      : SFSObject(_st, _k, _b, _bucket, false) {}
 
-  void encode(bufferlist& bl) const {
-    ENCODE_START(1, 1, bl);
-    encode(owner, bl);
-    encode(attrs, bl);
-    encode(dest_placement, bl);
-    encode(flags, bl);
-    encode(mtime, bl);
-    ENCODE_FINISH(bl);
+  struct SFSMetaObjDeleteOp : public DeleteOp {
+    SFSMetaObjDeleteOp() = default;
+    virtual int delete_obj(const DoutPrefixProvider* dpp, optional_yield y)
+        override {
+      return 0;
+    }
+    const std::string get_cls_name() { return "mp_meta_obj_delete"; }
+  };
+
+  virtual std::unique_ptr<Object> clone() override {
+    return std::unique_ptr<Object>(new SFSMultipartMetaObject{*this});
+  }
+  SFSMultipartMetaObject& operator=(const SFSMultipartMetaObject&) = delete;
+
+  virtual std::unique_ptr<DeleteOp> get_delete_op() override {
+    return std::make_unique<SFSMetaObjDeleteOp>();
   }
 
-  void decode(bufferlist::const_iterator& bl) {
-    DECODE_START(1, bl);
-    decode(owner, bl);
-    decode(attrs, bl);
-    decode(dest_placement, bl);
-    decode(flags, bl);
-    decode(mtime, bl);
-    DECODE_FINISH(bl);
+  virtual int delete_object(
+      const DoutPrefixProvider* dpp, optional_yield y, bool prevent_versioning
+  ) {
+    return 0;
   }
 };
-WRITE_CLASS_ENCODER(SFSMultipartMeta)
 
-class SFSMultipartObject {
-  std::string oid;  // object id / name
-  std::string upload_id;
-  std::string meta;
-
-  std::string gen_upload_id();
-  void init(CephContext* cct, std::string _oid, std::string _upload_id);
+class SFSMultipartPart : public StoreMultipartPart {
+  uint32_t partnum;
+  sfs::MultipartObjectRef mpobj;
 
  public:
-  SFSMultipartObject(
-      CephContext* cct, const std::string& _oid, const std::string& _upload_id
-  );
-  SFSMultipartObject(
-      CephContext* cct, const std::string& _oid,
-      const std::optional<std::string> _upload_id
-  );
+  SFSMultipartPart(uint32_t _num, sfs::MultipartObjectRef _mpobj)
+      : partnum(_num), mpobj(_mpobj) {}
+  virtual ~SFSMultipartPart() = default;
 
-  const std::string& get_key() const { return oid; }
+  virtual uint32_t get_num() override { return partnum; }
 
-  const std::string& get_upload_id() const { return upload_id; }
+  virtual uint64_t get_size() override { return mpobj->len; }
 
-  const std::string& get_meta() const { return meta; }
+  virtual const std::string& get_etag() override { return mpobj->etag; }
 
-  friend inline std::ostream& operator<<(
-      std::ostream& out, const SFSMultipartObject& obj
-  ) {
-    out << "multipart_object(oid: " << obj.get_key()
-        << ", upload_id: " << obj.get_upload_id()
-        << ", meta: " << obj.get_meta() << ")";
-    return out;
-  }
+  virtual ceph::real_time& get_mtime() override { return mpobj->mtime; }
 };
 
 class SFSMultipartUpload : public StoreMultipartUpload {
   SFStore* store;
-  const std::string& oid;
-  std::optional<std::string> upload_id;
-  SFSMultipartObject obj;
-  ACLOwner owner;
-  ceph::real_time mtime;
+  SFSBucket* bucket;
+  sfs::BucketRef bucketref;
+  sfs::MultipartUploadRef mp;
 
  public:
   SFSMultipartUpload(
-      CephContext* _cct, SFStore* _store, Bucket* _bucket,
-      const std::string& _oid, std::optional<std::string> _upload_id,
-      ACLOwner _owner, ceph::real_time _mtime
+      SFStore* _store, SFSBucket* _bucket, sfs::BucketRef _bucketref,
+      sfs::MultipartUploadRef _mp
   )
       : StoreMultipartUpload(_bucket),
         store(_store),
-        oid(_oid),
-        upload_id(_upload_id),
-        obj(_cct, _oid, _upload_id),
-        owner(_owner),
-        mtime(_mtime) {}
+        bucket(_bucket),
+        bucketref(_bucketref),
+        mp(_mp) {}
 
   virtual ~SFSMultipartUpload() = default;
 
-  virtual const std::string& get_meta() const { return obj.get_meta(); }
-  virtual const std::string& get_key() const { return obj.get_key(); }
+  virtual const std::string& get_meta() const { return mp->get_meta_str(); }
+  virtual const std::string& get_key() const { return mp->get_obj_name(); }
   virtual const std::string& get_upload_id() const {
-    return obj.get_upload_id();
+    return mp->get_upload_id();
   }
-  virtual const ACLOwner& get_owner() const override { return owner; }
-  virtual ceph::real_time& get_mtime() { return mtime; }
+  virtual const ACLOwner& get_owner() const override { return mp->get_owner(); }
+  virtual ceph::real_time& get_mtime() override { return mp->get_mtime(); }
   virtual std::unique_ptr<rgw::sal::Object> get_meta_obj() override;
+
   virtual int init(
       const DoutPrefixProvider* dpp, optional_yield y, ACLOwner& owner,
       rgw_placement_rule& dest_placement, rgw::sal::Attrs& attrs
   ) override;
+
   virtual int list_parts(
       const DoutPrefixProvider* dpp, CephContext* cct, int num_parts,
       int marker, int* next_marker, bool* truncated,
       bool assume_unsorted = false
   ) override;
+
   virtual int abort(const DoutPrefixProvider* dpp, CephContext* cct) override;
   virtual int complete(
       const DoutPrefixProvider* dpp, optional_yield y, CephContext* cct,
@@ -158,8 +143,19 @@ class SFSMultipartUpload : public StoreMultipartUpload {
   ) override;
 
   void dump(Formatter* f) const;
-  int write_metadata(const DoutPrefixProvider* dpp, SFSMultipartMeta& metadata);
   inline std::string get_cls_name() { return "multipart_upload"; }
+};
+
+struct SFSMultipartSerializer : public StoreMPSerializer {
+  SFSMultipartSerializer() = default;
+
+  virtual int try_lock(
+      const DoutPrefixProvider* dpp, utime_t dur, optional_yield y
+  ) override {
+    return 0;
+  }
+
+  virtual int unlock() override { return 0; }
 };
 
 }  // namespace rgw::sal

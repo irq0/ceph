@@ -47,6 +47,9 @@ std::unique_ptr<Object> SFSBucket::_get_object(sfs::ObjectRef obj) {
 }
 
 std::unique_ptr<Object> SFSBucket::get_object(const rgw_obj_key& key) {
+  // note: the current code is completely ignoring the versionID in the key.
+  // please see to 'rgw_rest_s3.cc' RGWHandler_REST_S3::init_from_header().
+
   ldout(store->ceph_context(), 10)
       << "bucket::" << __func__ << ": key" << key << dendl;
   std::lock_guard l(bucket->obj_map_lock);
@@ -242,14 +245,13 @@ std::unique_ptr<MultipartUpload> SFSBucket::get_multipart_upload(
 ) {
   ldout(store->ceph_context(), 10) << "bucket::" << __func__ << ": oid: " << oid
                                    << ", upload id: " << upload_id << dendl;
-  auto p = new SFSMultipartUpload(
-      store->ctx(), store, this, oid, upload_id, std::move(owner), mtime
-  );
-  /** Create a multipart upload in this bucket */
-  return std::unique_ptr<SFSMultipartUpload>(p);
-  // return std::make_unique<SFSMultipartUpload>(
-  //   store, this, oid, upload_id, std::move(owner), mtime
-  // );
+
+  std::string id = upload_id.value_or("");
+  if (id.empty()) {
+    id = bucket->gen_multipart_upload_id();
+  }
+  auto mp = bucket->get_multipart(id, oid, owner, mtime);
+  return std::make_unique<SFSMultipartUpload>(store, this, bucket, mp);
 }
 
 int SFSBucket::list_multiparts(
