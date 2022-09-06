@@ -215,25 +215,8 @@ if(WITH_RADOSGW_DBSTORE)
   list(APPEND librgw_common_srcs rgw_sal_dbstore.cc)
 endif()
 if(WITH_RADOSGW_SFS)
-  list(APPEND librgw_common_srcs
-    rgw_sal_sfs.cc
-    driver/sfs/bucket.cc
-    driver/sfs/multipart.cc
-    driver/sfs/object.cc
-    driver/sfs/user.cc
-    driver/sfs/types.cc
-    driver/sfs/zone.cc
-    driver/sfs/writer.cc
-    driver/sfs/sfs_bucket.cc
-    driver/sfs/sfs_user.cc
-    driver/sfs/sqlite/sqlite_users.cc
-    driver/sfs/sqlite/sqlite_buckets.cc
-    driver/sfs/sqlite/sqlite_objects.cc
-    driver/sfs/sqlite/sqlite_versioned_objects.cc
-    driver/sfs/sqlite/users/users_conversions.cc
-    driver/sfs/sqlite/buckets/bucket_conversions.cc
-    driver/sfs/sqlite/objects/object_conversions.cc
-    driver/sfs/sqlite/versioned_object/versioned_object_conversions.cc)
+  add_subdirectory(driver/sfs)
+  list(APPEND librgw_common_srcs rgw_sal_sfs.cc)
 endif()
 if(WITH_RADOSGW_MOTR)
   list(APPEND librgw_common_srcs rgw_sal_motr.cc)
@@ -338,9 +321,8 @@ if(WITH_RADOSGW_DBSTORE)
 endif()
 
 if(WITH_RADOSGW_SFS)
-  find_package(SQLite3 REQUIRED)
-  target_link_libraries(rgw_common PRIVATE sqlite3)
-ENDIF()
+  target_link_libraries(rgw_common PRIVATE global sfs)
+endif()
 
 if(WITH_RADOSGW_MOTR)
   find_package(motr REQUIRED)
