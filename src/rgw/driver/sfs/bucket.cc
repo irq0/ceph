@@ -253,16 +253,14 @@ int SFSBucket::read_stats(
     std::map<RGWObjCategory, RGWStorageStats>& stats, std::string* max_marker,
     bool* syncstopped
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  return 0;
 }
 int SFSBucket::read_stats_async(
     const DoutPrefixProvider* dpp,
     const bucket_index_layout_generation& idx_layout, int shard_id,
     RGWGetBucketStats_CB* ctx
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  return 0;
 }
 
 int SFSBucket::sync_user_stats(
