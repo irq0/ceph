@@ -108,7 +108,7 @@ int SFSMultipartUpload::complete(
                      << ", tag: " << tag
                      << ", owner: " << owner.get_display_name()
                      << ", epoch: " << olh_epoch
-                     << ", target obj: " << target_obj->get_name()
+                     << ", target obj: " << target_obj->get_key()
                      << ", obj: " << mp->objref->name << dendl;
 
   auto parts = mp->get_parts();
@@ -120,8 +120,11 @@ int SFSMultipartUpload::complete(
 
   MD5 hash;
 
+  ceph_assert(target_obj);
+  ceph_assert(target_obj->get_name() == mp->objref->name);
+  sfs::ObjectRef outobj = bucketref->get_or_create(target_obj->get_key());
   std::filesystem::path outpath =
-      store->get_data_path() / mp->objref->path.to_path();
+      store->get_data_path() / outobj->get_storage_path();
   // ensure directory structure exists
   std::filesystem::create_directories(outpath.parent_path());
 
@@ -130,6 +133,7 @@ int SFSMultipartUpload::complete(
   auto parts_it = parts.cbegin();
   auto etags_it = part_etags.cbegin();
 
+  outobj->metadata_change_version_state(store, ObjectState::WRITING);
   for (; parts_it != parts.cend() && etags_it != part_etags.cend();
        ++parts_it, ++etags_it) {
     ceph_assert(etags_it->first >= 0);
@@ -221,7 +225,7 @@ int SFSMultipartUpload::complete(
                      << ", accounted: " << accounted_size << ", offset: " << ofs
                      << ", etag: " << etag << dendl;
 
-  sfs::Object::Meta& meta = mp->objref->meta;
+  sfs::Object::Meta& meta = outobj->meta;
   meta.size = accounted_size;
   meta.etag = etag;
   meta.mtime = ceph::real_clock::now();
@@ -236,7 +240,7 @@ int SFSMultipartUpload::complete(
     std::filesystem::remove(partpath);
   }
   lsfs_dout(dpp, 10) << "removed " << parts.size() << " part objects" << dendl;
-  bucketref->finish_multipart(mp->upload_id);
+  bucketref->finish_multipart(mp->upload_id, outobj);
 
   return 0;
 }
