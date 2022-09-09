@@ -32,6 +32,10 @@ void Object::metadata_init(SFStore *store, const std::string & bucket_name,
   oinfo.bucket_name = bucket_name;
   oinfo.name = name;
 
+  // This should probably be done in one single exclusive access to the
+  // database, lest another operation happen in between and affect the version
+  // we obtain. We might have to consider to create a mechanism of sorts to lock
+  // the connection for exclusive write access for multiple operations.
   if (new_object) {
     sqlite::SQLiteObjects dbobjs(store->db_conn);
     dbobjs.store_object(oinfo);

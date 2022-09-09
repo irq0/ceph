@@ -145,6 +145,8 @@ int SFSMultipartWriter::prepare(optional_yield y) {
     partref->state == sfs::MultipartObject::State::INPROGRESS
   );
 
+  // a part does not have a version, so just obtain its raw path, ignoring the
+  // typical path including the object version.
   std::filesystem::path objpath =
     store->get_data_path() / partref->objref->path.to_path();
   std::filesystem::create_directories(objpath.parent_path());
