@@ -47,7 +47,7 @@ int SFStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
   if (bucketref->get_deleted_flag()) {
     return -ENOENT;
   }
-  auto bucket = make_unique<SFSBucket>(this, bucketref, bucketref->to_rgw_bucket_info());
+  auto bucket = make_unique<SFSBucket>(this, bucketref);
   ldpp_dout(dpp, 10) << __func__ << ": bucket: " << bucket->get_name() << dendl;
   result->reset(bucket.release());
   return 0;
@@ -68,7 +68,7 @@ int SFStore::get_bucket(const DoutPrefixProvider *dpp, User *u,
   if (bucketref->get_deleted_flag()) {
     return -ENOENT;
   }
-  auto b = make_unique<SFSBucket>(this, bucketref, bucketref->to_rgw_bucket_info());
+  auto b = make_unique<SFSBucket>(this, bucketref);
   ldpp_dout(dpp, 10) << __func__ << ": bucket: " << b->get_name() << dendl;
   bucket->reset(b.release());
   return 0;

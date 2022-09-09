@@ -99,7 +99,7 @@ ObjectRef Bucket::get_or_create(const rgw_obj_key &key) {
     obj = std::make_shared<Object>(key);
     objects[key.name] = obj;
   }
-  obj->metadata_init(store, name, new_object, create_new_version);
+  obj->metadata_init(store, info.bucket.name, new_object, create_new_version);
 
   return obj;
 }
@@ -113,7 +113,7 @@ void Bucket::finish(const DoutPrefixProvider *dpp, const std::string &objname) {
   ObjectRef ref = objects[objname];
   sqlite::DBOPObjectInfo oinfo;
   oinfo.uuid = ref->path.get_uuid();
-  oinfo.bucket_name = name;
+  oinfo.bucket_name = info.bucket.name;
   oinfo.name = objname;
   oinfo.size = ref->meta.size;
   oinfo.etag = ref->meta.etag;
@@ -181,7 +181,7 @@ void Bucket::_undelete_object(ObjectRef objref, const rgw_obj_key & key,
 
 void Bucket::_refresh_objects() {
   sqlite::SQLiteObjects objs(store->db_conn);
-  auto existing = objs.get_objects(name);
+  auto existing = objs.get_objects(info.bucket.name);
   for (const auto &obj : existing) {
     sqlite::SQLiteVersionedObjects objs_versions(store->db_conn);
     auto last_version = objs_versions.get_last_versioned_object(obj.uuid);

@@ -13,3 +13,7 @@ target_link_libraries(unittest_rgw_sfs_sqlite_objects ${rgw_libs})
 add_executable(unittest_rgw_sfs_sqlite_versioned_objects test_rgw_sfs_sqlite_versioned_objects.cc)
 add_ceph_unittest(unittest_rgw_sfs_sqlite_versioned_objects)
 target_link_libraries(unittest_rgw_sfs_sqlite_versioned_objects ${rgw_libs})
+
+add_executable(unittest_rgw_sfs_sfs_bucket test_rgw_sfs_sfs_bucket.cc)
+add_ceph_unittest(unittest_rgw_sfs_sfs_bucket)
+target_link_libraries(unittest_rgw_sfs_sfs_bucket ${rgw_libs})

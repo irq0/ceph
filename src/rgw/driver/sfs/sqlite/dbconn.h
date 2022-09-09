@@ -77,6 +77,7 @@ inline auto _make_storage(const std::string &path) {
           sqlite_orm::make_column("placement_name", &DBBucket::placement_name),
           sqlite_orm::make_column("placement_storage_class", &DBBucket::placement_storage_class),
           sqlite_orm::make_column("deleted", &DBBucket::deleted),
+          sqlite_orm::make_column("bucket_attrs", &DBBucket::bucket_attrs),
           sqlite_orm::foreign_key(&DBBucket::owner_id).references(&DBUser::user_id)),
     sqlite_orm::make_table(std::string(OBJECTS_TABLE),
           sqlite_orm::make_column("object_id", &DBObject::object_id, sqlite_orm::primary_key()),

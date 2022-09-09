@@ -136,7 +136,7 @@ int SFSUser::list_buckets(const DoutPrefixProvider *dpp,
     if (!bucketref->get_deleted_flag()) {
       buckets.add(
         std::unique_ptr<Bucket>(
-          new SFSBucket{store, bucketref, bucketref->to_rgw_bucket_info()}
+          new SFSBucket{store, bucketref}
         ));
     }
   }
@@ -185,10 +185,7 @@ int SFSUser::create_bucket(
     return -EINVAL;
   }
 
-  auto new_bucket = new SFSBucket{store, bucketref, info};
-  new_bucket->set_attrs(attrs);
-
-  bucket_out->reset(new_bucket);
+  bucket_out->reset(new SFSBucket{store, bucketref});
 
   return 0;
 }

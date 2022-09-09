@@ -76,14 +76,11 @@ class Bucket {
 
   CephContext *cct;
   SFStore *store;
-  const std::string name;
-  rgw_bucket bucket;
   RGWUserInfo owner;
-  ceph::real_time creation_time;
-  rgw_placement_rule placement_rule;
-  uint32_t flags{0};
+  RGWBucketInfo info;
+  rgw::sal::Attrs attrs;
   bool deleted{false};
-
+  
  public:
   std::map<std::string, ObjectRef> objects;
   ceph::mutex obj_map_lock = ceph::make_mutex("obj_map_lock");
@@ -101,41 +98,41 @@ class Bucket {
     CephContext *_cct,
     SFStore *_store,
     const RGWBucketInfo &_bucket_info,
-    const RGWUserInfo &_owner
-  ) : cct(_cct), store(_store), name(_bucket_info.bucket.name),
-      bucket(_bucket_info.bucket), owner(_owner),
-      creation_time(_bucket_info.creation_time),
-      placement_rule(_bucket_info.placement_rule),
-      flags(_bucket_info.flags) {
+    const RGWUserInfo &_owner,
+    const rgw::sal::Attrs &_attrs
+  ) : cct(_cct), store(_store),
+      owner(_owner),
+      info(_bucket_info),
+      attrs(_attrs) {
     _refresh_objects();
   }
 
-  RGWBucketInfo& to_rgw_bucket_info(RGWBucketInfo &out_info) const{
-    out_info.bucket = get_bucket();
-    out_info.owner = get_owner().user_id;
-    out_info.creation_time = get_creation_time();
-    out_info.placement_rule.name = placement_rule.name;
-    out_info.placement_rule.storage_class = placement_rule.storage_class; 
-    out_info.flags = get_flags();
-    return out_info;
+  const RGWBucketInfo& get_info() const{
+    return info;
   }
 
-  RGWBucketInfo to_rgw_bucket_info() const{
-    RGWBucketInfo rval;
-    to_rgw_bucket_info(rval);
-    return rval;
+  RGWBucketInfo& get_info(){
+    return info;
+  }
+
+  const rgw::sal::Attrs& get_attrs() const{
+    return attrs;
+  }
+
+  rgw::sal::Attrs& get_attrs(){
+    return attrs;
   }
 
   const std::string get_name() const {
-    return name;
+    return info.bucket.name;
   }
 
   rgw_bucket& get_bucket() {
-    return bucket;
+    return info.bucket;
   }
 
   const rgw_bucket& get_bucket() const{
-    return bucket;
+    return info.bucket;
   }
 
   RGWUserInfo& get_owner() {
@@ -147,11 +144,11 @@ class Bucket {
   }
 
   ceph::real_time get_creation_time() const{
-    return creation_time;
+    return info.creation_time;
   }
 
   uint32_t get_flags() const {
-    return flags;
+    return info.flags;
   }
 
   ObjectRef get_or_create(const rgw_obj_key &key);

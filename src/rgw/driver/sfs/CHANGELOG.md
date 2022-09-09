@@ -14,6 +14,7 @@ and this project adheres to
 - Undelete objects.
 - Ability to list buckets via admin REST API
 - Delete buckets.
+- Support for bucket ACL.
 
 ### Fixed
 

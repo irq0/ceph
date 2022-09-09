@@ -30,6 +30,7 @@ DBOPBucketInfo get_rgw_bucket(const DBBucket & bucket) {
   assign_optional_value(bucket.creation_time, rgw_bucket.binfo.creation_time);
   assign_optional_value(bucket.placement_name, rgw_bucket.binfo.placement_rule.name);
   assign_optional_value(bucket.placement_storage_class, rgw_bucket.binfo.placement_rule.storage_class);
+  assign_optional_value(bucket.bucket_attrs, rgw_bucket.battrs);
   rgw_bucket.deleted = bucket.deleted;
 
   return rgw_bucket;
@@ -49,6 +50,7 @@ DBBucket get_db_bucket(const DBOPBucketInfo & bucket) {
   assign_db_value(bucket.binfo.creation_time, db_bucket.creation_time);
   assign_db_value(bucket.binfo.placement_rule.name, db_bucket.placement_name);
   assign_db_value(bucket.binfo.placement_rule.storage_class, db_bucket.placement_storage_class);
+  assign_db_value(bucket.battrs, db_bucket.bucket_attrs);
   db_bucket.deleted = bucket.deleted;
 
   return db_bucket;
