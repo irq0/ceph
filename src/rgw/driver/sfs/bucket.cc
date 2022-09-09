@@ -26,11 +26,15 @@ using namespace std;
 
 namespace rgw::sal {
 
-SFSBucket::SFSBucket(
-    SFStore* _store, sfs::BucketRef _bucket, const RGWBucketInfo& info
-)
-    : store(_store), bucket(_bucket), acls() {
-  this->info = info;
+SFSBucket::SFSBucket(SFStore* _store, sfs::BucketRef _bucket)
+    : StoreBucket(_bucket->get_info()), store(_store), bucket(_bucket) {
+  set_attrs(bucket->get_attrs());
+
+  auto it = attrs.find(RGW_ATTR_ACL);
+  if (it != attrs.end()) {
+    auto lval = it->second.cbegin();
+    acls.decode(lval);
+  }
 }
 
 void SFSBucket::write_meta(const DoutPrefixProvider* dpp) {
@@ -169,16 +173,34 @@ int SFSBucket::load_bucket(
   return 0;
 }
 
+int SFSBucket::set_acl(
+    const DoutPrefixProvider* dpp, RGWAccessControlPolicy& acl, optional_yield y
+) {
+  acls = acl;
+
+  bufferlist aclp_bl;
+  acls.encode(aclp_bl);
+  attrs[RGW_ATTR_ACL] = aclp_bl;
+
+  sfs::get_meta_buckets(get_store().db_conn)
+      ->store_bucket(sfs::sqlite::DBOPBucketInfo(get_info(), get_attrs()));
+
+  store->_refresh_buckets_safe();
+  return 0;
+}
+
 int SFSBucket::chown(
     const DoutPrefixProvider* dpp, User& new_user, optional_yield y
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
 }
+
 bool SFSBucket::is_owner(User* user) {
   ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
   return true;
 }
+
 int SFSBucket::check_empty(const DoutPrefixProvider* dpp, optional_yield y) {
   /** Check in the backing store if this bucket is empty */
   // check if there are still objecs owned by the bucket
@@ -198,10 +220,20 @@ int SFSBucket::check_empty(const DoutPrefixProvider* dpp, optional_yield y) {
 int SFSBucket::merge_and_store_attrs(
     const DoutPrefixProvider* dpp, Attrs& new_attrs, optional_yield y
 ) {
-  /** Set the attributes in attrs, leaving any other existing attrs set, and
-   * write them to the backing store; a merge operation */
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  for (auto& it : new_attrs) {
+    attrs[it.first] = it.second;
+
+    if (it.first == RGW_ATTR_ACL) {
+      auto lval = it.second.cbegin();
+      acls.decode(lval);
+    }
+  }
+
+  sfs::get_meta_buckets(get_store().db_conn)
+      ->store_bucket(sfs::sqlite::DBOPBucketInfo(get_info(), get_attrs()));
+
+  store->_refresh_buckets_safe();
+  return 0;
 }
 
 std::unique_ptr<MultipartUpload> SFSBucket::get_multipart_upload(
@@ -312,11 +344,9 @@ int SFSBucket::check_bucket_shards(const DoutPrefixProvider* dpp) {
 int SFSBucket::put_info(
     const DoutPrefixProvider* dpp, bool exclusive, ceph::real_time mtime
 ) {
-  sfs::sqlite::DBOPBucketInfo store_info;
-  store_info.binfo = info;
+  sfs::get_meta_buckets(get_store().db_conn)
+      ->store_bucket(sfs::sqlite::DBOPBucketInfo(get_info(), get_attrs()));
 
-  auto meta_buckets = sfs::get_meta_buckets(store->db_conn);
-  meta_buckets->store_bucket(store_info);
   store->_refresh_buckets_safe();
   return 0;
 }

@@ -140,8 +140,7 @@ int SFSUser::list_buckets(
   std::list<sfs::BucketRef> lst = store->bucket_list();
   for (const auto& bucketref : lst) {
     if (!bucketref->get_deleted_flag()) {
-      buckets.add(std::unique_ptr<Bucket>(new SFSBucket{
-          store, bucketref, bucketref->to_rgw_bucket_info()}));
+      buckets.add(std::unique_ptr<Bucket>(new SFSBucket{store, bucketref}));
     }
   }
 
@@ -179,10 +178,7 @@ int SFSUser::create_bucket(
     return -EINVAL;
   }
 
-  auto new_bucket = new SFSBucket{store, bucketref, info};
-  new_bucket->set_attrs(attrs);
-
-  bucket_out->reset(new_bucket);
+  bucket_out->reset(new SFSBucket{store, bucketref});
 
   return 0;
 }

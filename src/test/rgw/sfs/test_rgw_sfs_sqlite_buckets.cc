@@ -72,8 +72,26 @@ void compareBucketRGWInfo(const RGWBucketInfo & origin, const RGWBucketInfo & de
   ASSERT_EQ(origin.quota.check_on_raw, dest.quota.check_on_raw);
 }
 
+void compareBucketAttrs(const std::optional<rgw::sal::Attrs> & origin, const std::optional<rgw::sal::Attrs> & dest) {
+  ASSERT_EQ(origin.has_value(), true);
+  ASSERT_EQ(origin.has_value(), dest.has_value());
+  auto orig_acl_bl_it = origin->find(RGW_ATTR_ACL);
+  EXPECT_TRUE(orig_acl_bl_it != origin->end());
+  auto dest_acl_bl_it = dest->find(RGW_ATTR_ACL);
+  EXPECT_TRUE(dest_acl_bl_it != dest->end());
+
+  RGWAccessControlPolicy orig_aclp;
+  auto orig_ci_lval = orig_acl_bl_it->second.cbegin();
+  orig_aclp.decode(orig_ci_lval);
+  RGWAccessControlPolicy dest_aclp;
+  auto dest_ci_lval = dest_acl_bl_it->second.cbegin();
+  dest_aclp.decode(dest_ci_lval);
+  ASSERT_EQ(orig_aclp, dest_aclp);
+}
+
 void compareBuckets(const DBOPBucketInfo & origin, const DBOPBucketInfo & dest) {
   compareBucketRGWInfo(origin.binfo, dest.binfo);
+  compareBucketAttrs(origin.battrs, dest.battrs);
   ASSERT_EQ(origin.deleted, dest.deleted);
 }
 
@@ -99,7 +117,23 @@ DBOPBucketInfo createTestBucket(const std::string & suffix) {
   bucket.binfo.quota.max_objects = 512;
   bucket.binfo.quota.enabled = true;
   bucket.binfo.quota.check_on_raw = true;
+
+  //set attrs with default ACL
+  {
+    RGWAccessControlPolicy aclp;
+    rgw_user aclu("usertest");
+    aclp.get_acl().create_default(aclu, "usertest");
+    aclp.get_owner().set_name("usertest");
+    aclp.get_owner().set_id(aclu);
+    bufferlist acl_bl;
+    aclp.encode(acl_bl);
+    rgw::sal::Attrs attrs;
+    attrs[RGW_ATTR_ACL] = acl_bl;
+    bucket.battrs = attrs;
+  }
+  
   bucket.deleted = randomBool();
+
   return bucket;
 }
 

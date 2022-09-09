@@ -67,7 +67,7 @@ class SFSBucket : public StoreBucket {
   );
 
  public:
-  SFSBucket(SFStore* _store, sfs::BucketRef _bucket, const RGWBucketInfo& info);
+  SFSBucket(SFStore* _store, sfs::BucketRef _bucket);
   SFSBucket& operator=(const SFSBucket&) = delete;
 
   virtual std::unique_ptr<Bucket> clone() override {
@@ -101,10 +101,7 @@ class SFSBucket : public StoreBucket {
   virtual int set_acl(
       const DoutPrefixProvider* dpp, RGWAccessControlPolicy& acl,
       optional_yield y
-  ) override {
-    acls = acl;
-    return 0;
-  }
+  ) override;
   /**
    * Load this bucket from disk.
    */
@@ -206,6 +203,10 @@ class SFSBucket : public StoreBucket {
       const std::string& meta
   );
   inline std::string get_cls_name() { return "bucket"; }
+
+  SFStore& get_store() { return *store; }
+
+  const SFStore& get_store() const { return *store; }
 };
 
 }  // namespace rgw::sal
