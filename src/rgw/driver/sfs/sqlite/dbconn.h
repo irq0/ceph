@@ -100,6 +100,7 @@ inline auto _make_storage(const std::string &path) {
           sqlite_orm::make_column("creation_time", &DBVersionedObject::creation_time),
           sqlite_orm::make_column("object_state", &DBVersionedObject::object_state),
           sqlite_orm::make_column("version_id", &DBVersionedObject::version_id),
+          sqlite_orm::make_column("etag", &DBVersionedObject::etag),
           sqlite_orm::foreign_key(&DBVersionedObject::object_id).references(&DBObject::object_id))
   );  
 }

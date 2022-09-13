@@ -82,6 +82,7 @@ void Object::metadata_finish(SFStore *store) {
   db_versioned_object->size = meta.size;
   db_versioned_object->creation_time = meta.mtime;
   db_versioned_object->object_state = ObjectState::COMMITTED;
+  db_versioned_object->etag = meta.etag;
   db_versioned_objs.store_versioned_object(*db_versioned_object);
 }
 

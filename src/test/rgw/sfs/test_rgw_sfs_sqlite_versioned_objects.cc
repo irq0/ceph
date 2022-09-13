@@ -116,6 +116,7 @@ DBOPVersionedObjectInfo createTestVersionedObject(uint id, const std::string & o
   test_versioned_object.creation_time = ceph::real_clock::now();
   test_versioned_object.object_state = rgw::sal::ObjectState::OPEN;
   test_versioned_object.version_id = "test_version_id_" + suffix;
+  test_versioned_object.etag = "test_etag_" + suffix;
   return test_versioned_object;
 }
 
@@ -128,6 +129,7 @@ void compareVersionedObjects(const DBOPVersionedObjectInfo & origin, const DBOPV
   ASSERT_EQ(origin.creation_time, dest.creation_time);
   ASSERT_EQ(origin.object_state, dest.object_state);
   ASSERT_EQ(origin.version_id, dest.version_id);
+  ASSERT_EQ(origin.etag, dest.etag);
 }
 
 TEST_F(TestSFSSQLiteVersionedObjects, CreateAndGet) {

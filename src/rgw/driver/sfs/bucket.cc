@@ -109,7 +109,7 @@ int SFSBucket::list_versions(const DoutPrefixProvider *dpp, ListParams &params,
       dirent.key = cls_rgw_obj_key(objref->name, object_version.version_id);
       dirent.meta.accounted_size = object_version.size;
       dirent.meta.mtime = object_version.creation_time;
-      dirent.meta.etag = objref->meta.etag;
+      dirent.meta.etag = object_version.etag;
       dirent.flags = rgw_bucket_dir_entry::FLAG_VER;
       if (last_version.has_value() && last_version->id == object_version.id) {
         dirent.flags |= rgw_bucket_dir_entry::FLAG_CURRENT;

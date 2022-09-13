@@ -37,6 +37,7 @@ DBOPVersionedObjectInfo get_rgw_versioned_object(const DBVersionedObject & objec
   decode_blob(object.creation_time, rgw_object.creation_time);
   rgw_object.object_state = get_object_state(object.object_state);
   rgw_object.version_id = object.version_id;
+  rgw_object.etag = object.etag;
   return rgw_object;
 }
 
@@ -50,6 +51,7 @@ DBVersionedObject get_db_versioned_object(const DBOPVersionedObjectInfo & object
   encode_blob(object.creation_time, db_object.creation_time);
   db_object.object_state = get_uint_object_state(object.object_state);
   db_object.version_id = object.version_id;
+  db_object.etag = object.etag;
   return db_object;
 }
 }  // namespace rgw::sal::sfs::sqlite
