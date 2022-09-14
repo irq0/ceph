@@ -64,18 +64,22 @@ int SFSBucket::list(const DoutPrefixProvider *dpp, ListParams &params, int max,
   }
   
   std::lock_guard l(bucket->obj_map_lock);
+  sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
   for (const auto &[name, objref]: bucket->objects) {
     lsfs_dout(dpp, 10) << "object: " << name << dendl;
 
-    auto obj = _get_object(objref);
-    rgw_bucket_dir_entry dirent;
-    dirent.key = cls_rgw_obj_key(name, objref->instance);
-    dirent.meta.accounted_size = obj->get_obj_size();
-    dirent.meta.mtime = obj->get_mtime();
-    dirent.meta.etag = objref->meta.etag;
-    dirent.meta.owner_display_name = bucket->get_owner().display_name;
-    dirent.meta.owner = bucket->get_owner().user_id.id;
-    results.objs.push_back(dirent);
+    auto last_version = db_versioned_objects.get_last_versioned_object(objref->path.get_uuid());
+    if (last_version->object_state == rgw::sal::ObjectState::COMMITTED) {
+      auto obj = _get_object(objref);
+      rgw_bucket_dir_entry dirent;
+      dirent.key = cls_rgw_obj_key(name, objref->instance);
+      dirent.meta.accounted_size = obj->get_obj_size();
+      dirent.meta.mtime = obj->get_mtime();
+      dirent.meta.etag = objref->meta.etag;
+      dirent.meta.owner_display_name = bucket->get_owner().display_name;
+      dirent.meta.owner = bucket->get_owner().user_id.id;
+      results.objs.push_back(dirent);
+    }
   }
   
   lsfs_dout(dpp, 10) << "found " << results.objs.size() << " objects" << dendl;
@@ -100,6 +104,9 @@ int SFSBucket::list_versions(const DoutPrefixProvider *dpp, ListParams &params,
       dirent.flags = rgw_bucket_dir_entry::FLAG_VER;
       if (last_version.has_value() && last_version->id == object_version.id) {
         dirent.flags |= rgw_bucket_dir_entry::FLAG_CURRENT;
+      }
+      if (object_version.object_state == rgw::sal::ObjectState::DELETED) {
+        dirent.flags |= rgw_bucket_dir_entry::FLAG_DELETE_MARKER;
       }
       dirent.meta.owner_display_name = bucket->get_owner().display_name;
       dirent.meta.owner = bucket->get_owner().user_id.id;

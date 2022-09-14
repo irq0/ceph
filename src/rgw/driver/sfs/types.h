@@ -27,6 +27,7 @@
 #include "rgw/driver/sfs/sqlite/dbconn.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
+#include "rgw/driver/sfs/sqlite/sqlite_versioned_objects.h"
 
 namespace rgw::sal::sfs {
 
@@ -90,6 +91,9 @@ class Bucket {
 
  private:
   void _refresh_objects();
+  void _undelete_object(ObjectRef objref, const rgw_obj_key & key,
+                        sqlite::SQLiteVersionedObjects & sqlite_versioned_objects,
+                        sqlite::DBOPVersionedObjectInfo & last_version);
 
  public:
   Bucket(
@@ -161,7 +165,7 @@ class Bucket {
 
   void finish(const DoutPrefixProvider *dpp, const std::string &objname);
 
-  void delete_object(ObjectRef objref);
+  void delete_object(ObjectRef objref, const rgw_obj_key & key);
 
   inline std::string get_cls_name() { return "sfs::bucket"; }
 };
