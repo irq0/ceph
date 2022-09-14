@@ -20,6 +20,12 @@ and this project adheres to
 - Fixed the admin API request: get-bucket-info where the client was receiving
   an empty response.
 
+- Show delete markers when listing object versions.
+
+### Added
+
+- Undelete objects.
+
 ## [0.4.0] - 2022-09-01
 
 ### Added

@@ -137,7 +137,7 @@ int SFSObject::SFSDeleteOp::delete_obj(
     source->refresh_meta();
   }
   ceph_assert(source->objref);
-  bucketref->delete_object(source->objref);
+  bucketref->delete_object(source->objref, source->get_key());
   return 0;
 }
 
@@ -341,11 +341,13 @@ void SFSObject::refresh_meta() {
     // object specific version requested and it's not the last one
     sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
     auto db_version = db_versioned_objects.get_versioned_object(get_instance());
-    auto uuid = objref->path.get_uuid();
-    auto deleted = db_version->object_state == ObjectState::DELETED;
-    objref = std::make_shared<sfs::Object>(get_name(), uuid, deleted);
-    objref->version_id = db_version->id;
-    set_obj_size(db_version->size);
+    if (db_version.has_value()) {
+      auto uuid = objref->path.get_uuid();
+      auto deleted = db_version->object_state == ObjectState::DELETED;
+      objref = std::make_shared<sfs::Object>(get_name(), uuid, deleted);
+      objref->version_id = db_version->id;
+      set_obj_size(db_version->size);
+    }
   } else {
     set_obj_size(meta.size);
   }
