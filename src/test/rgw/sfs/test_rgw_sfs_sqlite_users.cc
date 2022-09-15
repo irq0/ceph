@@ -437,7 +437,9 @@ TEST_F(TestSFSSQLiteUsers, StoreListUsers) {
   const NoDoutPrefix no_dpp(ceph_context.get(), 1);
   std::list<std::string> userIds;
   bool truncated;
-  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  void * meta_handle;
+  store->meta_list_keys_init(&no_dpp, std::string("user"), std::string(), &meta_handle);
+  store->meta_list_keys_next(&no_dpp, meta_handle, std::numeric_limits<int>::max(), userIds, &truncated);
   ASSERT_FALSE(truncated);
   ASSERT_EQ(userIds.size(), 0);
 
@@ -450,7 +452,7 @@ TEST_F(TestSFSSQLiteUsers, StoreListUsers) {
   db_users->store_user(user2);
   db_users->store_user(user3);
 
-  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(),userIds, &truncated);
+  store->meta_list_keys_next(&no_dpp, meta_handle, std::numeric_limits<int>::max(),userIds, &truncated);
   ASSERT_FALSE(truncated);
   ASSERT_EQ(userIds.size(), 3);
   std::vector<std::string> users_vector{ std::make_move_iterator(userIds.begin()),
@@ -474,7 +476,9 @@ TEST_F(TestSFSSQLiteUsers, StoreAddUser) {
 
   std::list<std::string> userIds;
   bool truncated;
-  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  void * meta_handle;
+  store->meta_list_keys_init(&no_dpp, std::string("user"), std::string(), &meta_handle);
+  store->meta_list_keys_next(&no_dpp, meta_handle, std::numeric_limits<int>::max(), userIds, &truncated);
   ASSERT_FALSE(truncated);
   ASSERT_EQ(userIds.size(), 1);
 
@@ -642,7 +646,9 @@ TEST_F(TestSFSSQLiteUsers, StoreRemoveUser) {
   const NoDoutPrefix no_dpp(ceph_context.get(), 1);
   std::list<std::string> userIds;
   bool truncated;
-  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  void * meta_handle;
+  store->meta_list_keys_init(&no_dpp, std::string("user"), std::string(), &meta_handle);
+  store->meta_list_keys_next(&no_dpp, meta_handle, std::numeric_limits<int>::max(), userIds, &truncated);
   ASSERT_FALSE(truncated);
   ASSERT_EQ(userIds.size(), 0);
 
@@ -654,7 +660,7 @@ TEST_F(TestSFSSQLiteUsers, StoreRemoveUser) {
   db_users->store_user(user2);
   db_users->store_user(user3);
 
-  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  store->meta_list_keys_next(&no_dpp, meta_handle, std::numeric_limits<int>::max(), userIds, &truncated);
   ASSERT_FALSE(truncated);
   ASSERT_EQ(userIds.size(), 3);
   std::vector<std::string> users_vector{ std::make_move_iterator(userIds.begin()),
@@ -669,7 +675,7 @@ TEST_F(TestSFSSQLiteUsers, StoreRemoveUser) {
 
   // ensure the user was removed
   userIds.clear();
-  store->meta_list_keys_next(&no_dpp, nullptr, std::numeric_limits<int>::max(), userIds, &truncated);
+  store->meta_list_keys_next(&no_dpp, meta_handle, std::numeric_limits<int>::max(), userIds, &truncated);
   ASSERT_FALSE(truncated);
   ASSERT_EQ(userIds.size(), 2);
   std::vector<std::string> users_after_remove_vector{ std::make_move_iterator(userIds.begin()),

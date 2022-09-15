@@ -26,6 +26,7 @@
 #include "common/errno.h"
 #include "driver/sfs/notification.h"
 #include "driver/sfs/writer.h"
+#include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
 #include "rgw_acl_s3.h"
 #include "rgw_aio.h"
@@ -242,11 +243,33 @@ int SFStore::get_config_key_val(string name, bufferlist* bl) {
   return 0;
 }
 
+/*
+ The following is a nasty hack to make meta_list_keys_*() work with both
+ users and buckets.  What we _should_ do is create some extra class that
+ knows how to do meta key listing of various types of object, and pass an
+ instance of that around via the handle arguments to these functions.
+ This would allow that as-yet-nonexistent class to keep track of max and
+ truncated in meta_list_keys_next().  Instead, the immediate nasty hack is
+ to make handle point at a const string which indicates what type of
+ metadata we're dealing with, then check that value and call an instance
+ of the appropriate rgw::sal::sfs::sqlite::SQLite* class to get the
+ metdata we care about.
+
+ TODO: replace this nasty hack.
+ */
+const char* const handle_user = "user";
+const char* const handle_bucket = "bucket";
+
 int SFStore::meta_list_keys_init(
     const DoutPrefixProvider* dpp, const string& section, const string& marker,
     void** phandle
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
+  if (section == "user") {
+    *phandle = (void*)handle_user;
+  } else if (section == "bucket") {
+    *phandle = (void*)handle_bucket;
+  }
   return 0;
 }
 
@@ -255,9 +278,15 @@ int SFStore::meta_list_keys_next(
     bool* truncated
 ) {
   *truncated = false;
-  rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(db_conn);
-  auto ids = sqlite_users.get_user_ids();
-  std::copy(ids.begin(), ids.end(), std::back_inserter(keys));
+  if (handle == (void*)handle_user) {
+    rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(db_conn);
+    auto ids = sqlite_users.get_user_ids();
+    std::copy(ids.begin(), ids.end(), std::back_inserter(keys));
+  } else if (handle == (void*)handle_bucket) {
+    rgw::sal::sfs::sqlite::SQLiteBuckets sqlite_buckets(db_conn);
+    auto ids = sqlite_buckets.get_bucket_ids();
+    std::copy(ids.begin(), ids.end(), std::back_inserter(keys));
+  }
   return 0;
 }
 

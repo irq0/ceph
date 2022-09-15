@@ -26,6 +26,8 @@ and this project adheres to
 
 - Undelete objects.
 
+- Ability to list buckets via admin REST API
+
 ## [0.4.0] - 2022-09-01
 
 ### Added
