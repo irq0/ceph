@@ -285,6 +285,12 @@ int SFSMultipartUpload::get_info(
     }
   }
 
+  if (mp->state == sfs::MultipartUpload::State::NONE) {
+    lsfs_dout(dpp, 10) << "upload_id: " << mp->upload_id
+                       << " does not exist!" << dendl;
+    return -ERR_NO_SUCH_UPLOAD;
+  }
+
   if (attrs) {
     *attrs = mp->objref->meta.attrs;
   }
