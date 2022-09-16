@@ -86,7 +86,7 @@ int SFSObject::SFSReadOp::read(
                        << ". Returning EIO." << dendl;
     return -EIO;
   }
-  return 0;
+  return len;
 }
 
 // async read
@@ -117,7 +117,7 @@ int SFSObject::SFSReadOp::iterate(
   }
 
   cb->handle_data(bl, ofs, len);
-  return 0;
+  return len;
 }
 
 SFSObject::SFSDeleteOp::SFSDeleteOp(
