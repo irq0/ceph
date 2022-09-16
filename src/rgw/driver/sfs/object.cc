@@ -88,7 +88,7 @@ int SFSObject::SFSReadOp::read(int64_t ofs, int64_t end,
                        << ". Returning EIO." << dendl;
     return -EIO;
   }
-  return 0;
+  return len;
 }
 
 // async read
@@ -120,7 +120,7 @@ int SFSObject::SFSReadOp::iterate(const DoutPrefixProvider *dpp,
   }
 
   cb->handle_data(bl, ofs, len);
-  return 0;
+  return len;
 }
 
 SFSObject::SFSDeleteOp::SFSDeleteOp(
