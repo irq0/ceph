@@ -102,21 +102,32 @@ int SFSObject::SFSReadOp::iterate(
                      << ", offset: " << ofs << ", end: " << end
                      << ", len: " << len << dendl;
 
-  // auto objpath = source->get_data_path();
-  // ceph_assert(std::filesystem::exists(objpath));
   ceph_assert(std::filesystem::exists(objdata));
-
-  // TODO chunk the read
-  bufferlist bl;
   std::string error;
-  int ret = bl.pread_file(objdata.c_str(), ofs, len, &error);
-  if (ret < 0) {
-    lsfs_dout(dpp, 10) << "failed to read object from file " << objdata
-                       << ". Returning EIO." << dendl;
-    return -EIO;
-  }
 
-  cb->handle_data(bl, ofs, len);
+  const uint64_t max_chunk_size = 10485760;  // 10MB
+  uint64_t missing = len;
+  while (missing > 0) {
+    uint64_t size = std::min(missing, max_chunk_size);
+    bufferlist bl;
+    int ret = bl.pread_file(objdata.c_str(), ofs, size, &error);
+    if (ret < 0) {
+      lsfs_dout(dpp, 0) << "failed to read object from file '" << objdata
+                        << ", offset: " << ofs << ", size: " << size << ": "
+                        << error << dendl;
+      return -EIO;
+    }
+    missing -= size;
+    lsfs_dout(dpp, 10) << "return " << size << "/" << len << ", offset: " << ofs
+                       << ", missing: " << missing << dendl;
+    ret = cb->handle_data(bl, 0, size);
+    if (ret < 0) {
+      lsfs_dout(dpp, 0) << "failed to return object data: " << ret << dendl;
+      return -EIO;
+    }
+
+    ofs += size;
+  }
   return len;
 }
 
