@@ -254,6 +254,21 @@ std::unique_ptr<MultipartUpload> SFSBucket::get_multipart_upload(
   return std::make_unique<SFSMultipartUpload>(store, this, bucket, mp);
 }
 
+/**
+ * @brief Obtain a list of on-going multipart uploads on this bucket.
+ *
+ * @param dpp
+ * @param prefix
+ * @param marker First key (non-inclusive) to be returned. This is not the same
+ * key as the one the user provides; instead, it's the meta-key for the upload
+ * with the key the user provided.
+ * @param delim
+ * @param max_uploads Maximum number of entries in the list. Defaults to 1000.
+ * @param uploads Vector to be populated with the results.
+ * @param common_prefixes
+ * @param is_truncated Whether the returned list is complete.
+ * @return int
+ */
 int SFSBucket::list_multiparts(
     const DoutPrefixProvider* dpp, const std::string& prefix,
     std::string& marker, const std::string& delim, const int& max_uploads,
@@ -261,8 +276,37 @@ int SFSBucket::list_multiparts(
     std::map<std::string, bool>* common_prefixes, bool* is_truncated
 ) {
   /** List multipart uploads currently in this bucket */
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  lsfs_dout(dpp, 10) << "prefix: " << prefix << ", marker: " << marker
+                     << ", delim: " << delim << ", max_uploads: " << max_uploads
+                     << dendl;
+
+  auto mps = bucket->get_multiparts();
+  int num_uploads = 0;
+
+  // we are going to check markers by the multipart's meta string, so we need a
+  // map with those entries ordered before we can take action.
+  std::map<std::string, sfs::MultipartUploadRef> entries;
+  for (const auto& [mpid, mp] : mps) {
+    entries[mp->get_meta_str()] = mp;
+  }
+
+  for (const auto& [metastr, mp] : entries) {
+    if (num_uploads >= max_uploads) {
+      if (is_truncated) {
+        *is_truncated = true;
+      }
+      break;
+    }
+    if (metastr <= marker) {
+      continue;
+    }
+    uploads.push_back(
+        std::make_unique<SFSMultipartUpload>(store, this, bucket, mp)
+    );
+    ++num_uploads;
+  }
+
+  return 0;
 }
 
 int SFSBucket::abort_multiparts(

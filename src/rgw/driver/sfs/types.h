@@ -331,6 +331,12 @@ class Bucket {
     return ceph::to_iso_8601_no_separators(now, ceph::iso_8601_format::YMDhmsn);
   }
 
+  std::map<std::string, MultipartUploadRef> get_multiparts() {
+    std::lock_guard l(multipart_map_lock);
+    // this should be doing a copy
+    return multiparts;
+  }
+
   inline std::string get_cls_name() { return "sfs::bucket"; }
 
   void set_deleted_flag(bool deleted_flag) { deleted = deleted_flag; }
