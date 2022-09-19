@@ -133,8 +133,12 @@ int SFSUser::list_buckets(const DoutPrefixProvider *dpp,
 
   std::list<sfs::BucketRef> lst = store->bucket_list();
   for (const auto &bucketref : lst) {
-    auto bucket = std::unique_ptr<Bucket>(new SFSBucket{store, bucketref, bucketref->to_rgw_bucket_info()});
-    buckets.add(std::move(bucket));
+    if (!bucketref->get_deleted_flag()) {
+      buckets.add(
+        std::unique_ptr<Bucket>(
+          new SFSBucket{store, bucketref, bucketref->to_rgw_bucket_info()}
+        ));
+    }
   }
   
   ldpp_dout(dpp, 10) << __func__ << ": buckets=" << buckets.get_buckets()

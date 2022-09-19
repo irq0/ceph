@@ -82,6 +82,7 @@ class Bucket {
   ceph::real_time creation_time;
   rgw_placement_rule placement_rule;
   uint32_t flags{0};
+  bool deleted{false};
 
  public:
   std::map<std::string, ObjectRef> objects;
@@ -168,6 +169,9 @@ class Bucket {
   void delete_object(ObjectRef objref, const rgw_obj_key & key);
 
   inline std::string get_cls_name() { return "sfs::bucket"; }
+
+  void set_deleted_flag(bool deleted_flag) { deleted = deleted_flag; }
+  bool get_deleted_flag() const { return deleted; }
 };
 
 using BucketRef = std::shared_ptr<Bucket>;

@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <memory>
+#include <random>
 
 using namespace rgw::sal::sfs::sqlite;
 
@@ -73,6 +74,13 @@ void compareBucketRGWInfo(const RGWBucketInfo & origin, const RGWBucketInfo & de
 
 void compareBuckets(const DBOPBucketInfo & origin, const DBOPBucketInfo & dest) {
   compareBucketRGWInfo(origin.binfo, dest.binfo);
+  ASSERT_EQ(origin.deleted, dest.deleted);
+}
+
+bool randomBool() {
+  std::random_device generator;
+  std::uniform_int_distribution<int> distribution(0,1);
+  return static_cast<bool>(distribution(generator));
 }
 
 DBOPBucketInfo createTestBucket(const std::string & suffix) {
@@ -91,6 +99,7 @@ DBOPBucketInfo createTestBucket(const std::string & suffix) {
   bucket.binfo.quota.max_objects = 512;
   bucket.binfo.quota.enabled = true;
   bucket.binfo.quota.check_on_raw = true;
+  bucket.deleted = randomBool();
   return bucket;
 }
 
