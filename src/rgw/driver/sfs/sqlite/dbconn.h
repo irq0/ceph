@@ -91,6 +91,7 @@ inline auto _make_storage(const std::string& path) {
           sqlite_orm::make_column(
               "placement_storage_class", &DBBucket::placement_storage_class
           ),
+          sqlite_orm::make_column("deleted", &DBBucket::deleted),
           sqlite_orm::foreign_key(&DBBucket::owner_id)
               .references(&DBUser::user_id)
       ),

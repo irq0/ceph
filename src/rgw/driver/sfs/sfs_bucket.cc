@@ -45,6 +45,10 @@ int SFStore::get_bucket(
     return -ENOENT;
   }
   auto bucketref = it->second;
+
+  if (bucketref->get_deleted_flag()) {
+    return -ENOENT;
+  }
   auto bucket =
       make_unique<SFSBucket>(this, bucketref, bucketref->to_rgw_bucket_info());
   ldpp_dout(dpp, 10) << __func__ << ": bucket: " << bucket->get_name() << dendl;
@@ -63,6 +67,9 @@ int SFStore::get_bucket(
     return -ENOENT;
   }
   auto bucketref = it->second;
+  if (bucketref->get_deleted_flag()) {
+    return -ENOENT;
+  }
   auto b =
       make_unique<SFSBucket>(this, bucketref, bucketref->to_rgw_bucket_info());
   ldpp_dout(dpp, 10) << __func__ << ": bucket: " << b->get_name() << dendl;

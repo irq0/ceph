@@ -133,9 +133,24 @@ int SFSBucket::remove_bucket(
     const DoutPrefixProvider* dpp, bool delete_children, bool forward_to_master,
     req_info* req_info, optional_yield y
 ) {
-  /** Remove this bucket from the backing store */
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  std::lock_guard l(bucket->obj_map_lock);
+  if (!delete_children) {
+    if (check_empty(dpp, y)) {
+      return -ENOENT;
+    }
+  }
+  // at this point bucket should be empty and we're good to go
+  sfs::sqlite::SQLiteBuckets db_buckets(store->db_conn);
+  auto db_bucket = db_buckets.get_bucket(get_name());
+  if (!db_bucket.has_value()) {
+    ldpp_dout(dpp, 1) << __func__ << ": Bucket metadata was not found.."
+                      << dendl;
+    return -ENOENT;
+  }
+  db_bucket->deleted = true;
+  db_buckets.store_bucket(*db_bucket);
+  bucket->set_deleted_flag(true);
+  return 0;
 }
 
 int SFSBucket::remove_bucket_bypass_gc(
@@ -166,8 +181,18 @@ bool SFSBucket::is_owner(User* user) {
 }
 int SFSBucket::check_empty(const DoutPrefixProvider* dpp, optional_yield y) {
   /** Check in the backing store if this bucket is empty */
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  // check if there are still objecs owned by the bucket
+  sfs::sqlite::SQLiteObjects db_objects(store->db_conn);
+  auto objects = db_objects.get_object_ids(get_name());
+  sfs::sqlite::SQLiteVersionedObjects db_versions(store->db_conn);
+  for (const auto& obj : objects) {
+    auto last_version = db_versions.get_last_versioned_object(obj);
+    if (last_version->object_state != rgw::sal::ObjectState::DELETED) {
+      ldpp_dout(dpp, -1) << __func__ << ": Bucket Not Empty.." << dendl;
+      return -ENOTEMPTY;
+    }
+  }
+  return 0;
 }
 
 int SFSBucket::merge_and_store_attrs(
@@ -274,8 +299,7 @@ int SFSBucket::read_stats_async(
 int SFSBucket::sync_user_stats(
     const DoutPrefixProvider* dpp, optional_yield y
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  return 0;
 }
 int SFSBucket::update_container_stats(const DoutPrefixProvider* dpp) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;

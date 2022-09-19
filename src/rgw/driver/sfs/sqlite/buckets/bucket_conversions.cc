@@ -36,6 +36,7 @@ DBOPBucketInfo get_rgw_bucket(const DBBucket& bucket) {
       bucket.placement_storage_class,
       rgw_bucket.binfo.placement_rule.storage_class
   );
+  rgw_bucket.deleted = bucket.deleted;
 
   return rgw_bucket;
 }
@@ -57,6 +58,7 @@ DBBucket get_db_bucket(const DBOPBucketInfo& bucket) {
       bucket.binfo.placement_rule.storage_class,
       db_bucket.placement_storage_class
   );
+  db_bucket.deleted = bucket.deleted;
 
   return db_bucket;
 }

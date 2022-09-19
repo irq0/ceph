@@ -395,10 +395,12 @@ class SFStore : public StoreDriver {
     buckets.clear();
     sfs::sqlite::SQLiteUsers users(db_conn);
     for (auto& b : existing) {
-      auto user = users.get_user(b.binfo.owner.id);
-      sfs::BucketRef ref =
-          std::make_shared<sfs::Bucket>(ctx(), this, b.binfo, user->uinfo);
-      buckets[b.binfo.bucket.name] = ref;
+      if (!b.deleted) {
+        auto user = users.get_user(b.binfo.owner.id);
+        sfs::BucketRef ref =
+            std::make_shared<sfs::Bucket>(ctx(), this, b.binfo, user->uinfo);
+        buckets[b.binfo.bucket.name] = ref;
+      }
     }
   }
 

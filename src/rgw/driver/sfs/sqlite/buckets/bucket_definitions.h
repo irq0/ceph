@@ -54,11 +54,13 @@ struct DBBucket {
   std::optional<int> bucket_version;
   std::optional<std::string> bucket_version_tag;
   std::optional<BLOB> mtime;
+  bool deleted;
 };
 
 // Struct with information needed by SAL layer
 struct DBOPBucketInfo {
   RGWBucketInfo binfo;
+  bool deleted{false};
 };
 
 }  // namespace rgw::sal::sfs::sqlite

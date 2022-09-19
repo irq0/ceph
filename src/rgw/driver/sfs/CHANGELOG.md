@@ -12,8 +12,8 @@ and this project adheres to
 ### Added
 
 - Undelete objects.
-
 - Ability to list buckets via admin REST API
+- Delete buckets.
 
 ### Fixed
 
