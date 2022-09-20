@@ -377,7 +377,9 @@ class Bucket {
 
   std::string gen_multipart_upload_id() {
     auto now = ceph::real_clock::now();
-    return ceph::to_iso_8601_no_separators(now, ceph::iso_8601_format::YMDhms); 
+    return ceph::to_iso_8601_no_separators(
+      now, ceph::iso_8601_format::YMDhmsn
+    );
   }
 
   inline std::string get_cls_name() { return "sfs::bucket"; }
