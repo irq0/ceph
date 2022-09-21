@@ -43,13 +43,6 @@ int SFSMultipartUpload::init(
   lsfs_dout(dpp, 10) << "objid: " << get_key() << ", upload_id: "
                      << get_upload_id() << ", meta: " << get_meta() << dendl;
 
-  // SFSMultipartMeta metadata(
-  //   owner, attrs, dest_placement, RGWObjCategory::MultiMeta,
-  //   PUT_OBJ_CREATE_EXCL,  // this comes from rgw_rados.h, we should change it.
-  //   mtime
-  // );
-  // write_metadata(dpp, metadata);
-
   mp->init(dest_placement, attrs);
   return 0;
 }
@@ -316,11 +309,6 @@ std::unique_ptr<Writer> SFSMultipartUpload::get_writer(
   return std::make_unique<SFSMultipartWriter>(
     dpp, y, this, store, partref, part_num
   );
-
-  // return std::make_unique<SFSMultipartWriter>(
-  //   dpp, y, this, std::move(head_obj), store, _owner,
-  //   ptail_placement_rule, part_num, part_num_str
-  // );
 }
 
 void SFSMultipartUpload::dump(Formatter *f) const {
