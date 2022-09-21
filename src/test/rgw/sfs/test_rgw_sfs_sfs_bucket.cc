@@ -407,3 +407,137 @@ TEST_F(TestSFSBucket, BucketMergeAndStoreAttrs) {
   EXPECT_EQ(bucket_from_store_1->get_attrs(), new_attrs);
   EXPECT_EQ(bucket_from_store->get_acl(), bucket_from_store_1->get_acl());
 }
+
+TEST_F(TestSFSBucket, DeleteBucket) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = new rgw::sal::SFStore(ceph_context.get(), getTestDir());
+
+  NoDoutPrefix ndp(ceph_context.get(), 1);
+  RGWEnv env;
+  env.init(ceph_context.get());
+  createUser("usr_id", store->db_conn);
+
+  rgw_user arg_user("", "usr_id", "");
+  auto user = store->get_user(arg_user);
+
+  rgw_bucket arg_bucket("t_id", "b_name", "");
+  rgw_placement_rule arg_pl_rule("default", "STANDARD");
+  std::string arg_swift_ver_location;
+  RGWQuotaInfo arg_quota_info;
+  RGWAccessControlPolicy arg_aclp = get_aclp_default();
+  rgw::sal::Attrs arg_attrs;
+  {
+    bufferlist acl_bl;
+    arg_aclp.encode(acl_bl);
+    arg_attrs[RGW_ATTR_ACL] = acl_bl;
+  }
+
+  RGWBucketInfo arg_info = get_binfo();
+  obj_version arg_objv;
+  bool existed = false;
+  req_info arg_req_info(ceph_context.get(), &env);
+
+  std::unique_ptr<rgw::sal::Bucket> bucket_from_create;
+
+  EXPECT_EQ(user->create_bucket(&ndp,                       //dpp
+                                arg_bucket,                 //b
+                                "zg1",                      //zonegroup_id
+                                arg_pl_rule,                //placement_rule
+                                arg_swift_ver_location,     //swift_ver_location
+                                &arg_quota_info,            //pquota_info
+                                arg_aclp,                   //policy
+                                arg_attrs,                  //attrs
+                                arg_info,                   //info
+                                arg_objv,                   //ep_objv
+                                false,                      //exclusive
+                                false,                      //obj_lock_enabled
+                                &existed,                   //existed
+                                arg_req_info,               //req_info
+                                &bucket_from_create,        //bucket
+                                null_yield                  //optional_yield
+                                ),
+            0);
+
+  std::unique_ptr<rgw::sal::Bucket> bucket_from_store;
+
+  EXPECT_EQ(store->get_bucket(&ndp,
+                              user.get(),
+                              arg_info.bucket,
+                              &bucket_from_store,
+                              null_yield),
+            0);
+
+  EXPECT_EQ(*bucket_from_store, *bucket_from_create);
+
+  // perform a basic check in the metadata state
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+  auto db_buckets = std::make_shared<SQLiteBuckets>(conn);
+  ASSERT_NE(bucket_from_create->get_bucket_id(), "");
+  auto b_metadata = db_buckets->get_bucket(bucket_from_create->get_bucket_id());
+  ASSERT_TRUE(b_metadata.has_value());
+  EXPECT_FALSE(b_metadata->deleted);
+
+  EXPECT_EQ(bucket_from_store->remove_bucket(&ndp,
+                                             true,
+                                             false,
+                                             nullptr,
+                                             null_yield),
+            0);
+
+  // after removing bucket should not be available anymore
+  EXPECT_EQ(store->get_bucket(&ndp,
+                              user.get(),
+                              arg_info.bucket,
+                              &bucket_from_store,
+                              null_yield),
+            -ENOENT);
+
+  // Also verify in metadata that the bucket has the deleted marker
+  b_metadata = db_buckets->get_bucket(bucket_from_create->get_bucket_id());
+  ASSERT_TRUE(b_metadata.has_value());
+  EXPECT_TRUE(b_metadata->deleted);
+
+  // now create the bucket again (should be ok, but bucket_id should differ)
+  auto prev_bucket_id = bucket_from_create->get_bucket_id();
+  EXPECT_EQ(user->create_bucket(&ndp,                     //dpp
+                              arg_bucket,                 //b
+                              "zg1",                      //zonegroup_id
+                              arg_pl_rule,                //placement_rule
+                              arg_swift_ver_location,     //swift_ver_location
+                              &arg_quota_info,            //pquota_info
+                              arg_aclp,                   //policy
+                              arg_attrs,                  //attrs
+                              arg_info,                   //info
+                              arg_objv,                   //ep_objv
+                              false,                      //exclusive
+                              false,                      //obj_lock_enabled
+                              &existed,                   //existed
+                              arg_req_info,               //req_info
+                              &bucket_from_create,        //bucket
+                              null_yield                  //optional_yield
+                              ),
+          0);
+
+  EXPECT_EQ(store->get_bucket(&ndp,
+                              user.get(),
+                              arg_info.bucket,
+                              &bucket_from_store,
+                              null_yield),
+            0);
+
+  EXPECT_EQ(*bucket_from_store, *bucket_from_create);
+  EXPECT_NE(prev_bucket_id, bucket_from_create->get_bucket_id());
+  b_metadata = db_buckets->get_bucket(bucket_from_create->get_bucket_id());
+  ASSERT_TRUE(b_metadata.has_value());
+  EXPECT_FALSE(b_metadata->deleted);
+
+  // if we query in metadata for buckets with the same name it should
+  // return 2 entries.
+  auto bucket_name = bucket_from_create->get_name();
+  auto metadata_same_name = db_buckets->get_bucket_by_name(bucket_name);
+  ASSERT_EQ(metadata_same_name.size(), 2);
+  ASSERT_TRUE(metadata_same_name[0].deleted);
+  ASSERT_FALSE(metadata_same_name[1].deleted);
+
+}

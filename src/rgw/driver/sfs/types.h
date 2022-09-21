@@ -68,7 +68,7 @@ struct Object {
 
   std::filesystem::path get_storage_path() const;
 
-  void metadata_init(SFStore *store, const std::string & bucket_name,
+  void metadata_init(SFStore *store, const std::string & bucket_id,
                      bool new_object, bool new_version);
   void metadata_change_version_state(SFStore *store, ObjectState state);
   void metadata_finish(SFStore *store);
@@ -318,6 +318,10 @@ class Bucket {
     return info.bucket.name;
   }
 
+  const std::string get_bucket_id() const {
+    return info.bucket.bucket_id;
+  }
+
   rgw_bucket& get_bucket() {
     return info.bucket;
   }
@@ -431,9 +435,6 @@ class Bucket {
   }
 
   inline std::string get_cls_name() { return "sfs::bucket"; }
-
-  void set_deleted_flag(bool deleted_flag) { deleted = deleted_flag; }
-  bool get_deleted_flag() const { return deleted; }
 };
 
 using BucketRef = std::shared_ptr<Bucket>;

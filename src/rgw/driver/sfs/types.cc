@@ -25,11 +25,11 @@ std::filesystem::path Object::get_storage_path() const {
   return path.to_path() / std::to_string(version_id);
 }
 
-void Object::metadata_init(SFStore *store, const std::string & bucket_name,
+void Object::metadata_init(SFStore *store, const std::string & bucket_id,
                            bool new_object, bool new_version) {
   sqlite::DBOPObjectInfo oinfo;
   oinfo.uuid = path.get_uuid();
-  oinfo.bucket_name = bucket_name;
+  oinfo.bucket_id = bucket_id;
   oinfo.name = name;
 
   // This should probably be done in one single exclusive access to the
@@ -150,7 +150,7 @@ ObjectRef Bucket::get_or_create(const rgw_obj_key &key) {
     obj = std::make_shared<Object>(key);
     objects[key.name] = obj;
   }
-  obj->metadata_init(store, info.bucket.name, new_object, create_new_version);
+  obj->metadata_init(store, info.bucket.bucket_id, new_object, create_new_version);
 
   return obj;
 }
@@ -168,7 +168,7 @@ void Bucket::finish(const DoutPrefixProvider *dpp, const std::string &objname) {
 void Bucket::_finish_object(ObjectRef ref) {
   sqlite::DBOPObjectInfo oinfo;
   oinfo.uuid = ref->path.get_uuid();
-  oinfo.bucket_name = info.bucket.name;
+  oinfo.bucket_id = info.bucket.bucket_id;
   oinfo.name = ref->name;
   oinfo.size = ref->meta.size;
   oinfo.etag = ref->meta.etag;
@@ -236,7 +236,7 @@ void Bucket::_undelete_object(ObjectRef objref, const rgw_obj_key & key,
 
 void Bucket::_refresh_objects() {
   sqlite::SQLiteObjects objs(store->db_conn);
-  auto existing = objs.get_objects(info.bucket.name);
+  auto existing = objs.get_objects(info.bucket.bucket_id);
   for (const auto &obj : existing) {
     sqlite::SQLiteVersionedObjects objs_versions(store->db_conn);
     auto last_version = objs_versions.get_last_versioned_object(obj.uuid);

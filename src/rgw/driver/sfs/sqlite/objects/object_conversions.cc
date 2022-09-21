@@ -19,7 +19,7 @@ namespace rgw::sal::sfs::sqlite  {
 DBOPObjectInfo get_rgw_object(const DBObject & object) {
   DBOPObjectInfo rgw_object;
   rgw_object.uuid.parse(object.object_id.c_str());
-  rgw_object.bucket_name = object.bucket_name;
+  rgw_object.bucket_id = object.bucket_id;
   rgw_object.name = object.name;
   assign_optional_value(object.size, rgw_object.size);
   assign_optional_value(object.etag, rgw_object.etag);
@@ -34,7 +34,7 @@ DBOPObjectInfo get_rgw_object(const DBObject & object) {
 DBObject get_db_object(const DBOPObjectInfo & object) {
   DBObject db_object;
   db_object.object_id = object.uuid.to_string();
-  db_object.bucket_name = object.bucket_name;
+  db_object.bucket_id = object.bucket_id;
   db_object.name = object.name;
   assign_db_value(object.size, db_object.size);
   assign_db_value(object.etag, db_object.etag);

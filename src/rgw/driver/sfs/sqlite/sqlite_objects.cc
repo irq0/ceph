@@ -41,12 +41,12 @@ std::vector<DBOPObjectInfo> get_rgw_objects(
 SQLiteObjects::SQLiteObjects(DBConnRef _conn) : conn(_conn) { }
 
 std::vector<DBOPObjectInfo> SQLiteObjects::get_objects(
-  const std::string &bucket_name
+  const std::string &bucket_id
 ) const {
   std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   auto objects = storage.get_all<DBObject>(
-    where(is_equal(&DBObject::bucket_name, bucket_name))
+    where(is_equal(&DBObject::bucket_id, bucket_id))
   );
   return get_rgw_objects(objects);
 }
@@ -62,11 +62,11 @@ std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const uuid_d & uuid) con
   return ret_value;
 }
 
-std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const std::string & bucket_name,
+std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const std::string & bucket_id,
                                                         const std::string & object_name) const {
   std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
-  auto objects = storage.get_all<DBObject>(where(is_equal(&DBObject::bucket_name, bucket_name) and is_equal(&DBObject::name, object_name)));
+  auto objects = storage.get_all<DBObject>(where(is_equal(&DBObject::bucket_id, bucket_id) and is_equal(&DBObject::name, object_name)));
   std::optional<DBOPObjectInfo> ret_value;
   // value must be unique
   if (objects.size() == 1) {
@@ -94,10 +94,10 @@ std::vector<uuid_d> SQLiteObjects::get_object_ids() const {
   return get_rgw_uuids(storage.select(&DBObject::object_id));
 }
 
-std::vector<uuid_d> SQLiteObjects::get_object_ids(const std::string & bucket_name) const {
+std::vector<uuid_d> SQLiteObjects::get_object_ids(const std::string & bucket_id) const {
   std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
-  return get_rgw_uuids(storage.select(&DBObject::object_id, where(c(&DBObject::bucket_name) = bucket_name)));
+  return get_rgw_uuids(storage.select(&DBObject::object_id, where(c(&DBObject::bucket_id) = bucket_id)));
 }
 
 }  // namespace rgw::sal::sfs::sqlite

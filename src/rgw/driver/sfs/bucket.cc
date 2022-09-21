@@ -139,14 +139,14 @@ int SFSBucket::remove_bucket(const DoutPrefixProvider *dpp,
   bucket->abort_multiparts(dpp);
   // at this point bucket should be empty and we're good to go
   sfs::sqlite::SQLiteBuckets db_buckets(store->db_conn);
-  auto db_bucket = db_buckets.get_bucket(get_name());
+  auto db_bucket = db_buckets.get_bucket(get_bucket_id());
   if (!db_bucket.has_value()) {
     ldpp_dout(dpp, 1) << __func__ << ": Bucket metadata was not found.." << dendl;
     return -ENOENT;
   }
   db_bucket->deleted = true;
   db_buckets.store_bucket(*db_bucket);
-  bucket->set_deleted_flag(true);
+  store->_delete_bucket(get_name());
   return 0;
 }
 

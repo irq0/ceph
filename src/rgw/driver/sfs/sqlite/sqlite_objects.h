@@ -28,15 +28,15 @@ class SQLiteObjects {
   SQLiteObjects(const SQLiteObjects&) = delete;
   SQLiteObjects& operator=(const SQLiteObjects&) = delete;
 
-  std::vector<DBOPObjectInfo> get_objects(const std::string &bucket_name) const;
+  std::vector<DBOPObjectInfo> get_objects(const std::string &bucket_id) const;
   std::optional<DBOPObjectInfo> get_object(const uuid_d & uuid) const;
-  std::optional<DBOPObjectInfo> get_object(const std::string & bucket_name, const std::string & object_name) const;
+  std::optional<DBOPObjectInfo> get_object(const std::string & bucket_id, const std::string & object_name) const;
 
   void store_object(const DBOPObjectInfo & object) const;
   void remove_object(const uuid_d & uuid) const;
 
   std::vector<uuid_d> get_object_ids() const;
-  std::vector<uuid_d> get_object_ids(const std::string & bucket_name) const;
+  std::vector<uuid_d> get_object_ids(const std::string & bucket_id) const;
 };
 
 }  // namespace rgw::sal::sfs::sqlite

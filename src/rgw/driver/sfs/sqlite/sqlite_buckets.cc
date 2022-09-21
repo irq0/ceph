@@ -28,15 +28,21 @@ std::vector<DBOPBucketInfo> get_rgw_buckets(const std::vector<DBBucket> & db_buc
   return ret_buckets;
 }
 
-std::optional<DBOPBucketInfo> SQLiteBuckets::get_bucket(const std::string & bucket_name) const {
+std::optional<DBOPBucketInfo> SQLiteBuckets::get_bucket(const std::string & bucket_id) const {
   std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
-  auto bucket = storage.get_pointer<DBBucket>(bucket_name);
+  auto bucket = storage.get_pointer<DBBucket>(bucket_id);
   std::optional<DBOPBucketInfo> ret_value;
   if (bucket) {
     ret_value = get_rgw_bucket(*bucket);
   }
   return ret_value;
+}
+
+std::vector<DBOPBucketInfo> SQLiteBuckets::get_bucket_by_name(const std::string & bucket_name) const {
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
+  return get_rgw_buckets(storage.get_all<DBBucket>(where(c(&DBBucket::bucket_name) = bucket_name)));
 }
 
 void SQLiteBuckets::store_bucket(const DBOPBucketInfo & bucket) const {

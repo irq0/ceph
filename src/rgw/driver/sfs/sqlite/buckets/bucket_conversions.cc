@@ -20,9 +20,9 @@ DBOPBucketInfo get_rgw_bucket(const DBBucket & bucket) {
   DBOPBucketInfo rgw_bucket;
 
   rgw_bucket.binfo.bucket.name = bucket.bucket_name;
+  rgw_bucket.binfo.bucket.bucket_id = bucket.bucket_id;
   assign_optional_value(bucket.tenant, rgw_bucket.binfo.bucket.tenant);
   assign_optional_value(bucket.marker, rgw_bucket.binfo.bucket.marker);
-  assign_optional_value(bucket.bucket_id, rgw_bucket.binfo.bucket.bucket_id);
   rgw_bucket.binfo.owner.id = bucket.owner_id;
   assign_optional_value(bucket.flags, rgw_bucket.binfo.flags);
   assign_optional_value(bucket.zone_group, rgw_bucket.binfo.zonegroup);
@@ -40,9 +40,9 @@ DBBucket get_db_bucket(const DBOPBucketInfo & bucket) {
   DBBucket db_bucket;
 
   db_bucket.bucket_name = bucket.binfo.bucket.name;
+  db_bucket.bucket_id = bucket.binfo.bucket.bucket_id;
   assign_db_value(bucket.binfo.bucket.tenant, db_bucket.tenant);
   assign_db_value(bucket.binfo.bucket.marker, db_bucket.marker);
-  assign_db_value(bucket.binfo.bucket.bucket_id, db_bucket.bucket_id);
   db_bucket.owner_id = bucket.binfo.owner.id;
   assign_db_value(bucket.binfo.flags, db_bucket.flags);
   assign_db_value(bucket.binfo.zonegroup, db_bucket.zone_group);
