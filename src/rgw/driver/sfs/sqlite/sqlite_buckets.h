@@ -28,11 +28,12 @@ class SQLiteBuckets {
   SQLiteBuckets(const SQLiteBuckets&) = delete;
   SQLiteBuckets& operator=(const SQLiteBuckets&) = delete;
 
-  std::optional<DBOPBucketInfo> get_bucket(const std::string& bucket_name
+  std::optional<DBOPBucketInfo> get_bucket(const std::string& bucket_id) const;
+  std::vector<DBOPBucketInfo> get_bucket_by_name(const std::string& bucket_name
   ) const;
 
   void store_bucket(const DBOPBucketInfo& bucket) const;
-  void remove_bucket(const std::string& bucket_name) const;
+  void remove_bucket(const std::string& bucket_id) const;
 
   std::vector<std::string> get_bucket_ids() const;
   std::vector<std::string> get_bucket_ids(const std::string& user_id) const;

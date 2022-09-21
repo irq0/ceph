@@ -16,6 +16,7 @@ and this project adheres to
 - Delete buckets.
 - Support for bucket ACL.
 - Multipart uploads
+- Objects are stored in metadata using bucket id instead of bucket name.
 
 ### Fixed
 
@@ -26,6 +27,7 @@ and this project adheres to
 - Multipart uploads are currently tracked solely in memory. Should the gateway
   be stopped, on-going multipart uploads will be lost.
 - Listing multipart uploads does not account for prefix or delimiters.
+- Metadata stored in sqlite is no longer compatible with previous versions.
 
 ## [0.5.0] - 2022-09-15
 

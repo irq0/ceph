@@ -27,9 +27,9 @@ using BLOB = std::vector<char>;
 // from sqlite_orm to store blobs in any user defined type.
 struct DBBucket {
   std::string bucket_name;
+  std::string bucket_id;
   std::optional<std::string> tenant;
   std::optional<std::string> marker;
-  std::optional<std::string> bucket_id;
   std::optional<int> size;
   std::optional<int> size_rounded;
   std::optional<BLOB> creation_time;

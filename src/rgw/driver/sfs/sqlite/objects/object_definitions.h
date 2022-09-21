@@ -23,7 +23,7 @@ using BLOB = std::vector<char>;
 
 struct DBObject {
   std::string object_id;
-  std::string bucket_name;
+  std::string bucket_id;
   std::string name;
   std::optional<size_t> size;
   std::optional<std::string> etag;
@@ -36,7 +36,7 @@ struct DBObject {
 
 struct DBOPObjectInfo {
   uuid_d uuid;
-  std::string bucket_name;
+  std::string bucket_id;
   std::string name;
   size_t size;
   std::string etag;

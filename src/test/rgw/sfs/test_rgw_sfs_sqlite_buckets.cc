@@ -152,7 +152,7 @@ TEST_F(TestSFSSQLiteBuckets, CreateAndGet) {
   db_buckets->store_bucket(bucket);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_bucket = db_buckets->get_bucket("test1");
+  auto ret_bucket = db_buckets->get_bucket("BucketID1");
   ASSERT_TRUE(ret_bucket.has_value());
   compareBuckets(bucket, *ret_bucket);
 }
@@ -311,13 +311,13 @@ TEST_F(TestSFSSQLiteBuckets, remove_bucket) {
   db_buckets->store_bucket(createTestBucket("2"));
   db_buckets->store_bucket(createTestBucket("3"));
 
-  db_buckets->remove_bucket("test2");
+  db_buckets->remove_bucket("BucketID2");
   auto bucket_ids = db_buckets->get_bucket_ids();
   EXPECT_EQ(bucket_ids.size(), 2);
   EXPECT_EQ(bucket_ids[0], "test1");
   EXPECT_EQ(bucket_ids[1], "test3");
 
-  auto ret_bucket = db_buckets->get_bucket("test2");
+  auto ret_bucket = db_buckets->get_bucket("BucketID2");
   ASSERT_FALSE(ret_bucket.has_value());
 }
 
@@ -360,13 +360,13 @@ TEST_F(TestSFSSQLiteBuckets, CreateAndUpdate) {
   db_buckets->store_bucket(bucket);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_bucket = db_buckets->get_bucket("test1");
+  auto ret_bucket = db_buckets->get_bucket("BucketID1");
   ASSERT_TRUE(ret_bucket.has_value());
   compareBuckets(bucket, *ret_bucket);
 
   bucket.binfo.bucket.marker = "MakerChanged";
   db_buckets->store_bucket(bucket);
-  ret_bucket = db_buckets->get_bucket("test1");
+  ret_bucket = db_buckets->get_bucket("BucketID1");
   ASSERT_TRUE(ret_bucket.has_value());
   ASSERT_EQ(ret_bucket->binfo.bucket.marker, "MakerChanged");
   compareBuckets(bucket, *ret_bucket);
@@ -387,13 +387,13 @@ TEST_F(TestSFSSQLiteBuckets, GetExisting) {
   db_buckets->store_bucket(bucket);
   EXPECT_TRUE(fs::exists(getDBFullPath()));
 
-  auto ret_bucket = db_buckets->get_bucket("test1");
+  auto ret_bucket = db_buckets->get_bucket("BucketID1");
   ASSERT_TRUE(ret_bucket.has_value());
   compareBuckets(bucket, *ret_bucket);
 
   // create a new instance, bucket should exist
   auto db_buckets_2 = std::make_shared<SQLiteBuckets>(conn);
-  ret_bucket = db_buckets_2->get_bucket("test1");
+  ret_bucket = db_buckets_2->get_bucket("BucketID1");
   ASSERT_TRUE(ret_bucket.has_value());
   compareBuckets(bucket, *ret_bucket);
 }
@@ -413,18 +413,21 @@ TEST_F(TestSFSSQLiteBuckets, UseStorage) {
   DBBucket db_bucket;
   db_bucket.bucket_name = "test_storage";
   db_bucket.owner_id = "usertest";
+  db_bucket.bucket_id = "test_storage_id";
 
   // we have to use replace because the primary key of rgw_bucket is a string
   storage.replace(db_bucket);
 
-  auto bucket = storage.get_pointer<DBBucket>("test_storage");
+  auto bucket = storage.get_pointer<DBBucket>("test_storage_id");
 
   ASSERT_NE(bucket, nullptr);
   ASSERT_EQ(bucket->bucket_name, "test_storage");
+  ASSERT_EQ(bucket->bucket_id, "test_storage_id");
 
   // convert the DBBucket to RGWBucket (blobs are decoded here)
   auto rgw_bucket = get_rgw_bucket(*bucket);
   ASSERT_EQ(rgw_bucket.binfo.bucket.name, bucket->bucket_name);
+  ASSERT_EQ(rgw_bucket.binfo.bucket.bucket_id, bucket->bucket_id);
 
   // creates a RGWBucket for testing (id = test1, etc..)
   auto rgw_bucket_2 = createTestBucket("1");
@@ -436,7 +439,7 @@ TEST_F(TestSFSSQLiteBuckets, UseStorage) {
   storage.replace(db_bucket_2);
 
   // now use the SqliteBuckets method, so user is already converted
-  auto ret_bucket = db_buckets.get_bucket("test1");
+  auto ret_bucket = db_buckets.get_bucket("BucketID1");
   ASSERT_TRUE(ret_bucket.has_value());
   compareBuckets(rgw_bucket_2, *ret_bucket);
 }

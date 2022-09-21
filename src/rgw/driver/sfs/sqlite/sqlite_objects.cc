@@ -41,13 +41,13 @@ std::vector<DBOPObjectInfo> get_rgw_objects(
 SQLiteObjects::SQLiteObjects(DBConnRef _conn) : conn(_conn) {}
 
 std::vector<DBOPObjectInfo> SQLiteObjects::get_objects(
-    const std::string& bucket_name
+    const std::string& bucket_id
 ) const {
   std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
-  auto objects = storage.get_all<DBObject>(
-      where(is_equal(&DBObject::bucket_name, bucket_name))
-  );
+  auto objects =
+      storage.get_all<DBObject>(where(is_equal(&DBObject::bucket_id, bucket_id))
+      );
   return get_rgw_objects(objects);
 }
 
@@ -64,12 +64,12 @@ std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const uuid_d& uuid
 }
 
 std::optional<DBOPObjectInfo> SQLiteObjects::get_object(
-    const std::string& bucket_name, const std::string& object_name
+    const std::string& bucket_id, const std::string& object_name
 ) const {
   std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   auto objects = storage.get_all<DBObject>(where(
-      is_equal(&DBObject::bucket_name, bucket_name) and
+      is_equal(&DBObject::bucket_id, bucket_id) and
       is_equal(&DBObject::name, object_name)
   ));
   std::optional<DBOPObjectInfo> ret_value;
@@ -99,12 +99,12 @@ std::vector<uuid_d> SQLiteObjects::get_object_ids() const {
   return get_rgw_uuids(storage.select(&DBObject::object_id));
 }
 
-std::vector<uuid_d> SQLiteObjects::get_object_ids(const std::string& bucket_name
+std::vector<uuid_d> SQLiteObjects::get_object_ids(const std::string& bucket_id
 ) const {
   std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   return get_rgw_uuids(storage.select(
-      &DBObject::object_id, where(c(&DBObject::bucket_name) = bucket_name)
+      &DBObject::object_id, where(c(&DBObject::bucket_id) = bucket_id)
   ));
 }
 

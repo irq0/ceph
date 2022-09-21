@@ -57,6 +57,7 @@ protected:
     createUser(username, conn);
     SQLiteBuckets buckets(conn);
     DBOPBucketInfo bucket;
+    bucket.binfo.bucket.bucket_id = bucketname;
     bucket.binfo.bucket.name = bucketname;
     bucket.binfo.owner.id = username;
     buckets.store_bucket(bucket);
@@ -65,7 +66,7 @@ protected:
 
 void compareObjects(const DBOPObjectInfo & origin, const DBOPObjectInfo & dest) {
   ASSERT_EQ(origin.uuid, dest.uuid);
-  ASSERT_EQ(origin.bucket_name, dest.bucket_name);
+  ASSERT_EQ(origin.bucket_id, dest.bucket_id);
   ASSERT_EQ(origin.name, dest.name);
   ASSERT_EQ(origin.size, dest.size);
   ASSERT_EQ(origin.etag, dest.etag);
@@ -79,7 +80,7 @@ void compareObjects(const DBOPObjectInfo & origin, const DBOPObjectInfo & dest) 
 DBOPObjectInfo createTestObject(const std::string & suffix, CephContext *context, const std::string & username="usertest") {
   DBOPObjectInfo object;
   object.uuid.generate_random();
-  object.bucket_name = "test_bucket";
+  object.bucket_id = "test_bucket";
   object.name = "test" + suffix;
   object.size = rand();
   object.etag = "test_etag_" + suffix;
@@ -172,15 +173,15 @@ TEST_F(TestSFSSQLiteObjects, ListBucketsIDsPerBucket) {
   auto db_objects = std::make_shared<SQLiteObjects>(conn);
 
   auto test_object_1 = createTestObject("1", ceph_context.get());
-  test_object_1.bucket_name = "test_bucket_1";
+  test_object_1.bucket_id = "test_bucket_1";
   db_objects->store_object(test_object_1);
 
   auto test_object_2 = createTestObject("2", ceph_context.get());
-  test_object_2.bucket_name = "test_bucket_2";
+  test_object_2.bucket_id = "test_bucket_2";
   db_objects->store_object(test_object_2);
 
   auto test_object_3 = createTestObject("3", ceph_context.get());
-  test_object_3.bucket_name = "test_bucket_3";
+  test_object_3.bucket_id = "test_bucket_3";
   db_objects->store_object(test_object_3);
 
   auto objects_ids = db_objects->get_object_ids("test_bucket_1");
@@ -361,7 +362,7 @@ TEST_F(TestSFSSQLiteObjects, GetObjectByBucketAndObjectName) {
 
   // create object "test1" in bucket "test_bucket_2"
   auto object_1_2 = createTestObject("1", ceph_context.get()); // name is "test3", bucket is "test_bucket"
-  object_1_2.bucket_name = "test_bucket_2";
+  object_1_2.bucket_id = "test_bucket_2";
   db_objects->store_object(object_1_2);
 
   // run a few queries

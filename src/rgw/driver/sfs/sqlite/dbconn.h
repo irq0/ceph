@@ -77,11 +77,11 @@ inline auto _make_storage(const std::string& path) {
       sqlite_orm::make_table(
           std::string(BUCKETS_TABLE),
           sqlite_orm::make_column(
-              "bucket_name", &DBBucket::bucket_name, sqlite_orm::primary_key()
+              "bucket_id", &DBBucket::bucket_id, sqlite_orm::primary_key()
           ),
+          sqlite_orm::make_column("bucket_name", &DBBucket::bucket_name),
           sqlite_orm::make_column("tenant", &DBBucket::tenant),
           sqlite_orm::make_column("marker", &DBBucket::marker),
-          sqlite_orm::make_column("bucket_id", &DBBucket::bucket_id),
           sqlite_orm::make_column("owner_id", &DBBucket::owner_id),
           sqlite_orm::make_column("flags", &DBBucket::flags),
           sqlite_orm::make_column("zone_group", &DBBucket::zone_group),
@@ -101,7 +101,7 @@ inline auto _make_storage(const std::string& path) {
           sqlite_orm::make_column(
               "object_id", &DBObject::object_id, sqlite_orm::primary_key()
           ),
-          sqlite_orm::make_column("bucket_name", &DBObject::bucket_name),
+          sqlite_orm::make_column("bucket_id", &DBObject::bucket_id),
           sqlite_orm::make_column("name", &DBObject::name),
           sqlite_orm::make_column("size", &DBObject::size),
           sqlite_orm::make_column("etag", &DBObject::etag),
@@ -110,8 +110,8 @@ inline auto _make_storage(const std::string& path) {
           sqlite_orm::make_column("delete_at_time", &DBObject::delete_at_time),
           sqlite_orm::make_column("attrs", &DBObject::attrs),
           sqlite_orm::make_column("acls", &DBObject::acls),
-          sqlite_orm::foreign_key(&DBObject::bucket_name)
-              .references(&DBBucket::bucket_name)
+          sqlite_orm::foreign_key(&DBObject::bucket_id)
+              .references(&DBBucket::bucket_id)
       ),
       sqlite_orm::make_table(
           std::string(VERSIONED_OBJECTS_TABLE),
