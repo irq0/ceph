@@ -90,9 +90,11 @@ struct MultipartObject {
     NONE,
     PREPARED,
     INPROGRESS,
-    DONE
+    DONE,
+    ABORTED
   };
 
+  ceph::mutex lock = ceph::make_mutex("part_lock");
   ObjectRef objref;
   const std::string upload_id;
   ceph::real_time mtime;
@@ -100,17 +102,32 @@ struct MultipartObject {
   uint64_t len;
   std::string etag;
   State state;
+  bool aborted;
 
   MultipartObject(ObjectRef obj, const std::string &_upload_id)
-    : objref(obj), upload_id(_upload_id), state(State::NONE) { }
+    : objref(obj), upload_id(_upload_id), state(State::NONE),
+      aborted(false) { }
 
   void finish_write(uint64_t _offset, uint64_t _len, const std::string &_etag) {
+    std::lock_guard l(lock);
+    if (aborted && state != State::ABORTED) {
+      _abort(nullptr);
+      return;
+    }
+    ceph_assert(state != State::DONE);
     state = State::DONE;
     offset = _offset;
     len = _len;
     etag = _etag;
     mtime = ceph::real_clock::now();
   }
+
+  void abort(const DoutPrefixProvider *dpp);
+
+  inline std::string get_cls_name() { return "sfs::multipart_object"; }
+
+ private:
+  void _abort(const DoutPrefixProvider *dpp);
 };
 
 using MultipartObjectRef = std::shared_ptr<MultipartObject>;
@@ -145,7 +162,8 @@ struct MultipartUpload {
     INIT,
     INPROGRESS,
     AGGREGATING,
-    DONE
+    DONE,
+    ABORTED
   };
 
   const std::string upload_id;
@@ -234,6 +252,9 @@ struct MultipartUpload {
     return parts;
   }
 
+  void abort(const DoutPrefixProvider *dpp);
+
+  inline std::string get_cls_name() { return "sfs::multipart_upload"; }
 };
 
 using MultipartUploadRef = std::shared_ptr<MultipartUpload>;
@@ -386,6 +407,27 @@ class Bucket {
     std::lock_guard l(multipart_map_lock);
     // this should be doing a copy
     return multiparts;
+  }
+
+  void abort_multipart(
+    const DoutPrefixProvider *dpp,
+    const std::string &upload_id
+  ) {
+    std::lock_guard l(multipart_map_lock);
+    auto it = multiparts.find(upload_id);
+    if (it == multiparts.end()) {
+      return;
+    }
+    multiparts.erase(it);
+    it->second->abort(dpp);
+  }
+
+  void abort_multiparts(const DoutPrefixProvider *dpp) {
+    std::lock_guard l(multipart_map_lock);
+    for (const auto &[mpid, mp] : multiparts) {
+      mp->abort(dpp);
+    }
+    multiparts.clear();
   }
 
   inline std::string get_cls_name() { return "sfs::bucket"; }

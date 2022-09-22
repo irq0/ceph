@@ -86,6 +86,52 @@ void Object::metadata_finish(SFStore *store) {
   db_versioned_objs.store_versioned_object(*db_versioned_object);
 }
 
+void MultipartObject::_abort(const DoutPrefixProvider *dpp) {
+  // assumes being called while holding the lock.
+  ceph_assert(aborted);
+  state = State::ABORTED;
+  auto path = objref->path.to_path();
+  if (std::filesystem::exists(path)) {
+    // destroy part's contents
+    if (dpp) {
+      lsfs_dout(dpp, 10) << "remove part contents at " << path << dendl;
+    }
+    std::filesystem::remove(path);
+  }
+  objref.reset();
+}
+
+void MultipartObject::abort(const DoutPrefixProvider *dpp) {
+  std::lock_guard l(lock);
+  lsfs_dout(dpp, 10) << "abort part for upload id: " << upload_id
+                     << ", state: " << state << dendl;
+  if (state == State::ABORTED) {
+    return;
+  }
+
+  aborted = true;
+  if (state == State::INPROGRESS) {
+    lsfs_dout(dpp, 10) << "part upload in progress, wait to abort." << dendl;
+    return;
+  }
+  _abort(dpp);
+}
+
+void MultipartUpload::abort(const DoutPrefixProvider *dpp) {
+  std::lock_guard l(parts_map_lock);
+  lsfs_dout(dpp, 10) << "aborting multipart upload id: " << upload_id
+                     << ", object: " << objref->name
+                     << ", num parts: " << parts.size()
+                     << dendl;
+
+  state = State::ABORTED;
+  for (const auto &[id, part] : parts) {
+    part->abort(dpp);
+  }
+  parts.clear();
+  objref.reset();
+}
+
 ObjectRef Bucket::get_or_create(const rgw_obj_key &key) {
   std::lock_guard l(obj_map_lock);
   ObjectRef obj = nullptr;

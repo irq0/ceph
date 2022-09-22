@@ -27,8 +27,6 @@ and this project adheres to
 - Multipart uploads are currently tracked solely in memory. Should the gateway
   be stopped, on-going multipart uploads will be lost.
 
-- Aborting on-going multipart uploads is currently not supported.
-
 - Listing multipart uploads does not account for prefix or delimiters.
 
 ## [0.5.0] - 2022-09-15
