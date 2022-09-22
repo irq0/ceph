@@ -84,7 +84,12 @@ int SFSMultipartUpload::list_parts(
 }
 
 int SFSMultipartUpload::abort(const DoutPrefixProvider* dpp, CephContext* cct) {
-  lsfs_dout(dpp, 10) << "return TODO" << dendl;
+  lsfs_dout(dpp, 10) << "aborting upload id " << mp->upload_id << dendl;
+  if (mp->state == sfs::MultipartUpload::State::ABORTED ||
+      mp->state == sfs::MultipartUpload::State::DONE) {
+    return -ERR_NO_SUCH_UPLOAD;
+  }
+  bucketref->abort_multipart(dpp, mp->upload_id);
   return 0;
 }
 
@@ -103,6 +108,16 @@ int SFSMultipartUpload::complete(
                      << ", epoch: " << olh_epoch
                      << ", target obj: " << target_obj->get_key()
                      << ", obj: " << mp->objref->name << dendl;
+
+  if (mp->state == sfs::MultipartUpload::State::ABORTED) {
+    lsfs_dout(dpp, 10) << "multipart with upload_id " << mp->upload_id
+                       << " has been aborted." << dendl;
+    return -ERR_NO_SUCH_UPLOAD;
+  } else if (mp->state == sfs::MultipartUpload::State::DONE) {
+    lsfs_dout(dpp, 10) << "multipart with upload_id " << mp->upload_id
+                       << " has been completed." << dendl;
+    return -ERR_NO_SUCH_UPLOAD;
+  }
 
   auto parts = mp->get_parts();
   if (parts.size() != part_etags.size()) {
@@ -256,6 +271,10 @@ int SFSMultipartUpload::get_info(
 
   if (mp->state == sfs::MultipartUpload::State::NONE) {
     lsfs_dout(dpp, 10) << "upload_id: " << mp->upload_id << " does not exist!"
+                       << dendl;
+    return -ERR_NO_SUCH_UPLOAD;
+  } else if (mp->state == sfs::MultipartUpload::State::ABORTED) {
+    lsfs_dout(dpp, 10) << "upload_id: " << mp->upload_id << " has been aborted!"
                        << dendl;
     return -ERR_NO_SUCH_UPLOAD;
   }

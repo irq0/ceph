@@ -146,6 +146,7 @@ int SFSBucket::remove_bucket(
       return -ENOENT;
     }
   }
+  bucket->abort_multiparts(dpp);
   // at this point bucket should be empty and we're good to go
   sfs::sqlite::SQLiteBuckets db_buckets(store->db_conn);
   auto db_bucket = db_buckets.get_bucket(get_name());
@@ -312,8 +313,9 @@ int SFSBucket::list_multiparts(
 int SFSBucket::abort_multiparts(
     const DoutPrefixProvider* dpp, CephContext* cct
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  lsfs_dout(dpp, 10) << "aborting multiparts on bucket " << get_name() << dendl;
+  bucket->abort_multiparts(dpp);
+  return 0;
 }
 
 int SFSBucket::try_refresh_info(
