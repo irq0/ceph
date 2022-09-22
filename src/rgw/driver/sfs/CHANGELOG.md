@@ -15,7 +15,6 @@ and this project adheres to
 - Ability to list buckets via admin REST API
 - Delete buckets.
 - Support for bucket ACL.
-
 - Multipart uploads
 
 ### Fixed
@@ -26,7 +25,6 @@ and this project adheres to
 
 - Multipart uploads are currently tracked solely in memory. Should the gateway
   be stopped, on-going multipart uploads will be lost.
-
 - Listing multipart uploads does not account for prefix or delimiters.
 
 ## [0.5.0] - 2022-09-15
