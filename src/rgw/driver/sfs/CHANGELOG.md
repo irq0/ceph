@@ -17,6 +17,7 @@ and this project adheres to
 - Support for bucket ACL.
 - Multipart uploads
 - Objects are stored in metadata using bucket id instead of bucket name.
+- CI: run rgw/sfs unit test suite on every pull request submission.
 
 ### Fixed
 
