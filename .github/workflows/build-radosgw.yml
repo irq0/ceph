@@ -47,6 +47,7 @@ jobs:
         run: |
           docker run --rm \
             -v $GITHUB_WORKSPACE/ceph:/srv/ceph \
+            -e WITH_TESTS=ON \
             -e NPROC=4 \
             mrohrich/buildenv-radosgw:latest
 
@@ -54,6 +55,11 @@ jobs:
         run: |
           tar -czvf build-results.tar.gz \
             ceph/build/bin/radosgw \
+            ceph/build/bin/unittest_rgw_sfs_sqlite_users \
+            ceph/build/bin/unittest_rgw_sfs_sqlite_buckets \
+            ceph/build/bin/unittest_rgw_sfs_sqlite_objects \
+            ceph/build/bin/unittest_rgw_sfs_sqlite_versioned_objects \
+            ceph/build/bin/unittest_rgw_sfs_sfs_bucket \
             ceph/build/lib/libceph-common.so \
             ceph/build/lib/libceph-common.so.2 \
             ceph/build/lib/libradosgw.so \

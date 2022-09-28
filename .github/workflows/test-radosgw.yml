@@ -47,6 +47,20 @@ jobs:
         run: |
           tar -xvf build-results.tar.gz
 
+      - name: Build S3GW-TEST Container
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: |
+            localhost:5000/s3gw-test:latest
+          file: s3gw-tools/build/Dockerfile.build-radosgw-test-container
+          context: ceph/build
+
+      - name: Run S3GW-TEST
+        run: |
+          docker run \
+            localhost:5000/s3gw-test:latest
+
       - name: Build S3GW Container
         uses: docker/build-push-action@v3
         with:
