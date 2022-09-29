@@ -67,6 +67,7 @@ protected:
     SQLiteBuckets buckets(conn);
     DBOPBucketInfo bucket;
     bucket.binfo.bucket.name = bucketname;
+    bucket.binfo.bucket.bucket_id = bucketname;
     bucket.binfo.owner.id = username;
     buckets.store_bucket(bucket);
   }
@@ -83,7 +84,7 @@ protected:
 
     DBOPObjectInfo object;
     object.uuid.parse(object_id.c_str());
-    object.bucket_name = bucketname;
+    object.bucket_id = bucketname;
     object.name = "test_name";
     object.size = rand();
     object.etag = "test_etag";
