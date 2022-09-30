@@ -114,7 +114,7 @@ int SFSUser::remove_user(const DoutPrefixProvider *dpp,
   rgw::sal::sfs::sqlite::SQLiteUsers sqlite_users(store->db_conn);
   auto db_user = sqlite_users.get_user(info.user_id.id);
   if (!db_user) {
-    return ECANCELED;
+    return -ECANCELED;
   }
   sqlite_users.remove_user(info.user_id.id);
   return 0;
@@ -125,18 +125,18 @@ int SFSUser::list_buckets(const DoutPrefixProvider *dpp,
                                  const std::string &end_marker, uint64_t max,
                                  bool need_stats, BucketList &buckets,
                                  optional_yield y) {
-  // TODO this should list buckets assigned to a user. for now we just get every
-  // bucket
   ldpp_dout(dpp, 10) << __func__
                      << ": marker (" << marker << ", " << end_marker
                      << "), max=" << max << dendl;
 
   std::list<sfs::BucketRef> lst = store->bucket_list();
   for (const auto &bucketref : lst) {
-    buckets.add(
-      std::unique_ptr<Bucket>(
-        new SFSBucket{store, bucketref}
-      ));
+    if (bucketref->get_owner().user_id.id == get_id().id) {
+      buckets.add(
+        std::unique_ptr<Bucket>(
+          new SFSBucket{store, bucketref}
+        ));
+    }
   }
   
   ldpp_dout(dpp, 10) << __func__ << ": buckets=" << buckets.get_buckets()
