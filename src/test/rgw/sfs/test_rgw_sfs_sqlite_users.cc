@@ -59,8 +59,8 @@ DBOPUserInfo createTestUser(const std::string & suffix) {
   user.uinfo.user_id.ns = "NS" + suffix;
   user.uinfo.display_name = "DisplayName1" + suffix;
   user.uinfo.user_email = "user" + suffix + "@test.com";
-  user.uinfo.access_keys["key1"] = RGWAccessKey("key1_" + suffix, "secret1");
-  user.uinfo.access_keys["key2"] = RGWAccessKey("key2_" + suffix, "secret2");
+  user.uinfo.access_keys["key1_" + suffix] = RGWAccessKey("key1_" + suffix, "secret1");
+  user.uinfo.access_keys["key2_" + suffix] = RGWAccessKey("key2_" + suffix, "secret2");
   user.uinfo.swift_keys["swift_key_1"] = RGWAccessKey("swift_key1_" + suffix, "swift_secret1");
   RGWSubUser subuser;
   subuser.name = "subuser1";
@@ -605,4 +605,32 @@ TEST_F(TestSFSSQLiteUsers, StoreRemoveUser) {
                                   std::make_move_iterator(userIds.end()) };
   ASSERT_EQ(users_after_remove_vector[0], "test1");
   ASSERT_EQ(users_after_remove_vector[1], "test3");
+}
+
+TEST_F(TestSFSSQLiteUsers, GetByAccessKeyMultipleKeys) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+
+  EXPECT_FALSE(fs::exists(getDBFullPath()));
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+
+  auto db_users = std::make_shared<SQLiteUsers>(conn);
+  auto user = createTestUser("1");
+  // add extra key
+  user.uinfo.access_keys["key3"] = RGWAccessKey("key3", "secret3");
+
+  db_users->store_user(user);
+  EXPECT_TRUE(fs::exists(getDBFullPath()));
+
+  auto ret_user = db_users->get_user_by_access_key("key1_1");
+  ASSERT_TRUE(ret_user.has_value());
+  compareUsers(user, *ret_user);
+
+  ret_user = db_users->get_user_by_access_key("key2_1");
+  ASSERT_TRUE(ret_user.has_value());
+  compareUsers(user, *ret_user);
+
+  ret_user = db_users->get_user_by_access_key("key3");
+  ASSERT_TRUE(ret_user.has_value());
+  compareUsers(user, *ret_user);
 }
