@@ -31,8 +31,6 @@ struct DBUser {
   std::optional<std::string> ns;
   std::optional<std::string> display_name;
   std::optional<std::string> user_email;
-  std::optional<std::string> access_keys_id;
-  std::optional<std::string> access_keys_secret;
   std::optional<BLOB> access_keys;
   std::optional<BLOB> swift_keys;
   std::optional<BLOB> sub_users;
@@ -54,6 +52,16 @@ struct DBUser {
   std::optional<BLOB> user_attrs;
   std::optional<int> user_version;
   std::optional<std::string> user_version_tag;
+};
+
+// access keys are stored in a different table because a user could have more
+// than one key and we need to be able to query by all of them.
+// Keys are stored as a blob in the user, so this table is only used for the
+// purpose of getting the user id based on the access key.
+struct DBAccessKey {
+  int id;
+  std::string access_key;
+  std::string user_id;
 };
 
 // Struct with information needed by SAL layer

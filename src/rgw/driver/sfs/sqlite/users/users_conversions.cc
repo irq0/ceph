@@ -55,12 +55,6 @@ DBUser get_db_user(const DBOPUserInfo & user) {
   assign_db_value(user.uinfo.user_id.ns, db_user.ns);
   assign_db_value(user.uinfo.display_name, db_user.display_name);
   assign_db_value(user.uinfo.user_email, db_user.user_email);
-  if (!user.uinfo.access_keys.empty()) {
-    auto it = user.uinfo.access_keys.begin();
-    const auto& k = it->second;
-    assign_db_value(k.id, db_user.access_keys_id);
-    assign_db_value(k.key, db_user.access_keys_secret);
-  }
   assign_db_value(user.uinfo.access_keys, db_user.access_keys);
   assign_db_value(user.uinfo.swift_keys, db_user.swift_keys);
   assign_db_value(user.uinfo.subusers, db_user.sub_users);

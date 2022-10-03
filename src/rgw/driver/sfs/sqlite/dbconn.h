@@ -31,6 +31,7 @@ constexpr std::string_view USERS_TABLE = "users";
 constexpr std::string_view BUCKETS_TABLE = "buckets";
 constexpr std::string_view OBJECTS_TABLE = "objects";
 constexpr std::string_view VERSIONED_OBJECTS_TABLE = "versioned_objects";
+constexpr std::string_view ACCESS_KEYS = "access_keys";
 
 
 inline auto _make_storage(const std::string &path) {
@@ -41,8 +42,6 @@ inline auto _make_storage(const std::string &path) {
           sqlite_orm::make_column("ns", &DBUser::ns),
           sqlite_orm::make_column("display_name", &DBUser::display_name),
           sqlite_orm::make_column("user_email", &DBUser::user_email),
-          sqlite_orm::make_column("access_keys_id", &DBUser::access_keys_id),
-          sqlite_orm::make_column("access_keys_secret", &DBUser::access_keys_secret),
           sqlite_orm::make_column("access_keys", &DBUser::access_keys),
           sqlite_orm::make_column("swift_keys", &DBUser::swift_keys),
           sqlite_orm::make_column("sub_users", &DBUser::sub_users),
@@ -101,7 +100,12 @@ inline auto _make_storage(const std::string &path) {
           sqlite_orm::make_column("object_state", &DBVersionedObject::object_state),
           sqlite_orm::make_column("version_id", &DBVersionedObject::version_id),
           sqlite_orm::make_column("etag", &DBVersionedObject::etag),
-          sqlite_orm::foreign_key(&DBVersionedObject::object_id).references(&DBObject::object_id))
+          sqlite_orm::foreign_key(&DBVersionedObject::object_id).references(&DBObject::object_id)),
+    sqlite_orm::make_table(std::string(ACCESS_KEYS),
+          sqlite_orm::make_column("id", &DBAccessKey::id, sqlite_orm::autoincrement(), sqlite_orm::primary_key()),
+          sqlite_orm::make_column("access_key", &DBAccessKey::access_key),
+          sqlite_orm::make_column("user_id", &DBAccessKey::user_id),
+          sqlite_orm::foreign_key(&DBAccessKey::user_id).references(&DBUser::user_id))
   );  
 }
 
