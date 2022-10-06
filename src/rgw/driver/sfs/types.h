@@ -388,7 +388,8 @@ class Bucket {
   }
 
   void finish_multipart(const std::string &upload_id, ObjectRef objref) {
-    std::lock_guard l(multipart_map_lock);
+    std::lock_guard l1(obj_map_lock);
+    std::lock_guard l2(multipart_map_lock);
 
     auto it = multiparts.find(upload_id);
     ceph_assert(it != multiparts.end());
@@ -397,7 +398,7 @@ class Bucket {
     multiparts.erase(it);
 
     objref->metadata_finish(store);
-    finish(nullptr, objref->name);
+    _finish_object(objref);
   }
 
   std::string gen_multipart_upload_id() {
