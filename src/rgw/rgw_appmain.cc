@@ -14,6 +14,7 @@
  */
 
 #include <boost/intrusive/list.hpp>
+#include <memory>
 #include "global/global_init.h"
 #include "global/signal_handler.h"
 #include "common/config.h"
@@ -73,6 +74,8 @@
 #endif
 #include "rgw_lua_background.h"
 #include "services/svc_zone.h"
+#include "rgw_sal_sfs.h"
+#include "rgw_status_frontend.h"
 
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
@@ -446,6 +449,16 @@ int rgw::AppMain::init_frontends2(RGWLib* rgwlib)
       derr << "WARNING: arrow_flight frontend requested, but not included in build; skipping" << dendl;
       continue;
 #endif
+    }
+    else if (framework == "status") {   
+      auto cct = dpp->get_cct();   
+      RGWStatusFrontend* stat = new RGWStatusFrontend(env, config, cct);
+      stat->register_status_page(
+        std::make_unique<PerfCounterStatusPage>(
+          cct->get_perfcounters_collection()
+        )
+      );
+      fe = stat;
     }
 
     service_map_meta["frontend_type#" + stringify(fe_count)] = framework;
