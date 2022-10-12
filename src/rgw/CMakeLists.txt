@@ -354,7 +354,9 @@ set(rgw_schedulers_srcs
 set(radosgw_srcs
   rgw_loadgen_process.cc
   rgw_asio_client.cc
-  rgw_asio_frontend.cc)
+  rgw_asio_frontend.cc
+  rgw_status_frontend.cc
+  rgw_status_page.cc)
 
 add_library(rgw_schedulers STATIC ${rgw_schedulers_srcs})
 target_link_libraries(rgw_schedulers
