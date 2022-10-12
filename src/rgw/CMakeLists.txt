@@ -366,6 +366,8 @@ set(rgw_a_srcs
   rgw_rest_swift.cc
   rgw_rest_usage.cc
   rgw_signal.cc
+  rgw_status_frontend.cc
+  rgw_status_page.cc
   rgw_swift_auth.cc
   rgw_usage.cc
   rgw_sts.cc
