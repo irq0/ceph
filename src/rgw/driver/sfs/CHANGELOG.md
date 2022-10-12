@@ -14,6 +14,8 @@ and this project adheres to
 - Fixed queries to users by access key when user has multiple keys.
 - Fixed a circular lock dependency, which could lead to a deadlock when aborting
   multiparts for an object while finishing a different object.
+- Fixed a few SQLite users operations that did not acquire the required locks
+  when accessing the database.
 
 ## [0.6.0] - 2022-09-29
 

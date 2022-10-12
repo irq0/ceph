@@ -39,9 +39,18 @@ class SQLiteUsers {
   template<class... Args>
   std::vector<DBOPUserInfo> get_users_by(Args... args) const;
 
-  void store_access_keys(const DBOPUserInfo & user) const;
-  void remove_access_keys(const std::string & userid) const;
-  std::optional<std::string> get_user_id_by_access_key(const std::string & key) const;
+  void _store_access_keys(
+    rgw::sal::sfs::sqlite::Storage storage,
+    const DBOPUserInfo & user
+  ) const;
+  void _remove_access_keys(
+    rgw::sal::sfs::sqlite::Storage storage,
+    const std::string & userid
+  ) const;
+  std::optional<std::string> _get_user_id_by_access_key(
+    rgw::sal::sfs::sqlite::Storage storage,
+    const std::string & key
+  ) const;
 };
 
 }  // namespace rgw::sal::sfs::sqlite
