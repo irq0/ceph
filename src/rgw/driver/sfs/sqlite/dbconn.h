@@ -164,8 +164,10 @@ class DBConn {
 
  public:
   ceph::shared_mutex rwlock = ceph::make_shared_mutex("dbconn::rwlock");
+  sqlite3* sqlite_db;
 
   DBConn(CephContext* cct) : storage(_make_storage(getDBPath(cct))) {
+    storage.on_open = [this](sqlite3* db) { sqlite_db = db; };
     storage.open_forever();
     storage.busy_timeout(5000);
     check_metadata_is_compatible(cct);

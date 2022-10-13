@@ -23,9 +23,11 @@
 
 #include "cls/rgw/cls_rgw_client.h"
 #include "common/Clock.h"
+#include "common/ceph_mutex.h"
 #include "common/errno.h"
 #include "driver/sfs/notification.h"
 #include "driver/sfs/sfs_gc.h"
+#include "driver/sfs/sqlite/dbconn.h"
 #include "driver/sfs/writer.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
@@ -377,6 +379,82 @@ int SFStore::log_op(
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return 0;
+}
+
+// }}}
+
+// Status Page  {{{
+SFSStatusPage::SFSStatusPage(SFStore* store) : sfs(store) {}
+
+SFSStatusPage::~SFSStatusPage() {}
+
+http::status SFSStatusPage::render(std::ostream& os) {
+  os << "<h1>SFS</h1>\n"
+     << "<h2>Locks</h2>\n"
+     << "<ul>\n";
+
+  os << "<li>buckets_map: "
+     << " locked=" << ceph_mutex_is_locked(sfs->buckets_map_lock) << "</li>\n";
+  os << "</ul>\n";
+
+  auto db = sfs->db_conn->get_storage();
+  sqlite3* sqlite_db = sfs->db_conn->sqlite_db;
+
+  os << "<h2>SQLite</h2>\n"
+     << "<ul>\n"
+     << "<li> filename: " << db.filename() << "</li>\n"
+     << "<li> libversion: " << db.libversion() << "</li>\n"
+     << "<li> total_changes: " << db.total_changes() << "</li>\n";
+
+  int current;
+  int highwater;
+
+  // db stats
+  sqlite3_db_status(
+      sqlite_db, SQLITE_DBSTATUS_CACHE_USED, &current, &highwater, false
+  );
+  os << "<li> cache_used: " << current << " bytes (high: " << highwater
+     << " bytes)</li>\n";
+  sqlite3_db_status(
+      sqlite_db, SQLITE_DBSTATUS_CACHE_USED_SHARED, &current, &highwater, false
+  );
+  os << "<li> cache_used_shared: " << current << " bytes (high: " << highwater
+     << " bytes)</li>\n";
+
+  sqlite3_db_status(
+      sqlite_db, SQLITE_DBSTATUS_CACHE_HIT, &current, &highwater, false
+  );
+  os << "<li> cache_hit: " << current << " (high: " << highwater << ")</li>\n";
+  sqlite3_db_status(
+      sqlite_db, SQLITE_DBSTATUS_CACHE_MISS, &current, &highwater, false
+  );
+  os << "<li> cache_miss: " << current << " (high: " << highwater << ")</li>\n";
+
+  // sqlite stats
+  sqlite3_status(SQLITE_STATUS_MEMORY_USED, &current, &highwater, false);
+  os << "<li> mem_used: " << current << " bytes (high: " << highwater
+     << " bytes)</li>\n";
+
+  sqlite3_status(SQLITE_STATUS_PAGECACHE_USED, &current, &highwater, false);
+  os << "<li> pagecache_used: " << current << " pages (high: " << highwater
+     << " pages)</li>\n";
+  sqlite3_status(SQLITE_STATUS_PAGECACHE_SIZE, &current, &highwater, false);
+  os << "<li> largest page cache memory allocation so far: " << highwater
+     << " bytes</li>\n";
+
+  sqlite3_status(SQLITE_STATUS_PAGECACHE_OVERFLOW, &current, &highwater, false);
+  os << "<li> pagecache_overflow: " << current << " bytes (high: " << highwater
+     << " bytes)</li>\n";
+
+  sqlite3_status(SQLITE_STATUS_MALLOC_COUNT, &current, &highwater, false);
+  os << "<li> malloc_count: " << current << " (high: " << highwater
+     << ")</li>\n";
+  sqlite3_status(SQLITE_STATUS_MALLOC_SIZE, &current, &highwater, false);
+  os << "<li> largest malloc request: " << highwater << " bytes</li>\n";
+
+  os << "</ul>";
+
+  return boost::beast::http::status::ok;
 }
 
 // }}}
