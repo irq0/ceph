@@ -683,6 +683,10 @@ int radosgw_Main(int argc, const char **argv)
 
       RGWStatusFrontend* stat = new RGWStatusFrontend(env, config, cct->get());
       stat->register_status_page(std::make_unique<PerfCounterStatusPage>(cct->get_perfcounters_collection()));
+      if (store->get_name() == "sfs") {
+	auto sfs = dynamic_cast<rgw::sal::SFStore*>(store);
+	stat->register_status_page(sfs->make_status_page());
+      }
       fe = stat;
     }
 

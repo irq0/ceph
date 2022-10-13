@@ -26,6 +26,7 @@
 #include "rgw_role.h"
 #include "rgw_sal.h"
 
+#include "rgw_status_page.h"
 #include "store/sfs/types.h"
 #include "store/sfs/user.h"
 #include "store/sfs/bucket.h"
@@ -67,6 +68,25 @@ class UnsupportedLuaScriptManager : public LuaScriptManager {
   }
 };
 
+class SFSStatusPage : public StatusPage {
+ private:
+  SFStore *sfs;
+
+ public:
+  SFSStatusPage(SFStore *store);
+  ~SFSStatusPage() override;
+  std::string name() const override {
+    return "SFS";
+  };
+  std::string prefix() const override {
+    return "/sfs";
+  };
+  std::string content_type() const override {
+    return "text/html";
+  };
+  http::status render(std::ostream &os) override;
+};
+
 class SFStore : public Store {
  private:
   RGWSyncModuleInstanceRef sync_module;
@@ -91,6 +111,10 @@ class SFStore : public Store {
   ) override;
   virtual void finalize(void) override;
   void maybe_init_store();
+
+  std::unique_ptr<StatusPage> make_status_page() {
+    return std::make_unique<SFSStatusPage>(this);
+  }
 
   virtual const std::string get_name() const override { return "sfs"; }
 
@@ -427,6 +451,10 @@ class SFStore : public Store {
   }
 
   std::string get_cls_name() const { return "sfstore"; }
+
+
+
+  friend class SFSStatusPage;
 };
 
 }  // namespace rgw::sal
