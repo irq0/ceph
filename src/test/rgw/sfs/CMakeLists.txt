@@ -25,3 +25,8 @@ target_link_libraries(unittest_rgw_sfs_sfs_user ${rgw_libs})
 add_executable(unittest_rgw_sfs_metadata_compatibility test_rgw_sfs_metadata_compatibility.cc)
 add_ceph_unittest(unittest_rgw_sfs_metadata_compatibility)
 target_link_libraries(unittest_rgw_sfs_metadata_compatibility ${rgw_libs})
+
+add_executable(unittest_rgw_sfs_gc test_rgw_sfs_gc.cc)
+add_ceph_unittest(unittest_rgw_sfs_gc)
+target_link_libraries(unittest_rgw_sfs_gc ${rgw_libs})
+

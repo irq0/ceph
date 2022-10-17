@@ -137,6 +137,27 @@ DBOPBucketInfo createTestBucket(const std::string & suffix) {
   return bucket;
 }
 
+void createDBBucketBasic(const std::string & user,
+                         const std::string & name,
+                         const std::string & bucket_id,
+                         const std::shared_ptr<DBConn> & conn) {
+  auto storage = conn->get_storage();
+  DBBucket db_bucket;
+  db_bucket.bucket_name = name;
+  db_bucket.bucket_id = bucket_id;
+  db_bucket.owner_id = user;
+  storage.replace(db_bucket);
+}
+
+void deleteDBBucketBasic(const std::string & bucket_id,
+                        const std::shared_ptr<DBConn> & conn) {
+  auto storage = conn->get_storage();
+  auto bucket = storage.get_pointer<DBBucket>(bucket_id);
+  ASSERT_TRUE(bucket != nullptr);
+  bucket->deleted = true;
+  storage.replace(*bucket);
+}
+
 TEST_F(TestSFSSQLiteBuckets, CreateAndGet) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
@@ -486,10 +507,50 @@ TEST_F(TestSFSSQLiteBuckets, CreateBucketOwnerNotSet) {
 
   EXPECT_THROW({
     try {
-        storage.replace(db_bucket);;
+        storage.replace(db_bucket);
     } catch( const std::system_error & e ) {
         EXPECT_STREQ( "FOREIGN KEY constraint failed: constraint failed", e.what() );
         throw;
     }
   }, std::system_error );
+}
+
+TEST_F(TestSFSSQLiteBuckets, GetDeletedBucketsIds) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+
+  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
+  // Create the user, we need it because OwnerID is a foreign key of User::UserID
+  createUser("usertest", conn);
+  // create a few buckets
+  createDBBucketBasic("usertest", "bucket1", "bucket1_id", conn);
+  createDBBucketBasic("usertest", "bucket2", "bucket2_id", conn);
+  createDBBucketBasic("usertest", "bucket3", "bucket3_id", conn);
+  createDBBucketBasic("usertest", "bucket4", "bucket4_id", conn);
+  createDBBucketBasic("usertest", "bucket5", "bucket5_id", conn);
+
+  SQLiteBuckets db_buckets(conn);
+  // no buckets are deleted yet
+  auto deleted_bucket_ids = db_buckets.get_deleted_buckets_ids();
+  EXPECT_EQ(deleted_bucket_ids.size(), 0);
+
+  // delete 2 buckets
+  deleteDBBucketBasic("bucket3_id", conn);
+  deleteDBBucketBasic("bucket5_id", conn);
+
+  // we should get 2 buckets now
+  deleted_bucket_ids = db_buckets.get_deleted_buckets_ids();
+  ASSERT_EQ(deleted_bucket_ids.size(), 2);
+  EXPECT_EQ(deleted_bucket_ids[0], "bucket3_id");
+  EXPECT_EQ(deleted_bucket_ids[1], "bucket5_id");
+
+  // delete one more bucket
+  deleteDBBucketBasic("bucket1_id", conn);
+
+  // we should get 3 buckets now
+  deleted_bucket_ids = db_buckets.get_deleted_buckets_ids();
+  ASSERT_EQ(deleted_bucket_ids.size(), 3);
+  EXPECT_EQ(deleted_bucket_ids[0], "bucket3_id");
+  EXPECT_EQ(deleted_bucket_ids[1], "bucket5_id");
+  EXPECT_EQ(deleted_bucket_ids[2], "bucket1_id");
 }

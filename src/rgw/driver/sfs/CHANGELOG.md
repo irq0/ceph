@@ -23,6 +23,8 @@ and this project adheres to
 - Added a mechanism to check for incompatibility issues without changing the
   original metadata database. When any incompatibility is found it is also shown
   in the logs.
+- Added GC thread deleting permanently removed buckets, its objects and
+  versions.
 
 ## [0.7.0] - 2022-10-20
 

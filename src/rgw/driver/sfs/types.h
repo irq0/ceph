@@ -72,6 +72,9 @@ struct Object {
                      bool new_object, bool new_version);
   void metadata_change_version_state(SFStore *store, ObjectState state);
   void metadata_finish(SFStore *store);
+
+  int delete_object_version(SFStore *store);
+  void delete_object(SFStore *store);
 };
 
 using ObjectRef = std::shared_ptr<Object>;

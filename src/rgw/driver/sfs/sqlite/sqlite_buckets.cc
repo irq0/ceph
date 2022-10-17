@@ -82,4 +82,11 @@ std::vector<DBOPBucketInfo> SQLiteBuckets::get_buckets(const std::string & user_
   return get_rgw_buckets(storage.get_all<DBBucket>(where(c(&DBBucket::owner_id) = user_id)));
 }
 
+std::vector<std::string> SQLiteBuckets::get_deleted_buckets_ids() const {
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
+  return storage.select(&DBBucket::bucket_id,
+                        where(c(&DBBucket::deleted) = true));
+}
+
 }  // namespace rgw::sal::sfs::sqlite

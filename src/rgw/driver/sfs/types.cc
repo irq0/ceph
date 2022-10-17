@@ -86,6 +86,24 @@ void Object::metadata_finish(SFStore *store) {
   db_versioned_objs.store_versioned_object(*db_versioned_object);
 }
 
+int Object::delete_object_version(SFStore *store) {
+  // remove object data
+  std::filesystem::remove(store->get_data_path() / get_storage_path());
+
+  // remove metadata
+  sqlite::SQLiteVersionedObjects db_versioned_objs(store->db_conn);
+  db_versioned_objs.remove_versioned_object(version_id);
+  return 0;
+}
+
+void Object::delete_object(SFStore *store) {
+  // remove object folder
+  std::filesystem::remove(store->get_data_path() / path.to_path());
+  // remove metadata
+  sqlite::SQLiteObjects db_objs(store->db_conn);
+  db_objs.remove_object(path.get_uuid());
+}
+
 void MultipartObject::_abort(const DoutPrefixProvider *dpp) {
   // assumes being called while holding the lock.
   ceph_assert(aborted);
