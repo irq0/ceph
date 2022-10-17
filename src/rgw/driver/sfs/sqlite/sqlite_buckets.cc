@@ -98,4 +98,12 @@ std::vector<DBOPBucketInfo> SQLiteBuckets::get_buckets(
   );
 }
 
+std::vector<std::string> SQLiteBuckets::get_deleted_buckets_ids() const {
+  std::shared_lock l(conn->rwlock);
+  auto storage = conn->get_storage();
+  return storage.select(
+      &DBBucket::bucket_id, where(c(&DBBucket::deleted) = true)
+  );
+}
+
 }  // namespace rgw::sal::sfs::sqlite

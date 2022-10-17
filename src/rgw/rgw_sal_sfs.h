@@ -38,6 +38,9 @@
   ldpp_dout(_dpp, _lvl) << "> " << this->get_cls_name() << "::" << __func__ \
                         << " "
 
+namespace rgw::sal::sfs {
+class SFSGC;
+}
 namespace rgw::sal {
 
 class SFStore;
@@ -94,6 +97,7 @@ class SFStore : public StoreDriver {
   CephContext* const cctx;
   ceph::mutex buckets_map_lock = ceph::make_mutex("buckets_map_lock");
   std::map<std::string, sfs::BucketRef> buckets;
+  sfs::SFSGC* gc = nullptr;
 
  public:
   sfs::sqlite::DBConnRef db_conn;
@@ -105,6 +109,7 @@ class SFStore : public StoreDriver {
 
   virtual int initialize(CephContext* cct, const DoutPrefixProvider* dpp)
       override;
+
   virtual void finalize(void) override;
   void maybe_init_store();
 

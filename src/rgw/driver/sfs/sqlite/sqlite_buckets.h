@@ -40,6 +40,8 @@ class SQLiteBuckets {
 
   std::vector<DBOPBucketInfo> get_buckets() const;
   std::vector<DBOPBucketInfo> get_buckets(const std::string& user_id) const;
+
+  std::vector<std::string> get_deleted_buckets_ids() const;
 };
 
 }  // namespace rgw::sal::sfs::sqlite

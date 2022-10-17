@@ -25,6 +25,7 @@
 #include "common/Clock.h"
 #include "common/errno.h"
 #include "driver/sfs/notification.h"
+#include "driver/sfs/sfs_gc.h"
 #include "driver/sfs/writer.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
@@ -384,11 +385,16 @@ int SFStore::log_op(
 
 int SFStore::initialize(CephContext* cct, const DoutPrefixProvider* dpp) {
   ldpp_dout(dpp, 10) << __func__ << dendl;
+  gc = new sfs::SFSGC();
+  gc->initialize(cct, this);
+  gc->start_processor();
   return 0;
 }
 
 void SFStore::finalize(void) {
   ldout(ctx(), 10) << __func__ << ": TODO" << dendl;
+  delete gc;
+  gc = nullptr;
   return;
 }
 

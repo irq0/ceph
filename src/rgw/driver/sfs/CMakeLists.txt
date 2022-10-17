@@ -34,6 +34,7 @@ set(sfs_srcs
     zone.cc
     writer.cc
     sfs_bucket.cc
+    sfs_gc.cc
     sfs_user.cc
     )
 
