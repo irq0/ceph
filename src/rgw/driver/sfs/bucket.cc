@@ -382,8 +382,7 @@ int SFSBucket::sync_user_stats(
   return 0;
 }
 int SFSBucket::update_container_stats(const DoutPrefixProvider* dpp) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  return 0;
 }
 int SFSBucket::check_bucket_shards(const DoutPrefixProvider* dpp) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;

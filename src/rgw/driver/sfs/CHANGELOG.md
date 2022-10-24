@@ -14,6 +14,10 @@ and this project adheres to
 - Fixed segfault when SFSAtomicWriter::complete is called whith mtime output
   variable set to nullptr
 
+### Changed
+
+- In order to make stat_bucket call available, SFSBucket::update_container_stat now returns 0.
+
 ## [0.7.0] - 2022-10-20
 
 ### Fixed
