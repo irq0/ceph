@@ -34,6 +34,17 @@ constexpr std::string_view VERSIONED_OBJECTS_TABLE = "versioned_objects";
 constexpr std::string_view ACCESS_KEYS = "access_keys";
 
 
+class sqlite_sync_exception : public std::exception {
+  std::string _message;
+  public:
+    explicit sqlite_sync_exception(const std::string & message)
+      : _message(message) {}
+
+    const char * what() const noexcept override {
+      return _message.c_str();
+    }
+};
+
 inline auto _make_storage(const std::string &path) {
   return sqlite_orm::make_storage(path,
     sqlite_orm::make_table(std::string(USERS_TABLE),
@@ -122,6 +133,7 @@ class DBConn {
   : storage(_make_storage(getDBPath(cct))) {
     storage.open_forever();
     storage.busy_timeout(5000);
+    check_metadata_is_compatible(cct);
     storage.sync_schema();
   }
   virtual ~DBConn() = default;
@@ -139,6 +151,9 @@ class DBConn {
       std::filesystem::path(rgw_sfs_path) / std::string(SCHEMA_DB_NAME);
     return db_path.string();
   }
+
+
+  void check_metadata_is_compatible(CephContext *ctt);
 
 };
 
