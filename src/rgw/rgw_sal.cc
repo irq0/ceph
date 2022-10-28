@@ -186,8 +186,14 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
     const auto& data_path =
       g_conf().get_val<std::string>("rgw_sfs_data_path");
     ldpp_dout(dpp, 0) << "sfs init!" << dendl;
-    rgw::sal::SFStore *store =
-      new rgw::sal::SFStore(cct, data_path);
+    rgw::sal::SFStore *store = nullptr;
+    try {
+      store = new rgw::sal::SFStore(cct, data_path);
+    } catch (std::exception & e) {
+      ldpp_dout(dpp, 0) << e.what()
+                        << dendl;
+      return nullptr;
+    }
     const char *id = get_env_char(
       "RGW_DEFAULT_USER_ID",
       "testid");

@@ -18,6 +18,12 @@ and this project adheres to
 
 - In order to make stat_bucket call available, SFSBucket::update_container_stat now returns 0.
 
+### Added
+
+- Added a mechanism to check for incompatibility issues without changing the
+  original metadata database. When any incompatibility is found it is also shown
+  in the logs.
+
 ## [0.7.0] - 2022-10-20
 
 ### Fixed
