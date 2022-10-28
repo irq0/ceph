@@ -98,7 +98,7 @@ int SFSAtomicWriter::complete(
     optional_yield y
 ) {
   lsfs_dout(dpp, 10) << "accounted_size: " << accounted_size
-                     << ", etag: " << etag << ", mtime: " << to_iso_8601(*mtime)
+                     << ", etag: " << etag
                      << ", set_mtime: " << to_iso_8601(set_mtime)
                      << ", attrs: " << attrs
                      << ", delete_at: " << to_iso_8601(delete_at)
@@ -116,7 +116,9 @@ int SFSAtomicWriter::complete(
   meta.attrs = attrs;
   bucketref->finish(dpp, obj.get_name());
 
-  *mtime = meta.mtime;
+  if (mtime != nullptr) {
+    *mtime = meta.mtime;
+  }
   objref->metadata_finish(store);
   return 0;
 }
