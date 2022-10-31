@@ -33,6 +33,7 @@ and this project adheres to
   multiparts for an object while finishing a different object.
 - Fixed a few SQLite users operations that did not acquire the required locks
   when accessing the database.
+- Fixed issue when deleting a non-existing object with versioning enabled.
 
 ## [0.6.0] - 2022-09-29
 
