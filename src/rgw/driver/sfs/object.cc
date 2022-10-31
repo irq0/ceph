@@ -147,6 +147,7 @@ int SFSObject::SFSDeleteOp::delete_obj(
     optional_yield y
 ) {
   lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
+                     << "bucket versioning: " << source->bucket->versioning_enabled()
                      << ", object: " << source->get_name()
                      << ", instance: " << source->get_instance()
                      << dendl;
@@ -156,8 +157,24 @@ int SFSObject::SFSDeleteOp::delete_obj(
   if (!source->objref) {
     source->refresh_meta();
   }
-  ceph_assert(source->objref);
-  bucketref->delete_object(source->objref, source->get_key());
+
+  auto version_id = source->get_instance();
+  if (source->objref) {
+    bucketref->delete_object(source->objref, source->get_key());
+  } else if (source->bucket->versioning_enabled()) {
+    // create delete marker
+    // even the object does not exist AWS creates a delete marker for it
+    // if versioning is enabled
+    version_id =
+         bucketref->create_non_existing_object_delete_marker(source->get_key());
+  }
+
+  // versioning is enabled set x-amz-delete-marker to true in the response
+  // and return the version id
+  if (source->bucket->versioning_enabled()) {
+    result.version_id = version_id;
+    result.delete_marker = true;
+  }
   return 0;
 }
 

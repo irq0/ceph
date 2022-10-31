@@ -364,6 +364,8 @@ class Bucket {
 
   void delete_object(ObjectRef objref, const rgw_obj_key & key);
 
+  std::string create_non_existing_object_delete_marker(const rgw_obj_key & key);
+
   MultipartUploadRef get_multipart(
     const std::string &upload_id,
     const std::string &oid,
