@@ -1,0 +1,24 @@
+## Path:        Network/S3GW
+## Description: Configuration for S3 Gateway service
+#
+## Type:        string
+## Default:     "s3gw"
+#
+# Service ID to pass to radosgw binary.
+#
+SERVICE_ID="s3gw"
+
+## Type:        string
+## Default:     "/var/lib/s3gw"
+#
+# Local path for data storage.
+#
+DATA_PATH="/var/lib/s3gw"
+
+## Type:        string
+## Default:     ""
+#
+# Extra arguments to pass to radosgw binary.  For example if you
+# want extra debug logs, try setting EXTRA_ARGS="--debug-rgw 1".
+#
+EXTRA_ARGS=""
