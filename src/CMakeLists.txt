@@ -92,6 +92,9 @@ add_compile_options(
   -fno-strict-aliasing
   -fsigned-char)
 
+add_compile_options(
+  -Wno-deprecated-declarations)
+
 if(NOT MSVC)
   add_compile_options(
     -Wtype-limits
@@ -316,19 +319,13 @@ add_subdirectory(json_spirit)
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/src/xxHash")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/src/rapidjson/include")
 
-option(WITH_FMT_HEADER_ONLY "use header-only version of fmt library" OFF)
-find_package(fmt 6.0.0 QUIET)
-if(fmt_FOUND)
-  include_directories(SYSTEM "${fmt_INCLUDE_DIR}")
-else()
-  message(STATUS "Could not find fmt, will build it")
-  set(old_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
-  set(BUILD_SHARED_LIBS FALSE)
-  add_subdirectory(fmt)
-  set(BUILD_SHARED_LIBS ${old_BUILD_SHARED_LIBS})
-  unset(old_BUILD_SHARED_LIBS)
-  include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/src/fmt/include")
-endif()
+message(STATUS "Could not find fmt, will build it")
+set(old_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS FALSE)
+add_subdirectory(fmt)
+set(BUILD_SHARED_LIBS ${old_BUILD_SHARED_LIBS})
+unset(old_BUILD_SHARED_LIBS)
+include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/src/fmt/include")
 
 # in osd/PeeringState.h, the number of elements in PeeringState::Active::reactions
 # is now 21 which exceeds the default value of BOOST_MPL_LIMIT_VECTOR_SIZE, which
