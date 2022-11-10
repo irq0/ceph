@@ -135,6 +135,7 @@ set(librgw_common_srcs
   rgw_rest_oidc_provider.cc
   rgw_rest_iam.cc
   rgw_object_lock.cc
+  rgw_op_type.cc
   rgw_kms.cc
   rgw_kmip_client.cc
   rgw_url.cc
