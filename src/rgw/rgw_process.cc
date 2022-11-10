@@ -1,12 +1,15 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab ft=cpp
 
+#include "common/ceph_time.h"
 #include "common/errno.h"
 #include "common/Throttle.h"
 #include "common/WorkQueue.h"
 #include "include/scope_guard.h"
 
+#include <chrono>
 #include <utility>
+#include <utime.h>
 #include "rgw_auth_registry.h"
 #include "rgw_dmclock_scheduler.h"
 #include "rgw_rest.h"
@@ -21,6 +24,7 @@
 #include "rgw_lua_request.h"
 #include "rgw_tracer.h"
 #include "rgw_ratelimit.h"
+#include "rgw_perf_counters.h"
 
 #include "services/svc_zone_utils.h"
 
@@ -252,7 +256,15 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
   {
     auto span = tracing::rgw::tracer.add_span("execute", s->trace);
     std::swap(span, s->trace);
+    const auto start = mono_clock::now();
     op->execute(y);
+    const auto stop = mono_clock::now();
+    perfcounter_ops_svc_time_hist->hinc(
+        op->get_type(),
+        std::chrono::duration_cast<std::chrono::microseconds>(stop - start)
+            .count(),
+        1);
+    perfcounter_ops_svc_time_sum->tinc(op->get_type(), (stop - start));
     std::swap(span, s->trace);
   }
 
