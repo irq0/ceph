@@ -48,4 +48,19 @@ class PerfCounterStatusPage : public StatusPage {
   http::status render(std::ostream& os) override;
 };
 
+class PrometheusStatusPage : public StatusPage {
+ private:
+  const PerfCountersCollection* perf_counters;
+
+ public:
+  PrometheusStatusPage(const PerfCountersCollection* perf_counters);
+  virtual ~PrometheusStatusPage() override;
+  std::string name() const override { return "Prometheus Metrics"; };
+  std::string prefix() const override { return "/prometheus"; };
+  std::string content_type() const override {
+    return "text/plain; version=0.0.4";
+  };
+  http::status render(std::ostream& os) override;
+};
+
 #endif  // RGW_STATUS_PAGE_H
