@@ -45,6 +45,7 @@
 #include "rgw_sal.h"
 #include "rgw_compression_types.h"
 #include "rgw_log.h"
+#include "rgw_perf_counters.h"
 
 #include "rgw_lc.h"
 #include "rgw_tag.h"
@@ -222,6 +223,7 @@ public:
   int get_ret() const { return op_ret; }
 
   virtual int init_processing(optional_yield y) {
+    perfcounter_ops->inc(get_type());
     if (dialect_handler->supports_quota()) {
       op_ret = init_quota();
       if (op_ret < 0)

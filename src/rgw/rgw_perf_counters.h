@@ -6,6 +6,7 @@
 #include "include/common_fwd.h"
 
 extern PerfCounters *perfcounter;
+extern PerfCounters *perfcounter_ops;
 
 extern int rgw_perf_start(CephContext *cct);
 extern void rgw_perf_stop(CephContext *cct);
