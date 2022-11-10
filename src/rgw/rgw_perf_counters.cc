@@ -1,11 +1,15 @@
-// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*- 
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab ft=cpp
 
 #include "rgw_perf_counters.h"
 #include "common/perf_counters.h"
 #include "common/ceph_context.h"
+#include "rgw_op_type.h"
+#include <memory>
+#include <sstream>
 
-PerfCounters *perfcounter = NULL;
+PerfCounters *perfcounter = nullptr;
+PerfCounters *perfcounter_ops = nullptr;
 
 int rgw_perf_start(CephContext *cct)
 {
@@ -66,6 +70,15 @@ int rgw_perf_start(CephContext *cct)
   
   perfcounter = plb.create_perf_counters();
   cct->get_perfcounters_collection()->add(perfcounter);
+
+  PerfCountersBuilder op_plb(cct, "rgw_op", RGW_OP_UNKNOWN-1, RGW_OP_LAST);
+  std::ostringstream os;
+  for (int i=RGW_OP_UNKNOWN; i<RGW_OP_LAST; i++) {
+    op_plb.add_u64_counter(i, rgw_op_type_str(static_cast<RGWOpType>(i)));
+  }
+  perfcounter_ops = op_plb.create_perf_counters();
+  cct->get_perfcounters_collection()->add(perfcounter_ops);
+
   return 0;
 }
 
