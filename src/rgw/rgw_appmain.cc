@@ -458,6 +458,11 @@ int rgw::AppMain::init_frontends2(RGWLib* rgwlib)
           cct->get_perfcounters_collection()
         )
       );
+      stat->register_status_page(
+        std::make_unique<PrometheusStatusPage>(
+          cct->get_perfcounters_collection()
+        )
+      );
       auto driver = env.driver;
       if (driver && driver->get_name() == "sfs") {
         auto sfs = dynamic_cast<rgw::sal::SFStore*>(driver);
