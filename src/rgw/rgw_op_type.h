@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <ostream>
 enum RGWOpType {
   RGW_OP_UNKNOWN = 0,
   RGW_OP_GET_OBJ,
@@ -129,5 +130,8 @@ enum RGWOpType {
   RGW_OP_DELETE_OIDC_PROVIDER,
   RGW_OP_GET_OIDC_PROVIDER,
   RGW_OP_LIST_OIDC_PROVIDERS,
+  RGW_OP_LAST,
 };
 
+const char* rgw_op_type_str(RGWOpType t);
+std::ostream& operator<<(std::ostream& os, RGWOpType t);
