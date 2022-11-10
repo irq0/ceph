@@ -157,14 +157,16 @@ public:
   /** Represents a PerfCounters data element. */
   struct perf_counter_data_any_d {
     perf_counter_data_any_d()
-      : name(NULL),
+	: idx(-1),
+	name(NULL),
         description(NULL),
         nick(NULL),
 	 type(PERFCOUNTER_NONE),
 	 unit(UNIT_NONE)
     {}
     perf_counter_data_any_d(const perf_counter_data_any_d& other)
-      : name(other.name),
+	: idx(other.idx),
+	name(other.name),
         description(other.description),
         nick(other.nick),
 	 type(other.type),
@@ -179,6 +181,7 @@ public:
       }
     }
 
+    int idx;
     const char *name;
     const char *description;
     const char *nick;

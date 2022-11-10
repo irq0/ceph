@@ -586,6 +586,7 @@ void PerfCountersBuilder::add_impl(
   PerfCounters::perf_counter_data_any_d
     &data(vec[idx - m_perf_counters->m_lower_bound - 1]);
   ceph_assert(data.type == PERFCOUNTER_NONE);
+  data.idx = idx;
   data.name = name;
   data.description = description;
   // nick must be <= 4 chars
