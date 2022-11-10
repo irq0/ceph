@@ -4,9 +4,15 @@
 #pragma once
 
 #include "include/common_fwd.h"
+#include "common/perf_counters.h"
 
 extern PerfCounters *perfcounter;
 extern PerfCounters *perfcounter_ops;
+extern PerfCounters *perfcounter_ops_svc_time_hist;
+extern PerfCounters *perfcounter_ops_svc_time_sum;
+extern PerfHistogramCommon::axis_config_d perfcounter_op_hist_x_axis_config;
+extern PerfHistogramCommon::axis_config_d perfcounter_op_hist_y_axis_config;
+
 
 extern int rgw_perf_start(CephContext *cct);
 extern void rgw_perf_stop(CephContext *cct);

@@ -2,7 +2,6 @@
 // vim: ts=8 sw=2 smarttab ft=cpp
 
 #include "rgw_perf_counters.h"
-#include "common/perf_counters.h"
 #include "common/ceph_context.h"
 #include "rgw_op_type.h"
 #include <memory>
@@ -10,6 +9,23 @@
 
 PerfCounters *perfcounter = nullptr;
 PerfCounters *perfcounter_ops = nullptr;
+
+// RGW operation service time histograms
+PerfCounters *perfcounter_ops_svc_time_hist = nullptr;
+// RGW operation service time sums
+PerfCounters *perfcounter_ops_svc_time_sum = nullptr;
+
+PerfHistogramCommon::axis_config_d perfcounter_op_hist_x_axis_config{
+    "Latency (µs)",
+    PerfHistogramCommon::SCALE_LOG2, // Latency in logarithmic scale
+    100,                             // Start
+    900,                             // Quantization unit
+    18,                              // buckets
+};
+
+PerfHistogramCommon::axis_config_d perfcounter_op_hist_y_axis_config{
+    "Count", PerfHistogramCommon::SCALE_LINEAR, 0, 1, 1,
+};
 
 int rgw_perf_start(CephContext *cct)
 {
@@ -63,21 +79,34 @@ int rgw_perf_start(CephContext *cct)
   plb.add_u64_counter(l_rgw_pubsub_push_failed, "pubsub_push_failed", "Pubsub events failed to be pushed to an endpoint");
   plb.add_u64(l_rgw_pubsub_push_pending, "pubsub_push_pending", "Pubsub events pending reply from endpoint");
   plb.add_u64_counter(l_rgw_pubsub_missing_conf, "pubsub_missing_conf", "Pubsub events could not be handled because of missing configuration");
-  
+
   plb.add_u64_counter(l_rgw_lua_script_ok, "lua_script_ok", "Successfull executions of lua scripts");
   plb.add_u64_counter(l_rgw_lua_script_fail, "lua_script_fail", "Failed executions of lua scripts");
   plb.add_u64(l_rgw_lua_current_vms, "lua_current_vms", "Number of Lua VMs currently being executed");
+
+  PerfCountersBuilder op_plb(cct, "rgw_op", RGW_OP_UNKNOWN-1, RGW_OP_LAST);
+  PerfCountersBuilder op_plb_svc_hist(cct, "rgw_op_svc_time", RGW_OP_UNKNOWN-1, RGW_OP_LAST);
+  PerfCountersBuilder op_plb_svc_sum(cct, "rgw_op_svc_time", RGW_OP_UNKNOWN-1, RGW_OP_LAST);
+
+  for (int i=RGW_OP_UNKNOWN; i<RGW_OP_LAST; i++) {
+    op_plb.add_u64_counter(i, rgw_op_type_str(static_cast<RGWOpType>(i)));
+
+    op_plb_svc_hist.add_u64_counter_histogram(i, rgw_op_type_str(static_cast<RGWOpType>(i)),
+					 perfcounter_op_hist_x_axis_config,
+					 perfcounter_op_hist_y_axis_config,
+					 "Histogram of operation service time in µs");
+
+    op_plb_svc_sum.add_time(i, rgw_op_type_str(static_cast<RGWOpType>(i)));
+  }
   
   perfcounter = plb.create_perf_counters();
   cct->get_perfcounters_collection()->add(perfcounter);
-
-  PerfCountersBuilder op_plb(cct, "rgw_op", RGW_OP_UNKNOWN-1, RGW_OP_LAST);
-  std::ostringstream os;
-  for (int i=RGW_OP_UNKNOWN; i<RGW_OP_LAST; i++) {
-    op_plb.add_u64_counter(i, rgw_op_type_str(static_cast<RGWOpType>(i)));
-  }
   perfcounter_ops = op_plb.create_perf_counters();
   cct->get_perfcounters_collection()->add(perfcounter_ops);
+  perfcounter_ops_svc_time_hist = op_plb_svc_hist.create_perf_counters();
+  cct->get_perfcounters_collection()->add(perfcounter_ops_svc_time_hist);
+  perfcounter_ops_svc_time_sum = op_plb_svc_sum.create_perf_counters();
+  cct->get_perfcounters_collection()->add(perfcounter_ops_svc_time_sum);
 
   return 0;
 }
