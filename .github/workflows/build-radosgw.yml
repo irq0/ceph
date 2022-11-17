@@ -60,6 +60,8 @@ jobs:
             ceph/build/bin/unittest_rgw_sfs_sqlite_objects \
             ceph/build/bin/unittest_rgw_sfs_sqlite_versioned_objects \
             ceph/build/bin/unittest_rgw_sfs_sfs_bucket \
+            ceph/build/bin/unittest_rgw_sfs_metadata_compatibility \
+            ceph/build/bin/unittest_rgw_sfs_gc \
             ceph/build/lib/libceph-common.so \
             ceph/build/lib/libceph-common.so.2 \
             ceph/build/lib/libradosgw.so \
