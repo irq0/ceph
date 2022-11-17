@@ -131,6 +131,7 @@ protected:
     DBOPVersionedObjectInfo db_version;
     db_version.id = version;
     db_version.object_id = object->path.get_uuid();
+    db_version.object_state = rgw::sal::ObjectState::COMMITTED;
     db_versioned_objects.insert_versioned_object(db_version);
   }
 
