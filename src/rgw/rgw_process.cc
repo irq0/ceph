@@ -257,7 +257,36 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
     auto span = tracing::rgw::tracer.add_span("execute", s->trace);
     std::swap(span, s->trace);
     const auto start = mono_clock::now();
-    op->execute(y);
+
+    try {
+      op->execute(y);
+    } catch (const std::exception& e) {
+      ldpp_dout(op, 0)
+          << "!!! BUG Unhandled exception while executing operation "
+          << op->name() << ": " << e.what() << ". replying internal error"
+          << dendl;
+      ClibBackTrace bt(1);
+      ldpp_dout(op, 0) << "START BACKTRACE (exception " << typeid(e).name()
+                       << ")" << std::endl
+                       << bt << std::endl
+                       << "END BACKTRACE" << dendl;
+      std::swap(span, s->trace);
+      return -ERR_INTERNAL_ERROR;
+    } catch (...) {
+      ldpp_dout(op, 0)
+          << "!!! BUG Unhandled non-std exception while executing operation "
+          << op->name() << ": " << typeid(std::current_exception()).name()
+          << ". failing with Internal Error" << dendl;
+      ClibBackTrace bt(1);
+      ldpp_dout(op, 0) << "START BACKTRACE (exception "
+                       << typeid(std::current_exception()).name() << ")"
+                       << std::endl
+                       << bt << std::endl
+                       << "END BACKTRACE" << dendl;
+      std::swap(span, s->trace);
+      return -ERR_INTERNAL_ERROR;
+    }
+
     const auto stop = mono_clock::now();
     perfcounter_ops_svc_time_hist->hinc(
         op->get_type(),
