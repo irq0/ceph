@@ -3773,3 +3773,10 @@ options:
   desc: RGW SFS store data dir
   service:
     - rgw
+- name: rgw_sfs_stats_update_interval
+  type: millisecs
+  level: advanced
+  default: 10000
+  desc: RGW SFS stats update interval in milliseconds
+  service:
+    - rgw
