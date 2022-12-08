@@ -46,6 +46,19 @@ SFSAtomicWriter::SFSAtomicWriter(
 }
 
 int SFSAtomicWriter::prepare(optional_yield y) {
+  if (store->filesystem_stats_avail_bytes.load() <
+      store->min_space_left_for_data_write_ops_bytes) {
+    lsfs_dout(dpp, 10) << fmt::format(
+                              "filesystem stat reservation check hit. "
+                              "avail_bytes:{} avail_pct:{} total_bytes:{}. "
+                              "returning quota error.",
+                              store->filesystem_stats_avail_bytes,
+                              store->filesystem_stats_avail_percent,
+                              store->filesystem_stats_total_bytes)
+                       << dendl;
+    return -ERR_QUOTA_EXCEEDED;
+  }
+
   objref = bucketref->get_or_create(obj.get_key());
 
   std::filesystem::path object_path =
@@ -139,6 +152,19 @@ int SFSMultipartWriter::prepare(optional_yield y) {
                      << ", obj: " << partref->objref->name
                      << ", path: " << partref->objref->path.to_path()
                      << dendl;
+
+  if (store->filesystem_stats_avail_bytes.load() <
+      store->min_space_left_for_data_write_ops_bytes) {
+    lsfs_dout(dpp, 10) << fmt::format(
+                              "filesystem stat reservation check hit. "
+                              "avail_bytes:{} avail_pct:{} total_bytes:{}. "
+                              "returning quota error.",
+                              store->filesystem_stats_avail_bytes,
+                              store->filesystem_stats_avail_percent,
+                              store->filesystem_stats_total_bytes)
+                       << dendl;
+    return -ERR_QUOTA_EXCEEDED;
+  }
 
   ceph_assert(
     partref->state == sfs::MultipartObject::State::NONE ||
