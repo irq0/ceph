@@ -3780,3 +3780,11 @@ options:
   desc: RGW SFS stats update interval in milliseconds
   service:
     - rgw
+- name: rgw_sfs_min_space_left_for_write_ops
+  type: uint
+  level: advanced
+  default: 104857600
+  desc: Minimum space left (in bytes) for SFS to attempt atomic or multipart writes.
+    Reserves space for metadata operations and SQLite updates.
+  service:
+    - rgw
