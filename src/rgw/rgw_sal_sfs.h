@@ -130,6 +130,7 @@ class SFStore : public StoreDriver {
   std::atomic_uint64_t filesystem_stats_total_bytes;
   std::atomic_uint64_t filesystem_stats_avail_bytes;
   std::atomic_uint64_t filesystem_stats_avail_percent;
+  const uint64_t min_space_left_for_data_write_ops_bytes;
 
   SFStore(CephContext* c, const std::filesystem::path& data_path);
   SFStore(const SFStore&) = delete;

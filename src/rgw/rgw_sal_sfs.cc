@@ -515,7 +515,10 @@ SFStore::SFStore(CephContext* c, const std::filesystem::path& data_path)
       filesystem_stats_updater_mutex(ceph::make_mutex("sfs:filesystemstats")),
       filesystem_stats_total_bytes(std::numeric_limits<uint64_t>::max()),
       filesystem_stats_avail_bytes(std::numeric_limits<uint64_t>::max()),
-      filesystem_stats_avail_percent(100) {
+      filesystem_stats_avail_percent(100),
+      min_space_left_for_data_write_ops_bytes(
+          c->_conf.get_val<uint64_t>("rgw_sfs_min_space_left_for_write_ops")
+      ) {
   maybe_init_store();
   db_conn = std::make_shared<sfs::sqlite::DBConn>(cctx);
   gc = std::make_shared<sfs::SFSGC>(cctx, this);
