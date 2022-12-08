@@ -16,6 +16,8 @@
 #ifndef RGW_STORE_SFS_H
 #define RGW_STORE_SFS_H
 
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 
 #include "driver/sfs/bucket.h"
@@ -26,6 +28,7 @@
 #include "driver/sfs/types.h"
 #include "driver/sfs/user.h"
 #include "driver/sfs/zone.h"
+#include "common/ceph_mutex.h"
 #include "rgw_multi.h"
 #include "rgw_notify.h"
 #include "rgw_oidc_provider.h"
@@ -113,9 +116,20 @@ class SFStore : public StoreDriver {
   ceph::mutex buckets_map_lock = ceph::make_mutex("buckets_map_lock");
   std::map<std::string, sfs::BucketRef> buckets;
 
+  // Signal shutdown condition to service threads
+  bool shutdown;
+
+  std::thread filesystem_stats_updater;
+  ceph::condition_variable filesystem_stats_updater_cvar;
+  ceph::mutex filesystem_stats_updater_mutex;
+
  public:
   sfs::sqlite::DBConnRef db_conn;
   std::shared_ptr<sfs::SFSGC> gc = nullptr;
+
+  std::atomic_uint64_t filesystem_stats_total_bytes;
+  std::atomic_uint64_t filesystem_stats_avail_bytes;
+  std::atomic_uint64_t filesystem_stats_avail_percent;
 
   SFStore(CephContext* c, const std::filesystem::path& data_path);
   SFStore(const SFStore&) = delete;
@@ -131,6 +145,8 @@ class SFStore : public StoreDriver {
   std::unique_ptr<StatusPage> make_status_page() {
     return std::make_unique<SFSStatusPage>(this);
   }
+
+  void filesystem_stats_updater_main(std::chrono::milliseconds update_interval);
 
   virtual const std::string get_name() const override { return "sfs"; }
 
