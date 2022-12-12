@@ -45,6 +45,7 @@
 namespace rgw::sal::sfs {
   class SFSGC;
 }
+
 namespace rgw::sal {
 
 class SFStore;
@@ -109,10 +110,10 @@ class SFStore : public StoreDriver {
   CephContext *const cctx;
   ceph::mutex buckets_map_lock = ceph::make_mutex("buckets_map_lock");
   std::map<std::string, sfs::BucketRef> buckets;
-  sfs::SFSGC *gc = nullptr;
 
  public:
   sfs::sqlite::DBConnRef db_conn;
+  std::shared_ptr<sfs::SFSGC> gc = nullptr;
 
   SFStore(CephContext *c, const std::filesystem::path &data_path);
   SFStore(const SFStore&) = delete;

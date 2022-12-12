@@ -175,6 +175,8 @@ TEST_F(TestSFSGC, TestDeletedBuckets) {
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
   ceph_context->_conf.set_val("rgw_gc_processor_period", "1");
   auto store = new rgw::sal::SFStore(ceph_context.get(), getTestDir());
+  auto gc = store->gc;
+  gc->suspend();  // start suspended so we have control over processing
 
   NoDoutPrefix ndp(ceph_context.get(), 1);
   RGWEnv env;
@@ -201,11 +203,6 @@ TEST_F(TestSFSGC, TestDeletedBuckets) {
   // we should have 5 version files plus the sqlite db
   EXPECT_EQ(getStoreNbFiles(), 6);
 
-  auto gc = std::make_shared<rgw::sal::sfs::SFSGC>();
-  gc->initialize(ceph_context.get(), store);
-  gc->start_processor();
-  gc->stop_processor();
-
   // nothing should be removed
   EXPECT_EQ(getStoreNbFiles(), 6);
   SQLiteVersionedObjects db_versioned_objs(store->db_conn);
@@ -220,8 +217,7 @@ TEST_F(TestSFSGC, TestDeletedBuckets) {
   // we should have 1 more version (delete marker for 1 object)
   EXPECT_EQ(versions.size(), 6);
 
-  gc->start_processor();
-  gc->stop_processor();
+  gc->process();
 
   // only objects for bucket 1 should be available
   EXPECT_EQ(getStoreNbFiles(), 4);
@@ -232,8 +228,7 @@ TEST_F(TestSFSGC, TestDeletedBuckets) {
 
   // delete bucket 1 now
   deleteTestBucket("test_bucket_1", store->db_conn);
-  gc->start_processor();
-  gc->stop_processor();
+  gc->process();
 
   // only the db file should be present
   EXPECT_EQ(getStoreNbFiles(), 1);
@@ -250,6 +245,8 @@ TEST_F(TestSFSGC, TestDeletedBucketsMaxObjects) {
   // gc will only remove 1 objects per iteration
   ceph_context->_conf.set_val("rgw_gc_max_objs", "1");
   auto store = new rgw::sal::SFStore(ceph_context.get(), getTestDir());
+  auto gc = store->gc;
+  gc->suspend();
 
   NoDoutPrefix ndp(ceph_context.get(), 1);
   RGWEnv env;
@@ -276,14 +273,10 @@ TEST_F(TestSFSGC, TestDeletedBucketsMaxObjects) {
   // we should have 5 version files plus the sqlite db
   EXPECT_EQ(getStoreNbFiles(), 6);
 
-  auto gc = std::make_shared<rgw::sal::sfs::SFSGC>();
-  gc->initialize(ceph_context.get(), store);
-
   // delete bucket 2
   deleteTestBucket("test_bucket_2", store->db_conn);
 
-  gc->start_processor();
-  gc->stop_processor();
+  gc->process();
 
   // only 1 file should be removed
   EXPECT_EQ(getStoreNbFiles(), 5);
@@ -291,8 +284,7 @@ TEST_F(TestSFSGC, TestDeletedBucketsMaxObjects) {
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
 
-  gc->start_processor();
-  gc->stop_processor();
+  gc->process();
 
   // one more version removed
   EXPECT_EQ(getStoreNbFiles(), 4);
@@ -300,15 +292,13 @@ TEST_F(TestSFSGC, TestDeletedBucketsMaxObjects) {
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
 
-  gc->start_processor();
-  gc->stop_processor();
+  gc->process();
   // one more version removed
   EXPECT_EQ(getStoreNbFiles(), 4);
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
 
-  gc->start_processor();
-  gc->stop_processor();
+  gc->process();
   // one more version removed
   EXPECT_EQ(getStoreNbFiles(), 4);
   // the object is finally removed
