@@ -19,17 +19,19 @@
 
 namespace rgw::sal::sfs {
 
+SFSGC::SFSGC(CephContext* _cctx, SFStore* _store) : cct(_cctx), store(_store) {
+  worker = std::make_unique<GCWorker>(this, cct, this);
+  worker->create("rgw_gc");
+  down_flag = false;
+}
+
 SFSGC::~SFSGC() {
-  stop_processor();
-  finalize();
+  down_flag = true;
+  if (worker) {
+    worker->stop();
+    worker->join();
+  }
 }
-
-void SFSGC::initialize(CephContext* _cct, SFStore* _store) {
-  cct = _cct;
-  store = _store;
-}
-
-void SFSGC::finalize() {}
 
 int SFSGC::process() {
   // This is the method that does the garbage collection.
@@ -48,19 +50,16 @@ bool SFSGC::going_down() {
   return down_flag;
 }
 
-void SFSGC::start_processor() {
-  worker = new GCWorker(this, cct, this);
-  worker->create("rgw_gc");
+bool SFSGC::suspended() {
+  return suspend_flag;
 }
 
-void SFSGC::stop_processor() {
-  down_flag = true;
-  if (worker) {
-    worker->stop();
-    worker->join();
-    delete worker;
-  }
-  worker = nullptr;
+void SFSGC::suspend() {
+  suspend_flag = true;
+}
+
+void SFSGC::resume() {
+  suspend_flag = false;
 }
 
 unsigned SFSGC::get_subsys() const {
@@ -150,14 +149,17 @@ void* SFSGC::GCWorker::entry() {
   do {
     utime_t start = ceph_clock_now();
     lsfs_dout(dpp, 2) << "start" << dendl;
-    int r = gc->process();
-    if (r < 0) {
-      lsfs_dout(
-          dpp, 0
-      ) << "ERROR: garbage collection process() returned error r="
-        << r << dendl;
+
+    if (!gc->suspended()) {
+      int r = gc->process();
+      if (r < 0) {
+        lsfs_dout(
+            dpp, 0
+        ) << "ERROR: garbage collection process() returned error r="
+          << r << dendl;
+      }
+      lsfs_dout(dpp, 2) << "stop" << dendl;
     }
-    lsfs_dout(dpp, 2) << "stop" << dendl;
 
     if (gc->going_down()) break;
 

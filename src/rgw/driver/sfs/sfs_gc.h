@@ -13,7 +13,8 @@
  */
 #pragma once
 
-#include "rgw/driver/sfs/types.h"
+#include <memory>
+
 #include "rgw_sal.h"
 #include "rgw_sal_sfs.h"
 
@@ -22,7 +23,8 @@ namespace rgw::sal::sfs {
 class SFSGC : public DoutPrefixProvider {
   CephContext* cct = nullptr;
   SFStore* store = nullptr;
-  std::atomic<bool> down_flag = {false};
+  std::atomic<bool> down_flag = {true};
+  std::atomic<bool> suspend_flag = {false};
   long int max_objects;
 
   class GCWorker : public Thread {
@@ -36,24 +38,23 @@ class SFSGC : public DoutPrefixProvider {
 
    public:
     GCWorker(const DoutPrefixProvider* _dpp, CephContext* _cct, SFSGC* _gc);
+
     void* entry() override;
     void stop();
   };
 
-  GCWorker* worker = nullptr;
+  std::unique_ptr<GCWorker> worker = nullptr;
 
  public:
-  SFSGC() = default;
+  SFSGC(CephContext*, SFStore*);
   ~SFSGC();
-
-  void initialize(CephContext* _cct, SFStore* _store);
-  void finalize();
 
   int process();
 
   bool going_down();
-  void start_processor();
-  void stop_processor();
+  bool suspended();
+  void suspend();
+  void resume();
 
   CephContext* get_cct() const override { return store->ctx(); }
   unsigned get_subsys() const;
