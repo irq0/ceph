@@ -20,7 +20,6 @@ import string
 from typing import Any, Dict, List, Tuple
 import unittest
 import boto3, boto3.s3.transfer
-from botocore.client import ClientError
 import random
 import tempfile
 from pydantic import BaseModel
@@ -69,19 +68,7 @@ class MultipartUploadSmokeTests(unittest.TestCase):
         self.buckets = []
 
     def tearDown(self) -> None:
-        # cleanup buckets
-        for name in self.buckets:
-            try:
-                self.s3.meta.client.head_bucket(Bucket=name)
-                bucket = self.s3.Bucket(name)
-                bucket.objects.delete()
-                bucket.delete()
-            except ClientError:
-                # do nothing... bucket does not exist
-                pass
-
-
-
+        assert len(self.buckets) == 0
         self.s3c.close()
         self.s3.meta.client.close()
         self.testdir.cleanup()
@@ -93,6 +80,12 @@ class MultipartUploadSmokeTests(unittest.TestCase):
         assert name not in self.buckets
         self.buckets.append(name)
         return name
+
+    def delete_bucket(self, name: str) -> None:
+        bucket = self.s3.Bucket(name)
+        bucket.objects.delete()
+        bucket.delete()
+        self.buckets.remove(name)
 
     def get_random_name(self, len: int) -> str:
         return "".join(
@@ -173,7 +166,7 @@ class MultipartUploadSmokeTests(unittest.TestCase):
             has_error = True
 
         self.assertTrue(has_error)
-        self.s3c.delete_bucket(Bucket=bucket_name)
+        self.delete_bucket(bucket_name)
         return
 
     def test_multipart_upload_download(self):
@@ -199,6 +192,7 @@ class MultipartUploadSmokeTests(unittest.TestCase):
             down_md5 = hashlib.md5(fd.read())
 
         self.assertTrue(down_md5.hexdigest() == md5)
+        self.delete_bucket(bucket_name)
 
     def test_upload_multipart_manual(self):
         bucket_name = self.create_bucket()
@@ -261,6 +255,7 @@ class MultipartUploadSmokeTests(unittest.TestCase):
             md5_2 = hashlib.md5(fd.read())
             print(f"actual md5: {md5_2.hexdigest()}")
         self.assertTrue(md5.hexdigest() == mp.md5)
+        self.delete_bucket(bucket_name)
 
     def test_list_ongoing_parts(self):
         bucket_name = self.create_bucket()
@@ -310,6 +305,7 @@ class MultipartUploadSmokeTests(unittest.TestCase):
         )
         self.assertTrue("ETag" in res_part and res_part["ETag"] == etag)
         self.assertTrue("Size" in res_part and res_part["Size"] == part_size)
+        self.delete_bucket(bucket_name)
 
     def test_list_multipart_uploads(self):
         bucket_name = self.create_bucket()
@@ -370,6 +366,7 @@ class MultipartUploadSmokeTests(unittest.TestCase):
         )
         entry = res["Uploads"][0]
         self.assertTrue("UploadId" in entry and entry["UploadId"] == upload_id2)
+        self.delete_bucket(bucket_name)
 
     def test_abort_multipart_upload(self):
         bucket_name = self.create_bucket()
@@ -439,7 +436,7 @@ class MultipartUploadSmokeTests(unittest.TestCase):
         self.assertTrue("Uploads" in res and len(res["Uploads"]) == 1)
 
         # ensure bucket is removed
-        self.s3c.delete_bucket(Bucket=bucket_name)
+        self.delete_bucket(bucket_name)
 
         # ensure there are no more multiparts for this bucket, which should be
         # the case since we expect the bucket to not exist.
