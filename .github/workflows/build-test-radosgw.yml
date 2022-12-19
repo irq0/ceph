@@ -45,7 +45,7 @@ jobs:
 
       - name: Run SFS unit tests
         run: |
-          docker run -d \
+          docker run \
             -v $GITHUB_WORKSPACE/ceph/build/bin:/radosgw/bin \
             -v $GITHUB_WORKSPACE/ceph/build/lib:/radosgw/lib \
             quay.io/s3gw/run-radosgw-tests
