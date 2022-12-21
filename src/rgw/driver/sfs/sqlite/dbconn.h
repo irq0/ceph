@@ -168,7 +168,10 @@ class DBConn {
   sqlite3* sqlite_db;
 
   DBConn(CephContext* cct) : storage(_make_storage(getDBPath(cct))) {
-    storage.on_open = [this](sqlite3* db) { sqlite_db = db; };
+    storage.on_open = [this](sqlite3* db) {
+      sqlite_db = db;
+      sqlite3_busy_timeout(db, 10000);
+    };
     storage.open_forever();
     storage.busy_timeout(5000);
     check_metadata_is_compatible(cct);
