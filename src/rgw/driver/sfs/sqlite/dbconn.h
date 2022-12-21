@@ -13,6 +13,8 @@
  */
 #pragma once
 
+#include <sqlite3.h>
+
 #include <filesystem>
 #include <memory>
 
@@ -163,7 +165,6 @@ class DBConn {
   Storage storage;
 
  public:
-  ceph::shared_mutex rwlock = ceph::make_shared_mutex("dbconn::rwlock");
   sqlite3* sqlite_db;
 
   DBConn(CephContext* cct) : storage(_make_storage(getDBPath(cct))) {
