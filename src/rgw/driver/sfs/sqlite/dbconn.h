@@ -134,6 +134,7 @@ class DBConn {
   : storage(_make_storage(getDBPath(cct))) {
     storage.on_open = [this](sqlite3 *db) {
       sqlite_db = db;
+      sqlite3_busy_timeout(db, 10000);
     };
     storage.open_forever();
     storage.busy_timeout(5000);
