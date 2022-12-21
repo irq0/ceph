@@ -170,6 +170,8 @@ class DBConn {
   DBConn(CephContext* cct) : storage(_make_storage(getDBPath(cct))) {
     storage.on_open = [this](sqlite3* db) {
       sqlite_db = db;
+
+      sqlite3_extended_result_codes(db, 1);
       sqlite3_busy_timeout(db, 10000);
     };
     storage.open_forever();
