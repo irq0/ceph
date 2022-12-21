@@ -43,7 +43,6 @@ SQLiteObjects::SQLiteObjects(DBConnRef _conn) : conn(_conn) { }
 std::vector<DBOPObjectInfo> SQLiteObjects::get_objects(
   const std::string &bucket_id
 ) const {
-  std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   auto objects = storage.get_all<DBObject>(
     where(is_equal(&DBObject::bucket_id, bucket_id))
@@ -52,7 +51,6 @@ std::vector<DBOPObjectInfo> SQLiteObjects::get_objects(
 }
 
 std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const uuid_d & uuid) const {
-  std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   auto object = storage.get_pointer<DBObject>(uuid.to_string());
   std::optional<DBOPObjectInfo> ret_value;
@@ -64,7 +62,6 @@ std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const uuid_d & uuid) con
 
 std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const std::string & bucket_id,
                                                         const std::string & object_name) const {
-  std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   auto objects = storage.get_all<DBObject>(where(is_equal(&DBObject::bucket_id, bucket_id) and is_equal(&DBObject::name, object_name)));
   std::optional<DBOPObjectInfo> ret_value;
@@ -76,26 +73,22 @@ std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const std::string & buck
 }
 
 void SQLiteObjects::store_object(const DBOPObjectInfo & object) const {
-  std::unique_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   auto db_object = get_db_object(object);
   storage.replace(db_object);
 }
 
 void SQLiteObjects::remove_object(const uuid_d & uuid) const {
-  std::unique_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   storage.remove<DBObject>(uuid.to_string());
 }
 
 std::vector<uuid_d> SQLiteObjects::get_object_ids() const {
-  std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   return get_rgw_uuids(storage.select(&DBObject::object_id));
 }
 
 std::vector<uuid_d> SQLiteObjects::get_object_ids(const std::string & bucket_id) const {
-  std::shared_lock l(conn->rwlock);
   auto storage = conn->get_storage();
   return get_rgw_uuids(storage.select(&DBObject::object_id, where(c(&DBObject::bucket_id) = bucket_id)));
 }
