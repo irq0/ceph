@@ -7,6 +7,18 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - Unreleased
+
+### Added
+
+- Added a new HTTP frontend: status.
+   Enable with 'rgw frontends' setting.
+   Listens on port 9090 by default.
+   Shows human readable information on internal state of S3GW.
+- Added a Prometheus metrics exporter for RGW performance counters to the status frontend.
+- Added histogram performance counters measuring operation execution times
+- Added SFS status page showing various SQLite statistics.
+
 ## [0.9.0] - 2022-12-01
 
 ### Fixed
