@@ -7,6 +7,12 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - Unreleased
+
+### Added
+
+- Added prefix support when listing objects and object versions
+
 ## [0.9.0] - 2022-12-01
 
 ### Fixed

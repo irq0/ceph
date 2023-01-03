@@ -54,7 +54,46 @@ protected:
     SQLiteUsers users(conn);
     DBOPUserInfo user;
     user.uinfo.user_id.id = username;
+    user.uinfo.display_name = username + "_display_name";
     users.store_user(user);
+  }
+
+  std::shared_ptr<rgw::sal::sfs::Object> createTestObject(
+                                                const std::string & bucket_id,
+                                                const std::string & name,
+                                                DBConnRef conn) {
+    auto object = std::make_shared<rgw::sal::sfs::Object>(name);
+    SQLiteObjects db_objects(conn);
+    DBOPObjectInfo db_object;
+    db_object.uuid = object->path.get_uuid();
+    db_object.name = name;
+    db_object.bucket_id = bucket_id;
+    db_objects.store_object(db_object);
+    return object;
+  }
+
+  void createTestBucket(const std::string & bucket_id,
+                        const std::string & user_id,
+                        DBConnRef conn) {
+    SQLiteBuckets db_buckets(conn);
+    DBOPBucketInfo bucket;
+    bucket.binfo.bucket.name = bucket_id + "_name";
+    bucket.binfo.bucket.bucket_id = bucket_id;
+    bucket.binfo.owner.id = user_id;
+    bucket.deleted = false;
+    db_buckets.store_bucket(bucket);
+  }
+
+  void createTestObjectVersion(std::shared_ptr<rgw::sal::sfs::Object> & object,
+                               uint version,
+                               DBConnRef conn) {
+    object->version_id = version;
+    SQLiteVersionedObjects db_versioned_objects(conn);
+    DBOPVersionedObjectInfo db_version;
+    db_version.id = version;
+    db_version.object_id = object->path.get_uuid();
+    db_version.object_state = rgw::sal::ObjectState::COMMITTED;
+    db_versioned_objects.insert_versioned_object(db_version);
   }
 };
 
@@ -87,6 +126,16 @@ RGWAccessControlPolicy get_aclp_1(){
 RGWBucketInfo get_binfo(){
   RGWBucketInfo arg_info;
   return arg_info;
+}
+
+void compareListEntry(const rgw_bucket_dir_entry & entry,
+                      std::shared_ptr<rgw::sal::sfs::Object> object,
+                      const std::string & username) {
+  EXPECT_EQ(entry.key.name, object->name);
+  EXPECT_EQ(entry.meta.etag, object->meta.etag);
+  EXPECT_EQ(entry.meta.mtime, object->meta.mtime);
+  EXPECT_EQ(entry.meta.owner_display_name, username + "_display_name");
+  EXPECT_EQ(entry.meta.owner, username);
 }
 
 TEST_F(TestSFSBucket, UserCreateBucketCheckGotFromCreate) {
@@ -540,4 +589,224 @@ TEST_F(TestSFSBucket, DeleteBucket) {
   ASSERT_TRUE(metadata_same_name[0].deleted);
   ASSERT_FALSE(metadata_same_name[1].deleted);
 
+}
+
+TEST_F(TestSFSBucket, TestListObjectsAndVersions) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = new rgw::sal::SFStore(ceph_context.get(), getTestDir());
+
+  NoDoutPrefix ndp(ceph_context.get(), 1);
+  RGWEnv env;
+  env.init(ceph_context.get());
+
+  // create the test user
+  createUser("test_user", store->db_conn);
+
+  // create test bucket
+  createTestBucket("test_bucket", "test_user", store->db_conn);
+
+  // create a few objects in test_bucket with a few versions
+  uint version_id = 1;
+  auto object1 = createTestObject("test_bucket", "folder/obj1", store->db_conn);
+  createTestObjectVersion(object1, version_id++, store->db_conn);
+  createTestObjectVersion(object1, version_id++, store->db_conn);
+
+  auto object2 = createTestObject("test_bucket", "folder/obj2", store->db_conn);
+  createTestObjectVersion(object2, version_id++, store->db_conn);
+  createTestObjectVersion(object2, version_id++, store->db_conn);
+
+  auto object3 = createTestObject("test_bucket", "folder/obj3", store->db_conn);
+  createTestObjectVersion(object3, version_id++, store->db_conn);
+  createTestObjectVersion(object3, version_id++, store->db_conn);
+
+  auto object4 = createTestObject("test_bucket", "obj4", store->db_conn);
+  createTestObjectVersion(object4, version_id++, store->db_conn);
+  createTestObjectVersion(object4, version_id++, store->db_conn);
+
+  // loads buckets from metadata
+  store->_refresh_buckets();
+
+  rgw_user arg_user("", "test_user", "");
+  auto user = store->get_user(arg_user);
+  ASSERT_NE(user, nullptr);
+
+  RGWBucketInfo arg_info = get_binfo();
+  arg_info.bucket.name = "test_bucket_name";
+  arg_info.bucket.bucket_id = "test_bucket";
+  std::unique_ptr<rgw::sal::Bucket> bucket_from_store;
+  EXPECT_EQ(store->get_bucket(&ndp,
+                            user.get(),
+                            arg_info.bucket,
+                            &bucket_from_store,
+                            null_yield),
+          0);
+
+  ASSERT_NE(bucket_from_store, nullptr);
+
+  rgw::sal::Bucket::ListParams params;
+
+  // list with empty prefix
+  params.prefix = "";
+  rgw::sal::Bucket::ListResults results;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results,
+                                    null_yield),
+          0);
+
+  std::map<std::string, std::shared_ptr<rgw::sal::sfs::Object>> expected_objects;
+  expected_objects[object1->name] = object1;
+  expected_objects[object2->name] = object2;
+  expected_objects[object3->name] = object3;
+  expected_objects[object4->name] = object4;
+  auto nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size(), results.objs.size());
+  for (auto & ret_obj : results.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size(), nb_found_objects);
+
+  // list with 'folder/' prefix
+  params.prefix = "folder/";
+  rgw::sal::Bucket::ListResults results_folder_prefix;
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_folder_prefix,
+                                    null_yield),
+          0);
+
+  expected_objects.clear();
+  expected_objects[object1->name] = object1;
+  expected_objects[object2->name] = object2;
+  expected_objects[object3->name] = object3;
+  nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size(), results_folder_prefix.objs.size());
+  for (auto & ret_obj : results_folder_prefix.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size(), nb_found_objects);
+
+  // list with 'ob' prefix
+  params.prefix = "ob";
+  rgw::sal::Bucket::ListResults results_ob_prefix;
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_ob_prefix,
+                                    null_yield),
+          0);
+
+  expected_objects.clear();
+  expected_objects[object4->name] = object4;
+  nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size(), results_ob_prefix.objs.size());
+  for (auto & ret_obj : results_ob_prefix.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size(), nb_found_objects);
+
+
+  // list all versions
+  // list with empty prefix
+  params.prefix = "";
+  params.list_versions = true;
+  rgw::sal::Bucket::ListResults results_versions;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_versions,
+                                    null_yield),
+          0);
+  // we'll find 4 objects with 2 versions each (8 entries)
+  EXPECT_EQ(8, results_versions.objs.size());
+  expected_objects.clear();
+  expected_objects[object1->name] = object1;
+  expected_objects[object2->name] = object2;
+  expected_objects[object3->name] = object3;
+  expected_objects[object4->name] = object4;
+  nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size(), results.objs.size());
+  for (auto & ret_obj : results_versions.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size() * 2, nb_found_objects);
+
+  // list versions with 'folder/' prefix
+  params.prefix = "folder/";
+  params.list_versions = true;
+  rgw::sal::Bucket::ListResults results_versions_folder_prefix;
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_versions_folder_prefix,
+                                    null_yield),
+          0);
+
+  expected_objects.clear();
+  expected_objects[object1->name] = object1;
+  expected_objects[object2->name] = object2;
+  expected_objects[object3->name] = object3;
+  nb_found_objects = 0;
+  // 3 objects match the prefix with 2 versions each
+  EXPECT_EQ(6, results_versions_folder_prefix.objs.size());
+  for (auto & ret_obj : results_versions_folder_prefix.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size() * 2, nb_found_objects);
+
+
+  // list versions with 'ob' prefix
+  params.prefix = "ob";
+  params.list_versions = true;
+  rgw::sal::Bucket::ListResults results_versions_ob_prefix;
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_versions_ob_prefix,
+                                    null_yield),
+          0);
+
+  expected_objects.clear();
+  expected_objects[object4->name] = object4;
+  nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size() * 2, results_versions_ob_prefix.objs.size());
+  for (auto & ret_obj : results_versions_ob_prefix.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size() * 2, nb_found_objects);
 }

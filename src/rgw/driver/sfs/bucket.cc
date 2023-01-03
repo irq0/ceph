@@ -71,10 +71,12 @@ int SFSBucket::list(const DoutPrefixProvider *dpp, ListParams &params, int max,
   if (params.list_versions) {
     return list_versions(dpp, params, max, results, y);
   }
-  
+
   std::lock_guard l(bucket->obj_map_lock);
   sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
+  auto use_prefix = !params.prefix.empty();
   for (const auto &[name, objref]: bucket->objects) {
+    if (use_prefix && name.rfind(params.prefix, 0) != 0) continue;
     lsfs_dout(dpp, 10) << "object: " << name << dendl;
 
     auto last_version = db_versioned_objects.get_last_versioned_object(objref->path.get_uuid());
@@ -98,7 +100,9 @@ int SFSBucket::list(const DoutPrefixProvider *dpp, ListParams &params, int max,
 int SFSBucket::list_versions(const DoutPrefixProvider *dpp, ListParams &params,
                       int, ListResults &results, optional_yield y) {
   std::lock_guard l(bucket->obj_map_lock);
+  auto use_prefix = !params.prefix.empty();
   for (const auto &[name, objref]: bucket->objects) {
+    if (use_prefix && name.rfind(params.prefix, 0) != 0) continue;
     lsfs_dout(dpp, 10) << "object: " << name << dendl;
     // get all available versions from db
     sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
