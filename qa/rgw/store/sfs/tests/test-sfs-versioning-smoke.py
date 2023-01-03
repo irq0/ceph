@@ -274,6 +274,59 @@ class VersioningSmokeTests(unittest.TestCase):
             response = self.s3_client.download_file(bucket_name, object_name, check_deleted_file)
         self.assertTrue('404' in str(context.exception))
 
+    def upload_object_with_versions(self, bucket_name, object_name, number_of_versions):
+        for i in range(number_of_versions):
+            test_file_path_1 = os.path.join(self.test_dir.name, object_name + "%s" % i)
+            self.generate_random_file(test_file_path_1)
+            # upload the file
+            self.s3_client.upload_file(test_file_path_1, bucket_name, object_name)
+
+    def test_list_objects_versioning_enabled_with_prefix(self):
+        bucket_name = self.get_random_bucket_name()
+        self.s3_client.create_bucket(Bucket=bucket_name)
+        self.assert_bucket_exists(bucket_name)
+        response = self.s3_client.put_bucket_versioning(Bucket=bucket_name,
+                                                    VersioningConfiguration={
+                                                            'MFADelete': 'Disabled',
+                                                            'Status': 'Enabled'})
+
+        self.upload_object_with_versions(bucket_name, 'prefix_file_1.bin', 2)
+        self.upload_object_with_versions(bucket_name, 'prefix_file_2.bin', 2)
+        self.upload_object_with_versions(bucket_name, 'test_file.bin', 3)
+
+        # get the list of version with prefix = 'prefix'
+        response = self.s3_client.list_object_versions(Bucket=bucket_name, Prefix='prefix')
+        self.assertTrue('Versions' in response)
+        # we should have 4 versions (2 per each file)
+        self.assertEqual(4, len(response['Versions']))
+        # check that the results are the expected ones
+        for version in response['Versions']:
+            self.assertTrue(version['Key'].startswith('prefix'))
+
+        # get the list of version with prefix = 'test'
+        response = self.s3_client.list_object_versions(Bucket=bucket_name, Prefix='test')
+        self.assertTrue('Versions' in response)
+        # we should have 3 versions
+        self.assertEqual(3, len(response['Versions']))
+        # check that the results are the expected ones
+        for version in response['Versions']:
+            self.assertTrue(version['Key'].startswith('test'))
+
+        # delete the prefix_file_1.bin object
+        self.s3_client.delete_object(Bucket=bucket_name, Key='prefix_file_1.bin')
+        # get the list of version with prefix = 'prefix'
+        response = self.s3_client.list_object_versions(Bucket=bucket_name, Prefix='prefix')
+        self.assertTrue('Versions' in response)
+        # we should have still have 4 versions (2 per each file)
+        self.assertEqual(4, len(response['Versions']))
+
+        # and we should have 1 delete marker
+        self.assertTrue('DeleteMarkers' in response)
+        self.assertEqual(1, len(response['DeleteMarkers']))
+        # ensure that it's object we deleted
+        self.assertEqual('prefix_file_1.bin', response['DeleteMarkers'][0]['Key'])
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 2:
         address_port = sys.argv.pop()
