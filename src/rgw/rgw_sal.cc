@@ -20,6 +20,7 @@
 #include <sstream>
 
 #include "common/errno.h"
+#include "common/environment.h"
 
 #include "rgw_sal.h"
 #include "rgw_sal_rados.h"
@@ -185,6 +186,51 @@ rgw::sal::Driver* DriverManager::init_storage_provider(const DoutPrefixProvider*
     ldpp_dout(dpp, 0) << "simplefile store init!" << dendl;
     rgw::sal::SimpleFileStore *store =
       new rgw::sal::SimpleFileStore(cct, data_path);
+    const char *id = get_env_char(
+      "RGW_DEFAULT_USER_ID",
+      "testid");
+    const char *display_name = get_env_char(
+      "RGW_DEFAULT_USER_DISPLAY_NAME",
+      "M. Tester");
+    const char *email = get_env_char(
+      "RGW_DEFAULT_USER_EMAIL",
+      "tester@ceph.com");
+    const char *access_key = get_env_char(
+      "RGW_DEFAULT_USER_ACCESS_KEY",
+      "test");
+    const char *secret_key = get_env_char(
+      "RGW_DEFAULT_USER_SECRET_KEY",
+      "test");
+    const char *caps = get_env_char(
+      "RGW_DEFAULT_USER_CAPS");
+    const int system = get_env_int(
+      "RGW_DEFAULT_USER_SYSTEM"); // Defaults to 0.
+    const char *assumed_role_arn = get_env_char(
+      "RGW_DEFAULT_USER_ASSUMED_ROLE_ARN");
+
+    /* XXX: temporary - create testid user */
+    rgw_user testid_user("", id, "");
+    std::unique_ptr<rgw::sal::User> user = store->get_user(testid_user);
+    user->get_info().display_name = display_name;
+    user->get_info().user_email = email;
+    RGWAccessKey k1(access_key, secret_key);
+    user->get_info().access_keys[access_key] = k1;
+    user->get_info().max_buckets = RGW_DEFAULT_MAX_BUCKETS;
+    user->get_info().system = system;
+    user->get_info().admin = 1;   // TODO remove when ACL is implemented
+    if (assumed_role_arn != nullptr) {
+        user->get_info().assumed_role_arn = assumed_role_arn;
+    }
+    if (caps != nullptr) {
+        RGWUserCaps rgw_caps;
+        rgw_caps.add_from_string(caps);
+        user->get_info().caps = rgw_caps;
+    }
+
+    int r = user->store_user(dpp, null_yield, true);
+    if (r < 0) {
+      ldpp_dout(dpp, 0) << "ERROR: failed inserting " << id << " user in dbstore error r=" << r << dendl;
+    }
     return store;
   }
 #endif // WITH_RADOSGW_SIMPLEFILE
