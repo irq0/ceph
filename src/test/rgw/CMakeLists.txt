@@ -280,3 +280,5 @@ target_link_libraries(radosgw-cr-test ${rgw_libs} librados
   OATH::OATH
   ${CURL_LIBRARIES} ${EXPAT_LIBRARIES} ${BLKID_LIBRARIES}
   GTest::GTest)
+
+add_subdirectory(simplefile)

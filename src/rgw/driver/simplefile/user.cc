@@ -16,6 +16,7 @@
 #include <filesystem>
 
 #include "driver/simplefile/bucket.h"
+#include "rgw/driver/simplefile/sqlite/sqlite_users.h"
 #include "rgw_sal_simplefile.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -92,9 +93,16 @@ int SimpleFileUser::store_user(
     const DoutPrefixProvider* dpp, optional_yield y, bool exclusive,
     RGWUserInfo* old_info
 ) {
-  /** Store this User to the backing store */ ldpp_dout(dpp, 10)
-      << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  rgw::sal::simplefile::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  auto db_user = sqlite_users.getUser(info.user_id.id);
+  if (db_user && old_info) {
+    *old_info = db_user->uinfo;
+  }
+  rgw::sal::simplefile::sqlite::DBOPUserInfo user;
+  user.uinfo = info;
+  user.user_attrs = attrs;
+  sqlite_users.storeUser(user);
+  return 0;
 }
 
 int SimpleFileUser::remove_user(

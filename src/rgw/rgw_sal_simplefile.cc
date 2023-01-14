@@ -373,16 +373,10 @@ void SimpleFileStore::init_buckets() {
 SimpleFileStore::SimpleFileStore(
     CephContext* c, const std::filesystem::path& data_path
 )
-    : dummy_user(), sync_module(), zone(this), data_path(data_path), cctx(c) {
+    : sync_module(), zone(this), data_path(data_path), cctx(c) {
   maybe_init_store();
   init_buckets();
 
-  dummy_user.user_email = "simplefile@example.com";
-  dummy_user.display_name = "Test User";
-  dummy_user.max_buckets = 42;
-  dummy_user.admin = 1;
-
-  dummy_user.access_keys.insert({"test", RGWAccessKey("test", "test")});
   ldout(ctx(), 0) << "Simplefile store serving data from " << data_path
                   << dendl;
 }

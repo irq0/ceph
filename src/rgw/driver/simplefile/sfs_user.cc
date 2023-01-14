@@ -11,6 +11,7 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
+#include "rgw/driver/simplefile/sqlite/sqlite_users.h"
 #include "rgw_sal_simplefile.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -26,18 +27,34 @@ int SimpleFileStore::get_user_by_access_key(
     const DoutPrefixProvider* dpp, const std::string& key, optional_yield y,
     std::unique_ptr<User>* user
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO (returning dummy user)" << dendl;
-  user->reset(new SimpleFileUser(dummy_user, this));
-  return 0;
+  int err = 0;
+  rgw::sal::simplefile::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  auto db_user = sqlite_users.getUserByAccessKey(key);
+  if (db_user) {
+    db_user->uinfo.user_id.id = "";  // TODO Remove this when ACL is implemented
+    user->reset(new SimpleFileUser(db_user->uinfo, this));
+  } else {
+    ldpp_dout(dpp, 10) << __func__ << ": User not found" << dendl;
+    err = -ENOENT;
+  }
+  return err;
 }
 
 int SimpleFileStore::get_user_by_email(
     const DoutPrefixProvider* dpp, const std::string& email, optional_yield y,
     std::unique_ptr<User>* user
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  user->reset(new SimpleFileUser(dummy_user, this));
-  return 0;
+  int err = 0;
+  rgw::sal::simplefile::sqlite::SQLiteUsers sqlite_users(dpp->get_cct());
+  auto db_user = sqlite_users.getUserByEmail(email);
+  if (db_user) {
+    db_user->uinfo.user_id.id = "";  // TODO Remove this when ACL is implemented
+    user->reset(new SimpleFileUser(db_user->uinfo, this));
+  } else {
+    ldpp_dout(dpp, 10) << __func__ << ": User not found" << dendl;
+    err = -ENOENT;
+  }
+  return err;
 }
 
 int SimpleFileStore::get_user_by_swift(
