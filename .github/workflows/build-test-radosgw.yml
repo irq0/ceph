@@ -1,19 +1,23 @@
 ---
-name: Build Radosgw
+name: Test Radosgw
 on:
-  schedule:
-    - cron: '0 0 * * 0'  # refresh ccache every sunday night
+
   pull_request:
     branches:
       - "s3gw"
 
   push:
+    branches:
+      ci/s3tests
     tags:
       - "s3gw-v*"
 
 jobs:
   build-and-test:
     runs-on: self-hosted
+
+    outputs:
+      artifact_id: radosgw-${{ steps.ccache_timestamp.outputs.timestamp }}
 
     steps:
       - name: Checkout
@@ -25,7 +29,7 @@ jobs:
       - name: Create CCache Timestamp
         id: ccache_timestamp
         run: |
-          echo "::set-output name=timestamp::$(date +%Y-%m-%d-%H:%M:%S)"
+          echo "timestamp=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
       - name: Cache CCache Files
         uses: actions/cache@v3.0.4
@@ -41,6 +45,25 @@ jobs:
             -v $GITHUB_WORKSPACE/ceph:/srv/ceph \
             -e WITH_TESTS=ON \
             quay.io/s3gw/build-radosgw:latest
+
+      - name: Pack Build artifacts
+        run: |
+          tar -czvf build-results.tar.gz \
+            ceph/build/bin/radosgw \
+            ceph/build/lib/libceph-common.so \
+            ceph/build/lib/libceph-common.so.2 \
+            ceph/build/lib/libradosgw.so \
+            ceph/build/lib/libradosgw.so.2 \
+            ceph/build/lib/libradosgw.so.2.0.0 \
+            ceph/build/lib/librados.so \
+            ceph/build/lib/librados.so.2 \
+            ceph/build/lib/librados.so.2.0.0
+
+      - name: Save radosgw binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: radosgw-${{ steps.ccache_timestamp.outputs.timestamp }}
+          path: build-results.tar.gz
 
       - name: Run SFS unit tests
         run: |
@@ -113,3 +136,83 @@ jobs:
           ./sfs-smoke-test.sh 127.0.0.1:7480
 
           docker kill $CONTAINER
+
+  run-s3gw-tests:
+    strategy:
+      matrix:
+        op:
+          - create
+          # - list
+          - delete
+        resource:
+          - bucket
+          - object
+
+    runs-on: self-hosted
+    needs:
+      - build-and-test
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: ceph
+
+      - name: Checkout s3tests
+        uses: actions/checkout@v3
+        with:
+          repository: ceph/s3-tests
+          path: s3tests
+          branch: ceph-master
+
+      - name: Download Radosgw Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.build-and-test.outputs.artifact_id }}
+
+      - name: Unpack Artitfacts
+        run: |
+          tar -xvf build-results.tar.gz
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-nose
+
+          python3 -m pip \
+            install --upgrade -r s3tests/requirements.txt
+
+      - name: Run S3tests ${{ matrix.op }} ${{ matrix.resource }}
+        run: |
+          export FIXTURES=$GITHUB_WORKSPACE/ceph/qa/rgw/store/sfs/tests/fixtures
+          export S3TEST_CONF=$FIXTURES/s3tests.conf
+
+          pushd s3tests
+
+          for t in $(yq \
+                      .${{ matrix.resource}}_${{ matrix.op }}[] \
+                      $FIXTURES/s3-tests.yaml) ; do
+
+            # run a separate instance of s3gw, so we know it's a clean env
+            # and a crash doesn't spoil later tests
+            CONTAINER=$(docker run --rm -d \
+              -v $GITHUB_WORKSPACE/ceph/build/bin:/radosgw/bin \
+              -v $GITHUB_WORKSPACE/ceph/build/lib:/radosgw/lib \
+              -p 7480:7480 \
+              quay.io/s3gw/run-radosgw \
+                --rgw-backend-store sfs \
+                --debug-rgw 1)
+
+            # Canonical, in their infinite wisdom decided to rename this
+            nosetests3 \
+              -v \
+              -s \
+              -a '!fails_on_rgw,!lifecycle_expiration,!fails_strict_rfc2616' \
+              s3tests_boto3.functional.test_s3:$t
+
+            docker kill $CONTAINER
+          done
