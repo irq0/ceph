@@ -19,6 +19,9 @@
 #include "rgw_sal_sfs.h"
 #include "rgw/driver/sfs/types.h"
 
+#define sfs_dout_subsys ceph_subsys_rgw
+
+
 namespace rgw::sal::sfs {
 
 class SFSGC : public DoutPrefixProvider {
@@ -52,14 +55,15 @@ public:
   int process();
 
   bool going_down();
+  void initialize();
   bool suspended();
   void suspend();
   void resume();
 
   CephContext *get_cct() const override { return store->ctx(); }
-  unsigned get_subsys() const;
+  unsigned get_subsys() const override { return sfs_dout_subsys; }
 
-  std::ostream& gen_prefix(std::ostream& out) const;
+  std::ostream& gen_prefix(std::ostream& out) const override;
 
   std::string get_cls_name() const { return "SFSGC"; }
 
