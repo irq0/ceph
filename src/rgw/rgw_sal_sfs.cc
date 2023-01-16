@@ -463,6 +463,7 @@ http::status SFSStatusPage::render(std::ostream& os) {
 
 int SFStore::initialize(CephContext* cct, const DoutPrefixProvider* dpp) {
   ldpp_dout(dpp, 10) << __func__ << dendl;
+  gc->initialize();
   return 0;
 }
 

@@ -15,19 +15,15 @@
 
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
 
-#define dout_subsys ceph_subsys_rgw
-
 namespace rgw::sal::sfs {
 
 SFSGC::SFSGC(CephContext* _cctx, SFStore* _store) : cct(_cctx), store(_store) {
   worker = std::make_unique<GCWorker>(this, cct, this);
-  worker->create("rgw_gc");
-  down_flag = false;
 }
 
 SFSGC::~SFSGC() {
   down_flag = true;
-  if (worker) {
+  if (worker->is_started()) {
     worker->stop();
     worker->join();
   }
@@ -50,6 +46,16 @@ bool SFSGC::going_down() {
   return down_flag;
 }
 
+/*
+ * The constructor must have finished before the worker thread can be created,
+ * because otherwise the logging will dereference an invalid pointer, since the
+ * SFSGC instance is a prefix provider for the logging in the worker thread
+ */
+void SFSGC::initialize() {
+  worker->create("rgw_gc");
+  down_flag = false;
+}
+
 bool SFSGC::suspended() {
   return suspend_flag;
 }
@@ -60,10 +66,6 @@ void SFSGC::suspend() {
 
 void SFSGC::resume() {
   suspend_flag = false;
-}
-
-unsigned SFSGC::get_subsys() const {
-  return dout_subsys;
 }
 
 std::ostream& SFSGC::gen_prefix(std::ostream& out) const {
