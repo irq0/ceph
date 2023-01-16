@@ -1,0 +1,138 @@
+---
+bucket_create:
+  - test_bucket_create_delete
+  #  - test_bucket_create_exists
+  - test_bucket_create_exists_nonowner
+  - test_bucket_create_naming_bad_ip
+  - test_bucket_create_naming_bad_short_one
+  - test_bucket_create_naming_bad_short_two
+  - test_bucket_create_naming_bad_starts_nonalpha
+  - test_bucket_create_naming_dns_dash_at_end
+  - test_bucket_create_naming_dns_dash_dot
+  - test_bucket_create_naming_dns_dot_dash
+  - test_bucket_create_naming_dns_dot_dot
+  - test_bucket_create_naming_dns_long
+  - test_bucket_create_naming_dns_underscore
+  - test_bucket_create_naming_good_contains_hyphen
+  - test_bucket_create_naming_good_contains_period
+  - test_bucket_create_naming_good_long_60
+  - test_bucket_create_naming_good_long_61
+  - test_bucket_create_naming_good_long_62
+  - test_bucket_create_naming_good_long_63
+  - test_bucket_create_naming_good_starts_alpha
+  - test_bucket_create_naming_good_starts_digit
+  #  - test_bucket_create_special_key_names
+bucket_list:
+  # - test_bucket_list_delimiter_alt
+  - test_bucket_list_delimiter_basic
+  - test_bucket_list_delimiter_dot
+  - test_bucket_list_delimiter_empty
+  - test_bucket_list_delimiter_none
+  - test_bucket_list_delimiter_not_exist
+  - test_bucket_list_delimiter_not_skip_special
+  - test_bucket_list_delimiter_percentage
+  - test_bucket_list_delimiter_prefix
+  - test_bucket_list_delimiter_prefix_ends_with_delimiter
+  - test_bucket_list_delimiter_prefix_underscore
+  - test_bucket_list_delimiter_unreadable
+  - test_bucket_list_delimiter_whitespace
+  - test_bucket_list_distinct
+  - test_bucket_list_empty
+  - test_bucket_list_encoding_basic
+  - test_bucket_list_long_name
+  - test_bucket_list_many
+  - test_bucket_list_marker_after_list
+  - test_bucket_list_marker_empty
+  - test_bucket_list_marker_none
+  - test_bucket_list_marker_not_in_list
+  - test_bucket_list_marker_unreadable
+  - test_bucket_list_maxkeys_invalid
+  - test_bucket_list_maxkeys_none
+  - test_bucket_list_maxkeys_one
+  - test_bucket_list_maxkeys_zero
+  - test_bucket_list_objects_anonymous
+  - test_bucket_list_objects_anonymous_fail
+  - test_bucket_list_prefix_alt
+  - test_bucket_list_prefix_basic
+  - test_bucket_list_prefix_delimiter_alt
+  - test_bucket_list_prefix_delimiter_basic
+  - test_bucket_list_prefix_delimiter_delimiter_not_exist
+  - test_bucket_list_prefix_delimiter_prefix_delimiter_not_exist
+  - test_bucket_list_prefix_delimiter_prefix_not_exist
+  - test_bucket_list_prefix_empty
+  - test_bucket_list_prefix_none
+  - test_bucket_list_prefix_not_exist
+  - test_bucket_list_prefix_unreadable
+  - test_bucket_list_return_data
+  - test_bucket_list_return_data_versioning
+  - test_bucket_list_special_prefix
+  - test_bucket_list_unordered
+  - test_bucket_listv2_both_continuationtoken_startafter
+  - test_bucket_listv2_continuationtoken
+  - test_bucket_listv2_continuationtoken_empty
+  - test_bucket_listv2_delimiter_alt
+  - test_bucket_listv2_delimiter_basic
+  - test_bucket_listv2_delimiter_dot
+  - test_bucket_listv2_delimiter_empty
+  - test_bucket_listv2_delimiter_none
+  - test_bucket_listv2_delimiter_not_exist
+  - test_bucket_listv2_delimiter_percentage
+  - test_bucket_listv2_delimiter_prefix
+  - test_bucket_listv2_delimiter_prefix_ends_with_delimiter
+  - test_bucket_listv2_delimiter_prefix_underscore
+  - test_bucket_listv2_delimiter_unreadable
+  - test_bucket_listv2_delimiter_whitespace
+  - test_bucket_listv2_encoding_basic
+  - test_bucket_listv2_fetchowner_defaultempty
+  - test_bucket_listv2_fetchowner_empty
+  - test_bucket_listv2_fetchowner_notempty
+  - test_bucket_listv2_many
+  - test_bucket_listv2_maxkeys_none
+  - test_bucket_listv2_maxkeys_one
+  - test_bucket_listv2_maxkeys_zero
+  - test_bucket_listv2_objects_anonymous
+  - test_bucket_listv2_objects_anonymous_fail
+  - test_bucket_listv2_prefix_alt
+  - test_bucket_listv2_prefix_basic
+  - test_bucket_listv2_prefix_delimiter_alt
+  - test_bucket_listv2_prefix_delimiter_basic
+  - test_bucket_listv2_prefix_delimiter_delimiter_not_exist
+  - test_bucket_listv2_prefix_delimiter_prefix_delimiter_not_exist
+  - test_bucket_listv2_prefix_delimiter_prefix_not_exist
+  - test_bucket_listv2_prefix_empty
+  - test_bucket_listv2_prefix_none
+  - test_bucket_listv2_prefix_not_exist
+  - test_bucket_listv2_prefix_unreadable
+  - test_bucket_listv2_startafter_after_list
+  - test_bucket_listv2_startafter_not_in_list
+  - test_bucket_listv2_startafter_unreadable
+  - test_bucket_listv2_unordered
+  - test_buckets_create_then_list
+  - test_buckets_list_ctime
+  - test_list_buckets_anonymous
+  - test_list_buckets_bad_auth
+  - test_list_buckets_invalid_auth
+bucket_delete:
+  - test_bucket_create_delete
+  #  - test_bucket_delete_nonempty
+  - test_bucket_delete_notexist
+  #  - test_delete_bucket_encryption_kms
+  #  - test_delete_bucket_encryption_s3
+  - test_object_delete_key_bucket_gone
+object_create: []
+object_list: []
+object_delete:
+  #  - test_multi_object_delete
+  #  - test_multi_object_delete_key_limit
+  #  - test_multi_objectv2_delete
+  #  - test_multi_objectv2_delete_key_limit
+  - test_object_delete_key_bucket_gone
+  #  - test_object_lock_delete_object_with_legal_hold_off
+  #  - test_object_lock_delete_object_with_legal_hold_on
+  #  - test_object_lock_delete_object_with_retention
+  #  - test_object_lock_delete_object_with_retention_and_marker
+  #  - test_object_lock_multi_delete_object_with_retention
+  #  - test_object_write_read_update_read_delete
+  #  - test_versioning_multi_object_delete
+  #  - test_versioning_multi_object_delete_with_marker
+  #  - test_versioning_multi_object_delete_with_marker_create
