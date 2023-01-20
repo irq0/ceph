@@ -35,6 +35,11 @@
 #include "rgw_service.h"
 #include "rgw_tracer.h"
 #include "rgw_zone.h"
+#include "rgw_rest_admin.h"
+#include "rgw_rest_bucket.h"
+#include "rgw_rest_metadata.h"
+#include "rgw_rest_log.h"
+#include "rgw_rest_user.h"
 #include "services/svc_config_key.h"
 #include "services/svc_quota.h"
 #include "services/svc_sys_obj.h"
@@ -332,7 +337,11 @@ int SFStore::get_roles(
 // }}}
 
 void SFStore::register_admin_apis(RGWRESTMgr * mgr) {
-
+  mgr->register_resource("user", new RGWRESTMgr_User);
+  mgr->register_resource("bucket", new RGWRESTMgr_Bucket);
+  /*Registering resource for /admin/metadata */
+  mgr->register_resource("metadata", new RGWRESTMgr_Metadata);
+  mgr->register_resource("log", new RGWRESTMgr_Log);
 };
 
 // Store > Logging {{{
