@@ -70,7 +70,7 @@ class ListObjectsTests(unittest.TestCase):
         self.assertTrue(found)
 
     def upload_file_and_check(self, bucket_name, object_name):
-        test_file_path = os.path.join(self.test_dir.name, object_name)
+        test_file_path = os.path.join(self.test_dir.name, object_name).replace('/', '_')
         self.generate_random_file(test_file_path)
         # upload the file
         self.s3_client.upload_file(test_file_path, bucket_name, object_name)
@@ -80,7 +80,7 @@ class ListObjectsTests(unittest.TestCase):
         self.s3_client.download_file(bucket_name, object_name, test_file_path_check)
         self.assertTrue(filecmp.cmp(test_file_path, test_file_path_check, shallow=False))
 
-    def check_list_response_prefix(self, list_resp, objects_expected, prefix):
+    def check_list_response_prefix(self, list_resp, objects_expected, prefix, common_prefixes=[]):
         self.assertTrue('ResponseMetadata' in list_resp)
         self.assertTrue('HTTPStatusCode' in list_resp['ResponseMetadata'])
         self.assertTrue(200, list_resp['ResponseMetadata']['HTTPStatusCode'])
@@ -98,6 +98,17 @@ class ListObjectsTests(unittest.TestCase):
         # check the prefix in the response
         self.assertTrue('Prefix' in list_resp)
         self.assertEqual(list_resp['Prefix'], prefix)
+
+        # check common_prefixes
+        if len(common_prefixes) > 0:
+            self.assertTrue("CommonPrefixes" in list_resp)
+            self.assertEqual(len(list_resp["CommonPrefixes"]),
+                             len(common_prefixes))
+            for common_prefix in list_resp["CommonPrefixes"]:
+                self.assertTrue(common_prefix["Prefix"] in common_prefixes)
+        else:
+            self.assertFalse("CommonPrefixes" in list_resp)
+
 
     def test_list_objects_no_prefix(self):
         bucket_name = self.get_random_bucket_name()
@@ -172,6 +183,82 @@ class ListObjectsTests(unittest.TestCase):
         expected_objects = []
         self.check_list_response_prefix(objs_ret, expected_objects, 'nothing')
 
+    def test_list_objects_with_delimiter(self):
+        bucket_name = self.get_random_bucket_name()
+        self.s3_client.create_bucket(Bucket=bucket_name)
+        self.assert_bucket_exists(bucket_name)
+        # objects to upload
+        objects = [
+            'directory/',
+            'directory/file',
+            'directory/directory/',
+            'directory/directory/file',
+            'file'
+        ]
+        for obj in objects:
+            self.upload_file_and_check(bucket_name, obj)
+        # list all objects with prefix equal to 'prefix'
+        objs_ret = self.s3_client.list_objects(Bucket=bucket_name, Prefix='', Delimiter = '/')
+        expected_objects = [
+            'file'
+        ]
+        expected_common_prefixes = [
+            'directory/'
+        ]
+        self.check_list_response_prefix(objs_ret, expected_objects, '', expected_common_prefixes)
+
+        # list objects with delimiter 'i'
+        objs_ret = self.s3_client.list_objects(Bucket=bucket_name, Prefix='', Delimiter = 'i')
+        expected_objects = []
+        expected_common_prefixes = [
+            'fi',
+            'di'
+        ]
+        self.check_list_response_prefix(objs_ret, expected_objects, '', expected_common_prefixes)
+
+        # list objects with delimiter 'i' and prefix 'd'
+        objs_ret = self.s3_client.list_objects(Bucket=bucket_name, Prefix='d', Delimiter = 'i')
+        expected_objects = []
+        expected_common_prefixes = [
+            'di'
+        ]
+        self.check_list_response_prefix(objs_ret, expected_objects, 'd', expected_common_prefixes)
+
+        # list objects with delimiter '/directory'
+        objs_ret = self.s3_client.list_objects(Bucket=bucket_name, Prefix='', Delimiter = '/directory')
+        expected_objects = [
+            'directory/',
+            'directory/file',
+            'file'
+        ]
+        expected_common_prefixes = [
+            'directory/directory'
+        ]
+        self.check_list_response_prefix(objs_ret, expected_objects, '', expected_common_prefixes)
+
+        # list objects with delimiter 'directory/directory/file'
+        objs_ret = self.s3_client.list_objects(Bucket=bucket_name, Prefix='', Delimiter = 'directory/directory/file')
+        expected_objects = [
+            'directory/',
+            'directory/file',
+            'directory/directory/',
+            'file'
+        ]
+        expected_common_prefixes = [
+            'directory/directory/file',
+        ]
+        self.check_list_response_prefix(objs_ret, expected_objects, '', expected_common_prefixes)
+
+        # list objects with delimiter '/' and prefix 'directory/
+        objs_ret = self.s3_client.list_objects(Bucket=bucket_name, Prefix='directory/', Delimiter = '/')
+        expected_objects = [
+            'directory/',
+            'directory/file'
+        ]
+        expected_common_prefixes = [
+            'directory/directory/'
+        ]
+        self.check_list_response_prefix(objs_ret, expected_objects, 'directory/', expected_common_prefixes)
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:

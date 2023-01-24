@@ -20,8 +20,8 @@
 
 #include "common/Formatter.h"
 #include "common/ceph_json.h"
-#include "rgw/driver/sfs/object.h"
-#include "rgw/driver/sfs/types.h"
+#include "driver/sfs/object.h"
+#include "driver/sfs/types.h"
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
 
@@ -65,6 +65,11 @@ class SFSBucket : public StoreBucket {
   int list_versions(
       const DoutPrefixProvider* dpp, ListParams& params, int,
       ListResults& results, optional_yield y
+  );
+
+  bool check_add_common_prefix(
+      const DoutPrefixProvider* dpp, const std::string& object_name,
+      ListParams& params, int max, ListResults& results, optional_yield y
   );
 
  public:

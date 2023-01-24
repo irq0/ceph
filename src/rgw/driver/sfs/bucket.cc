@@ -87,6 +87,10 @@ int SFSBucket::list(
     auto last_version =
         db_versioned_objects.get_last_versioned_object(objref->path.get_uuid());
     if (last_version->object_state == rgw::sal::ObjectState::COMMITTED) {
+      // check for delimiter
+      if (check_add_common_prefix(dpp, name, params, 0, results, y)) {
+        continue;
+      }
       auto obj = _get_object(objref);
       rgw_bucket_dir_entry dirent;
       dirent.key = cls_rgw_obj_key(name, objref->instance);
@@ -112,6 +116,10 @@ int SFSBucket::list_versions(
   for (const auto& [name, objref] : bucket->objects) {
     if (use_prefix && name.rfind(params.prefix, 0) != 0) continue;
     lsfs_dout(dpp, 10) << "object: " << name << dendl;
+    // check for delimiter
+    if (check_add_common_prefix(dpp, name, params, 0, results, y)) {
+      continue;
+    }
     // get all available versions from db
     sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
     auto last_version =
@@ -138,6 +146,27 @@ int SFSBucket::list_versions(
   }
   lsfs_dout(dpp, 10) << "found " << results.objs.size() << " objects" << dendl;
   return 0;
+}
+
+bool SFSBucket::check_add_common_prefix(
+    const DoutPrefixProvider* dpp, const std::string& object_name,
+    ListParams& params, int max, ListResults& results, optional_yield y
+) {
+  if (!params.delim.empty()) {
+    const int delim_pos = object_name.find(params.delim, params.prefix.size());
+    if (delim_pos >= 0) {
+      /* extract key -with trailing delimiter- for CommonPrefix */
+      const std::string& prefix_key =
+          object_name.substr(0, delim_pos + params.delim.length());
+
+      if (results.common_prefixes.find(prefix_key) ==
+          results.common_prefixes.end()) {
+        results.common_prefixes[prefix_key] = true;
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 int SFSBucket::remove_bucket(
