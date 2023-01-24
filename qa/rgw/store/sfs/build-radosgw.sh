@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -9,137 +9,149 @@ set -e
 # Debug: Usually a classic debug build including debugging information, no optimization etc.
 CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-"Debug"}
 
-CEPH_DIR=$(realpath ${CEPH_DIR:-"/srv/ceph"})
-SFS_CCACHE_DIR=${SFS_CCACHE_DIR:-"${CEPH_DIR}/build.ccache"}
+CEPH_DIR="$(realpath "${CEPH_DIR:-"/srv/ceph"}")"
+SFS_BUILD_DIR="$(realpath "${SFS_BUILD_DIR:-"${CEPH_DIR}/build"}")"
+SFS_CCACHE_DIR="$(realpath "${SFS_CCACHE_DIR:-"${CEPH_DIR}/build.ccache"}")"
+
 WITH_TESTS=${WITH_TESTS:-"OFF"}
 RUN_TESTS=${RUN_TESTS:-"OFF"}
+UNIT_TESTS=()
+
 WITH_RADOSGW_DBSTORE=${WITH_RADOSGW_DBSTORE:-"OFF"}
 ALLOCATOR=${ALLOCATOR:-"tcmalloc"}
+WITH_SYSTEM_BOOST=${WITH_SYSTEM_BOOST:-"ON"}
+WITH_JAEGER=${WITH_JAEGER:-"OFF"}
+
+WITH_ASAN=${WITH_ASAN:-"OFF"}
+WITH_ASAN_LEAK=${WITH_ASAN_LEAK:-"OFF"}
+WITH_TSAN=${WITH_TSAN:-"OFF"}
+WITH_UBSAN=${WITH_UBSAN:-"OFF"}
+
+NPROC=${NPROC:-$(nproc --ignore=2)}
 
 CEPH_CMAKE_ARGS=(
+  "-GNinja"
+  "-DBOOST_J=${NPROC}"
   "-DCMAKE_C_COMPILER=gcc-11"
   "-DCMAKE_CXX_COMPILER=g++-11"
   "-DENABLE_GIT_VERSION=ON"
   "-DWITH_PYTHON3=3"
   "-DWITH_CCACHE=ON"
-  "-DWITH_TESTS=ON"
+  "-DWITH_TESTS=${WITH_TESTS}"
   "-DALLOCATOR=${ALLOCATOR}"
   "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
-  "-DWITH_RADOSGW_AMQP_ENDPOINT=OFF"
-  "-DWITH_RADOSGW_KAFKA_ENDPOINT=OFF"
-  "-DWITH_RADOSGW_SELECT_PARQUET=OFF"
-  "-DWITH_RADOSGW_MOTR=OFF"
-  "-DWITH_RADOSGW_DBSTORE=${WITH_RADOSGW_DBSTORE}"
-  "-DWITH_RADOSGW_LUA_PACKAGES=OFF"
+  "-DCMAKE_EXPORT_COMPILE_COMMANDS=YES"
+  "-DWITH_JAEGER=${WITH_JAEGER}"
+  "-DWITH_LTTNG=OFF"
   "-DWITH_MANPAGE=OFF"
   "-DWITH_OPENLDAP=OFF"
-  "-DWITH_LTTNG=OFF"
+  "-DWITH_RADOSGW_AMQP_ENDPOINT=OFF"
+  "-DWITH_RADOSGW_DBSTORE=${WITH_RADOSGW_DBSTORE}"
+  "-DWITH_RADOSGW_KAFKA_ENDPOINT=OFF"
+  "-DWITH_RADOSGW_LUA_PACKAGES=OFF"
+  "-DWITH_RADOSGW_MOTR=OFF"
+  "-DWITH_RADOSGW_SELECT_PARQUET=OFF"
   "-DWITH_RDMA=OFF"
-  "-DWITH_SYSTEM_BOOST=ON"
-  ${CEPH_CMAKE_ARGS}
+  "-DWITH_SYSTEM_BOOST=${WITH_SYSTEM_BOOST}"
+  "-DWITH_ASAN=${WITH_ASAN}"
+  "-DWITH_ASAN_LEAK=${WITH_ASAN_LEAK}"
+  "-DWITH_TSAN=${WITH_TSAN}"
+  "-DWITH_UBSAN=${WITH_UBSAN}"
+  "${CEPH_CMAKE_ARGS[@]}"
 )
-NPROC=${NPROC:-$(nproc --ignore=2)}
 
-build_radosgw() {
+
+_configure() {
   echo "Building radosgw ..."
   echo "CEPH_DIR=${CEPH_DIR}"
   echo "NPROC=${NPROC}"
   echo "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+  echo "BUILD_DIR=${SFS_BUILD_DIR}"
   echo "CCACHE_DIR=${SFS_CCACHE_DIR}"
+  for arg in "${CEPH_CMAKE_ARGS[@]}" ; do
+    echo "${arg}"
+  done
+
+  if [ ! -d "${SFS_BUILD_DIR}" ] ; then
+    echo "build dir not found, create."
+    mkdir -p  "${SFS_BUILD_DIR}"
+  fi
 
   export CCACHE_DIR=${SFS_CCACHE_DIR}
   if [ ! -d "${CCACHE_DIR}" ]; then
     echo "ccache dir not found, create."
-    mkdir "${CCACHE_DIR}"
+    mkdir -p "${CCACHE_DIR}"
     echo "Created by build-radosgw container" > \
       "${CCACHE_DIR}/README"
   fi
-
-  cd ${CEPH_DIR}
 
   # This is necessary since git v2.35.2 because of CVE-2022-24765
   # but we have to continue in case CEPH_DIR is not a git repo
   # Since git 2.36 the the wildcard '*' is also accepted
-  git config --global --add safe.directory "*" || true
-
-  if [ -d "build" ]; then
-      cd build/
-      cmake -DBOOST_J=${NPROC} ${CEPH_CMAKE_ARGS[@]} ..
-  else
-      ./do_cmake.sh ${CEPH_CMAKE_ARGS[@]}
-      cd build/
+  if ! git config --global safe.directory > /dev/null ; then
+    git config --global --add safe.directory "*" || true
   fi
 
-  ninja -j${NPROC} bin/radosgw
+  pushd "${SFS_BUILD_DIR}"
+
+  cmake "${CEPH_CMAKE_ARGS[@]}" "${CEPH_DIR}"
+
+  popd
 }
 
-strip_radosgw() {
-  [ "${CMAKE_BUILD_TYPE}" == "Debug" -o "${CMAKE_BUILD_TYPE}" == "RelWithDebInfo" ] && return 0
+
+_build() {
+  pushd "${SFS_BUILD_DIR}"
+
+  ninja -j "${NPROC}" bin/radosgw
+
+  if [ "${WITH_TESTS}" == "ON" ] ; then
+    # discover tests from build.ninja so we don't need to update this after
+    # adding a new unit test
+    # SFS unittests should be named unittest_rgw_sfs*
+    IFS=" " read -r -a \
+      UNIT_TESTS <<< "$(grep "build unittest_rgw_sfs" build.ninja \
+                          | awk '{print $4}')"
+    ninja -j "${NPROC}" "${UNIT_TESTS[@]}"
+  fi
+
+  popd
+}
+
+
+_strip() {
+  [ "${CMAKE_BUILD_TYPE}" == "Debug" ] \
+    || [ "${CMAKE_BUILD_TYPE}" == "RelWithDebInfo" ] \
+    && return 0
 
   echo "Stripping files ..."
-  strip --strip-debug --strip-unneeded \
-    --keep-section=.GCC.command.line \
+  strip \
+    --strip-debug \
+    --strip-unneeded \
     --remove-section=.comment \
-    ${CEPH_DIR}/build/bin/radosgw \
-    ${CEPH_DIR}/build/lib/*.so
+    --keep-section=.GCC.command.line \
+    "${CEPH_DIR}"/build/bin/radosgw \
+    "${CEPH_DIR}"/build/lib/*.so
 }
 
-build_radosgw_tests() {
-  echo "Building radosgw tests..."
 
-  export CCACHE_DIR=${SFS_CCACHE_DIR}
-  if [ ! -d "${CCACHE_DIR}" ]; then
-    echo "ccache dir not found, create."
-    mkdir "${CCACHE_DIR}"
-    echo "Created by build-radosgw container" > \
-      "${CCACHE_DIR}/README"
-  fi
+_run_tests() {
+  [ "${RUN_TESTS}" == "ON" ] || return 0
 
-  cd ${CEPH_DIR}
-
-  # This is necessary since git v2.35.2 because of CVE-2022-24765
-  # but we have to continue in case CEPH_DIR is not a git repo
-  git config --global --add safe.directory "*" || true
-
-  if [ -d "build" ]; then
-      cd build/
-      cmake -DBOOST_J=${NPROC} ${CEPH_CMAKE_ARGS[@]} ..
-  else
-      ./do_cmake.sh ${CEPH_CMAKE_ARGS[@]}
-      cd build/
-  fi
-
+  echo "Running tests..."
   for unit_test in "${UNIT_TESTS[@]}"
   do
-    ninja -j${NPROC} bin/${unit_test}
+    echo "Running...${SFS_BUILD_DIR}/${unit_test}"
+    "${SFS_BUILD_DIR}/${unit_test}"
   done
 }
 
-run_radosgw_tests() {
-  cd ${CEPH_DIR}
-  for unit_test in "${UNIT_TESTS[@]}"
-  do
-    build/bin/${unit_test}
-  done
-}
 
 pushd .
-build_radosgw
-strip_radosgw
-if [ "${WITH_TESTS}" == "ON" ]; then
-  # discover tests from build.ninja so we don't need to update this after adding
-  # a new unit test
-  # SFS unittests should be named unittest_rgw_sfs*
-  TESTS_FROM_NINJA_BUILD=`grep "build unittest_rgw_sfs" build.ninja | awk '{print $2}' | sed 's/:$//g'`
 
-  UNIT_TESTS=(
-    ${TESTS_FROM_NINJA_BUILD}
-  )
-  build_radosgw_tests
-  if [ "${RUN_TESTS}" == "ON" ]; then
-    run_radosgw_tests
-  fi
-fi
+_configure
+_build
+_strip
+_run_tests
+
 popd
-
-exit 0
