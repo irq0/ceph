@@ -347,6 +347,13 @@ endif(WITH_LZ4)
 CMAKE_DEPENDENT_OPTION(WITH_CEPH_DEBUG_MUTEX "Use debug ceph::mutex with lockdep" ON
   "CMAKE_BUILD_TYPE STREQUAL Debug" OFF)
 
+# In case of build with GCC, record compile options into the ELF annotations.
+# This allows reconstructing the exact configuration from the output of
+# `readelf -p .GCC.command.line`
+if (CMAKE_COMPILER_IS_GNUCXX)
+  add_compile_options(-frecord-gcc-switches)
+endif()
+
 #if allocator is set on command line make sure it matches below strings
 set(ALLOCATOR "" CACHE STRING
   "specify memory allocator to use. currently tcmalloc, tcmalloc_minimal, \
