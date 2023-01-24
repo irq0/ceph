@@ -810,3 +810,425 @@ TEST_F(TestSFSBucket, TestListObjectsAndVersions) {
   // ensure all objects expected were found
   EXPECT_EQ(expected_objects.size() * 2, nb_found_objects);
 }
+
+TEST_F(TestSFSBucket, TestListObjectsDelimiter) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = new rgw::sal::SFStore(ceph_context.get(), getTestDir());
+
+  NoDoutPrefix ndp(ceph_context.get(), 1);
+  RGWEnv env;
+  env.init(ceph_context.get());
+
+  // create the test user
+  createUser("test_user", store->db_conn);
+
+  // create test bucket
+  createTestBucket("test_bucket", "test_user", store->db_conn);
+
+  // create the following objects:
+  // directory/
+  // directory/directory/
+  // directory/directory/file
+  // directory/file
+  // file
+  uint version_id = 1;
+  auto object1 = createTestObject("test_bucket", "directory/", store->db_conn);
+  createTestObjectVersion(object1, version_id++, store->db_conn);
+  createTestObjectVersion(object1, version_id++, store->db_conn);
+
+  auto object2 = createTestObject("test_bucket", "directory/directory/", store->db_conn);
+  createTestObjectVersion(object2, version_id++, store->db_conn);
+  createTestObjectVersion(object2, version_id++, store->db_conn);
+
+  auto object3 = createTestObject("test_bucket", "directory/directory/file", store->db_conn);
+  createTestObjectVersion(object3, version_id++, store->db_conn);
+  createTestObjectVersion(object3, version_id++, store->db_conn);
+
+  auto object4 = createTestObject("test_bucket", "directory/file", store->db_conn);
+  createTestObjectVersion(object4, version_id++, store->db_conn);
+  createTestObjectVersion(object4, version_id++, store->db_conn);
+
+  auto object5 = createTestObject("test_bucket", "file", store->db_conn);
+  createTestObjectVersion(object5, version_id++, store->db_conn);
+  createTestObjectVersion(object5, version_id++, store->db_conn);
+
+  // loads buckets from metadata
+  store->_refresh_buckets();
+
+  rgw_user arg_user("", "test_user", "");
+  auto user = store->get_user(arg_user);
+  ASSERT_NE(user, nullptr);
+
+  RGWBucketInfo arg_info = get_binfo();
+  arg_info.bucket.name = "test_bucket_name";
+  arg_info.bucket.bucket_id = "test_bucket";
+  std::unique_ptr<rgw::sal::Bucket> bucket_from_store;
+  EXPECT_EQ(store->get_bucket(&ndp,
+                            user.get(),
+                            arg_info.bucket,
+                            &bucket_from_store,
+                            null_yield),
+          0);
+
+  ASSERT_NE(bucket_from_store, nullptr);
+
+  rgw::sal::Bucket::ListParams params;
+
+  // list with empty prefix and empty delimiter
+  params.prefix = "";
+  params.delim = "";
+  rgw::sal::Bucket::ListResults results;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results,
+                                    null_yield),
+          0);
+
+  // we expect to get all the objects
+  std::map<std::string, std::shared_ptr<rgw::sal::sfs::Object>> expected_objects;
+  expected_objects[object1->name] = object1;
+  expected_objects[object2->name] = object2;
+  expected_objects[object3->name] = object3;
+  expected_objects[object4->name] = object4;
+  expected_objects[object5->name] = object5;
+  auto nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size(), results.objs.size());
+  for (auto & ret_obj : results.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size(), nb_found_objects);
+  // check there are no common_prefixes
+  EXPECT_EQ(results.common_prefixes.size(), 0);
+
+  // use delimiter 'i'
+  params.prefix = "";
+  params.delim = "i";
+  rgw::sal::Bucket::ListResults results_delimiter_i;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_delimiter_i,
+                                    null_yield),
+          0);
+
+  // we expect zero objects
+  EXPECT_EQ(results_delimiter_i.objs.size(), 0);
+
+  // check common_prefixes (should be fi and di)
+  EXPECT_EQ(results_delimiter_i.common_prefixes.size(), 2);
+  EXPECT_NE(results_delimiter_i.common_prefixes.find("fi"),
+            results_delimiter_i.common_prefixes.end());
+    EXPECT_NE(results_delimiter_i.common_prefixes.find("di"),
+            results_delimiter_i.common_prefixes.end());
+
+  // use delimiter '/'
+  params.prefix = "";
+  params.delim = "/";
+  rgw::sal::Bucket::ListResults results_delimiter_slash;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_delimiter_slash,
+                                    null_yield),
+          0);
+
+  // we expect only the "file" oject (the rest are aggregated in common prefix)
+  expected_objects.clear();
+  expected_objects[object5->name] = object5;
+  nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size(), results_delimiter_slash.objs.size());
+  for (auto & ret_obj : results_delimiter_slash.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size(), nb_found_objects);
+
+  // check common_prefixes
+  EXPECT_EQ(results_delimiter_slash.common_prefixes.size(), 1);
+  EXPECT_NE(results_delimiter_slash.common_prefixes.find("directory/"),
+            results_delimiter_slash.common_prefixes.end());
+
+  // use delimiter '/directory'
+  params.prefix = "";
+  params.delim = "/directory";
+  rgw::sal::Bucket::ListResults results_delimiter_directory;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_delimiter_directory,
+                                    null_yield),
+          0);
+
+  // we expect
+  // directory/
+  // directory/file
+  // file
+  expected_objects.clear();
+  expected_objects[object1->name] = object1; //  directory/
+  expected_objects[object4->name] = object4; //  directory/file
+  expected_objects[object5->name] = object5; //  file
+  nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size(), results_delimiter_directory.objs.size());
+  for (auto & ret_obj : results_delimiter_directory.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size(), nb_found_objects);
+
+  // check common_prefixes
+  EXPECT_EQ(results_delimiter_directory.common_prefixes.size(), 1);
+  EXPECT_NE(results_delimiter_directory.common_prefixes.find("directory/directory"),
+            results_delimiter_directory.common_prefixes.end());
+
+
+  // use delimiter 'i' and prefix 'd'
+  params.prefix = "d";
+  params.delim = "i";
+  rgw::sal::Bucket::ListResults results_delimiter_i_prefix_d;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_delimiter_i_prefix_d,
+                                    null_yield),
+          0);
+
+  // we expect zero objects
+  EXPECT_EQ(results_delimiter_i_prefix_d.objs.size(), 0);
+
+  // check common_prefixes (should be fi and di)
+  EXPECT_EQ(results_delimiter_i_prefix_d.common_prefixes.size(), 1);
+    EXPECT_NE(results_delimiter_i_prefix_d.common_prefixes.find("di"),
+            results_delimiter_i_prefix_d.common_prefixes.end());
+}
+
+TEST_F(TestSFSBucket, TestListObjectVersionsDelimiter) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = new rgw::sal::SFStore(ceph_context.get(), getTestDir());
+
+  NoDoutPrefix ndp(ceph_context.get(), 1);
+  RGWEnv env;
+  env.init(ceph_context.get());
+
+  // create the test user
+  createUser("test_user", store->db_conn);
+
+  // create test bucket
+  createTestBucket("test_bucket", "test_user", store->db_conn);
+
+  // create the following objects:
+  // directory/
+  // directory/directory/
+  // directory/directory/file
+  // directory/file
+  // file
+  uint version_id = 1;
+  auto object1 = createTestObject("test_bucket", "directory/", store->db_conn);
+  createTestObjectVersion(object1, version_id++, store->db_conn);
+  createTestObjectVersion(object1, version_id++, store->db_conn);
+
+  auto object2 = createTestObject("test_bucket", "directory/directory/", store->db_conn);
+  createTestObjectVersion(object2, version_id++, store->db_conn);
+  createTestObjectVersion(object2, version_id++, store->db_conn);
+
+  auto object3 = createTestObject("test_bucket", "directory/directory/file", store->db_conn);
+  createTestObjectVersion(object3, version_id++, store->db_conn);
+  createTestObjectVersion(object3, version_id++, store->db_conn);
+
+  auto object4 = createTestObject("test_bucket", "directory/file", store->db_conn);
+  createTestObjectVersion(object4, version_id++, store->db_conn);
+  createTestObjectVersion(object4, version_id++, store->db_conn);
+
+  auto object5 = createTestObject("test_bucket", "file", store->db_conn);
+  createTestObjectVersion(object5, version_id++, store->db_conn);
+  createTestObjectVersion(object5, version_id++, store->db_conn);
+
+  // loads buckets from metadata
+  store->_refresh_buckets();
+
+  rgw_user arg_user("", "test_user", "");
+  auto user = store->get_user(arg_user);
+  ASSERT_NE(user, nullptr);
+
+  RGWBucketInfo arg_info = get_binfo();
+  arg_info.bucket.name = "test_bucket_name";
+  arg_info.bucket.bucket_id = "test_bucket";
+  std::unique_ptr<rgw::sal::Bucket> bucket_from_store;
+  EXPECT_EQ(store->get_bucket(&ndp,
+                            user.get(),
+                            arg_info.bucket,
+                            &bucket_from_store,
+                            null_yield),
+          0);
+
+  ASSERT_NE(bucket_from_store, nullptr);
+
+  rgw::sal::Bucket::ListParams params;
+
+  // list with empty prefix and empty delimiter
+  params.prefix = "";
+  params.delim = "";
+  params.list_versions = true;
+  rgw::sal::Bucket::ListResults results;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results,
+                                    null_yield),
+          0);
+
+  // we expect to get all the objects
+  std::map<std::string, std::shared_ptr<rgw::sal::sfs::Object>> expected_objects;
+  expected_objects[object1->name] = object1;
+  expected_objects[object2->name] = object2;
+  expected_objects[object3->name] = object3;
+  expected_objects[object4->name] = object4;
+  expected_objects[object5->name] = object5;
+  auto nb_found_objects = 0;
+  // we have 2 versions per object
+  EXPECT_EQ(expected_objects.size() * 2, results.objs.size());
+  for (auto & ret_obj : results.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size() * 2, nb_found_objects);
+  // check there are no common_prefixes
+  EXPECT_EQ(results.common_prefixes.size(), 0);
+
+  // use delimiter 'i'
+  params.prefix = "";
+  params.delim = "i";
+  rgw::sal::Bucket::ListResults results_delimiter_i;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_delimiter_i,
+                                    null_yield),
+          0);
+
+  // we expect zero objects
+  EXPECT_EQ(results_delimiter_i.objs.size(), 0);
+
+  // check common_prefixes (should be fi and di)
+  EXPECT_EQ(results_delimiter_i.common_prefixes.size(), 2);
+  EXPECT_NE(results_delimiter_i.common_prefixes.find("fi"),
+            results_delimiter_i.common_prefixes.end());
+    EXPECT_NE(results_delimiter_i.common_prefixes.find("di"),
+            results_delimiter_i.common_prefixes.end());
+
+  // use delimiter '/'
+  params.prefix = "";
+  params.delim = "/";
+  rgw::sal::Bucket::ListResults results_delimiter_slash;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_delimiter_slash,
+                                    null_yield),
+          0);
+
+  // we expect only the "file" oject (the rest are aggregated in common prefix)
+  expected_objects.clear();
+  expected_objects[object5->name] = object5;
+  nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size() * 2, results_delimiter_slash.objs.size());
+  for (auto & ret_obj : results_delimiter_slash.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size() * 2, nb_found_objects);
+
+  // check common_prefixes
+  EXPECT_EQ(results_delimiter_slash.common_prefixes.size(), 1);
+  EXPECT_NE(results_delimiter_slash.common_prefixes.find("directory/"),
+            results_delimiter_slash.common_prefixes.end());
+
+  // use delimiter '/directory'
+  params.prefix = "";
+  params.delim = "/directory";
+  rgw::sal::Bucket::ListResults results_delimiter_directory;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_delimiter_directory,
+                                    null_yield),
+          0);
+
+  // we expect
+  // directory/
+  // directory/file
+  // file
+  expected_objects.clear();
+  expected_objects[object1->name] = object1; //  directory/
+  expected_objects[object4->name] = object4; //  directory/file
+  expected_objects[object5->name] = object5; //  file
+  nb_found_objects = 0;
+  EXPECT_EQ(expected_objects.size() * 2, results_delimiter_directory.objs.size());
+  for (auto & ret_obj : results_delimiter_directory.objs) {
+    auto it = expected_objects.find(ret_obj.key.name);
+    if (it != expected_objects.end()) {
+      compareListEntry(ret_obj, it->second, "test_user");
+      nb_found_objects++;
+    }
+  }
+  // ensure all objects expected were found
+  EXPECT_EQ(expected_objects.size() * 2, nb_found_objects);
+
+  // check common_prefixes
+  EXPECT_EQ(results_delimiter_directory.common_prefixes.size(), 1);
+  EXPECT_NE(results_delimiter_directory.common_prefixes.find("directory/directory"),
+            results_delimiter_directory.common_prefixes.end());
+
+
+  // use delimiter 'i' and prefix 'd'
+  params.prefix = "d";
+  params.delim = "i";
+  rgw::sal::Bucket::ListResults results_delimiter_i_prefix_d;
+
+  EXPECT_EQ(bucket_from_store->list(&ndp,
+                                    params,
+                                    0,
+                                    results_delimiter_i_prefix_d,
+                                    null_yield),
+          0);
+
+  // we expect zero objects
+  EXPECT_EQ(results_delimiter_i_prefix_d.objs.size(), 0);
+
+  // check common_prefixes (should be fi and di)
+  EXPECT_EQ(results_delimiter_i_prefix_d.common_prefixes.size(), 1);
+    EXPECT_NE(results_delimiter_i_prefix_d.common_prefixes.find("di"),
+            results_delimiter_i_prefix_d.common_prefixes.end());
+}

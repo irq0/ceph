@@ -12,6 +12,7 @@ and this project adheres to
 ### Added
 
 - Added prefix support when listing objects and object versions
+- Added delimiter support when listing objects and object versions
 
 ## [0.9.0] - 2022-12-01
 

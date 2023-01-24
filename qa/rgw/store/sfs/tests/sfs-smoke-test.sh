@@ -76,7 +76,7 @@ s3 get s3://${bucket}/dne.bin && exit 1
 must_have=("obj1.bin" "obj1.bin.2" "my/obj1.bin")
 ifs_old=$IFS
 IFS=$'\n'
-lst=($(s3 ls s3://${bucket}))
+lst=($(s3 ls -r s3://${bucket}))
 
 [[ ${#lst[@]} -eq 3 ]] || exit 1
 for what in ${must_have[@]} ; do
@@ -115,7 +115,7 @@ do_copy() {
   md5_copy=$(md5sum -b obj1.bin.copy.${dst_bucket} | cut -f1 -d' ')
   [[ "${md5_copy}" == "${md5_obj1}" ]] || exit 1
 
-  if ! s3 ls s3://${dst_bucket} | grep -q obj1.bin.copy ; then
+  if ! s3 ls -r s3://${dst_bucket} | grep -q obj1.bin.copy ; then
     exit 1
   fi
 }
@@ -132,13 +132,13 @@ do_copy ${newbucket}
 s3 del --recursive --force s3://${bucket}
 
 # list the bucket, it should be empty
-lst=($(s3 ls s3://${bucket}))
+lst=($(s3 ls -r s3://${bucket}))
 [[ ${#lst[@]} -eq 0 ]] || exit 1
 
 # remove the bucket
 s3 rb s3://${bucket}
 
 # should no longer be available
-s3 ls s3://${bucket} && exit 1
+s3 ls -r s3://${bucket} && exit 1
 
 exit 0
