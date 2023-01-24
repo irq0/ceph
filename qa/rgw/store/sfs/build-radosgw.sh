@@ -77,6 +77,7 @@ strip_radosgw() {
   echo "Stripping files ..."
   strip --strip-debug --strip-unneeded \
     --remove-section=.comment --remove-section=.note.* \
+    --keep-section=.GCC.command.line \
     ${CEPH_DIR}/build/bin/radosgw \
     ${CEPH_DIR}/build/lib/*.so
 }
