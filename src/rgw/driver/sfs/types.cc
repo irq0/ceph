@@ -83,6 +83,7 @@ void Object::metadata_finish(SFStore* store) {
   sqlite::SQLiteObjects dbobjs(store->db_conn);
   auto db_object = dbobjs.get_object(path.get_uuid());
   ceph_assert(db_object.has_value());
+  db_object->name = name;
   db_object->size = meta.size;
   db_object->etag = meta.etag;
   db_object->mtime = meta.mtime;
@@ -218,6 +219,7 @@ void Bucket::_finish_object(ObjectRef ref) {
   oinfo.mtime = ref->meta.mtime;
   oinfo.set_mtime = ref->meta.set_mtime;
   oinfo.delete_at = ref->meta.delete_at;
+  ref->deleted = false;
 
   sqlite::SQLiteObjects dbobjs(store->db_conn);
   dbobjs.store_object(oinfo);

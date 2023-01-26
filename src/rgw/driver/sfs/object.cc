@@ -280,6 +280,7 @@ int SFSObject::get_obj_state(
     const DoutPrefixProvider* dpp, RGWObjState** _state, optional_yield y,
     bool follow_olh
 ) {
+  refresh_meta();
   *_state = &state;
   return 0;
 }
@@ -450,7 +451,6 @@ void SFSObject::refresh_meta() {
 
 void SFSObject::_refresh_meta_from_object() {
   ceph_assert(objref);
-  auto meta = objref->meta;
   if (!get_instance().empty() && get_instance() != objref->instance) {
     // object specific version requested and it's not the last one
     sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
@@ -461,10 +461,13 @@ void SFSObject::_refresh_meta_from_object() {
       objref = std::make_shared<sfs::Object>(get_name(), uuid, deleted);
       objref->version_id = db_version->id;
       set_obj_size(db_version->size);
+      objref->meta.attrs = db_version->attrs;
+      objref->meta.etag = db_version->etag;
     }
   } else {
-    set_obj_size(meta.size);
+    set_obj_size(objref->meta.size);
   }
+  auto meta = objref->meta;
   set_attrs(meta.attrs);
   state.mtime = meta.mtime;
 }

@@ -127,12 +127,30 @@ int SFSAtomicWriter::complete(
   meta.mtime = ceph::real_clock::now();
   meta.set_mtime = set_mtime;
   meta.delete_at = delete_at;
+
+  // for object-locking enabled buckets, set the bucket's object-locking
+  // profile when not defined on the object itself
+  if (bucketref->get_info().obj_lock_enabled() &&
+      bucketref->get_info().obj_lock.has_rule()) {
+    auto iter = attrs.find(RGW_ATTR_OBJECT_RETENTION);
+    if (iter == attrs.end()) {
+      real_time lock_until_date =
+          bucketref->get_info().obj_lock.get_lock_until_date(meta.mtime);
+      string mode = bucketref->get_info().obj_lock.get_mode();
+      RGWObjectRetention obj_retention(mode, lock_until_date);
+      bufferlist bl;
+      obj_retention.encode(bl);
+      attrs[RGW_ATTR_OBJECT_RETENTION] = bl;
+    }
+  }
+
   meta.attrs = attrs;
   bucketref->finish(dpp, obj.get_name());
 
   if (mtime != nullptr) {
     *mtime = meta.mtime;
   }
+
   objref->metadata_finish(store);
   return 0;
 }
