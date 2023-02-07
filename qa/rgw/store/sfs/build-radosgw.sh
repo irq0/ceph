@@ -14,6 +14,7 @@ SFS_CCACHE_DIR=${SFS_CCACHE_DIR:-"${CEPH_DIR}/build.ccache"}
 WITH_TESTS=${WITH_TESTS:-"OFF"}
 RUN_TESTS=${RUN_TESTS:-"OFF"}
 WITH_RADOSGW_DBSTORE=${WITH_RADOSGW_DBSTORE:-"OFF"}
+ALLOCATOR=${ALLOCATOR:-"tcmalloc"}
 
 CEPH_CMAKE_ARGS=(
   "-DCMAKE_C_COMPILER=gcc-11"
@@ -22,6 +23,7 @@ CEPH_CMAKE_ARGS=(
   "-DWITH_PYTHON3=3"
   "-DWITH_CCACHE=ON"
   "-DWITH_TESTS=ON"
+  "-DALLOCATOR=${ALLOCATOR}"
   "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
   "-DWITH_RADOSGW_AMQP_ENDPOINT=OFF"
   "-DWITH_RADOSGW_KAFKA_ENDPOINT=OFF"
@@ -76,8 +78,8 @@ strip_radosgw() {
 
   echo "Stripping files ..."
   strip --strip-debug --strip-unneeded \
-    --remove-section=.comment --remove-section=.note.* \
     --keep-section=.GCC.command.line \
+    --remove-section=.comment \
     ${CEPH_DIR}/build/bin/radosgw \
     ${CEPH_DIR}/build/lib/*.so
 }
