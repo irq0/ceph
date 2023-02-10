@@ -20,9 +20,3 @@ jobs:
           project-url: https://github.com/orgs/ceph/projects/2
           github-token: ${{ secrets.GITHUB_TOKEN }}
           labeled: dashboard
-      - name: Assign milestone based on target brach name
-        # https://github.com/marketplace/actions/pull-request-milestone?version=v1.3.0
-        uses: iyu/actions-milestone@e93115c90ff7bcddee71086e9253f1b6a5f4b48a
-        with:
-          configuration-path: .github/milestone.yml
-          repo-token: "${{ secrets.GITHUB_TOKEN }}"
