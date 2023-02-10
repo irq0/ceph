@@ -25,10 +25,14 @@ using namespace std;
 namespace rgw::sal {
 
 std::unique_ptr<rgw::sal::Object> SFSMultipartUpload::get_meta_obj() {
-  return std::make_unique<SFSMultipartMetaObject>(
+  auto mmo = std::make_unique<SFSMultipartMetaObject>(
       store, rgw_obj_key(get_meta(), string(), RGW_OBJ_NS_MULTIPART), bucket,
       bucketref
   );
+  mmo->set_attrs(mp->attrs);
+  mmo->set_object_ref(mp->objref);
+  mp->objref->meta.attrs = mp->attrs;
+  return mmo;
 }
 
 int SFSMultipartUpload::init(
