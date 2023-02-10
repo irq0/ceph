@@ -19,6 +19,39 @@ using namespace rgw::sal::sfs::sqlite;
 namespace fs = std::filesystem;
 const static std::string TEST_DIR = "rgw_sfs_tests";
 
+/*
+  These structs are in-memory mockable versions of actual structs/classes
+  that have a private rep.
+  Real types normally populate their rep via encode/decode methods.
+  For the sake of convenience, we define binary equivalent types with
+  public editable members.
+*/
+namespace mockable {
+  struct DefaultRetention
+  {
+    std::string mode;
+    int days;
+    int years;
+  };
+
+  struct ObjectLockRule
+  {
+    mockable::DefaultRetention defaultRetention;
+  };
+
+  struct RGWObjectLock
+  {
+    bool enabled;
+    bool rule_exist;
+    mockable::ObjectLockRule rule;
+  };
+
+  mockable::RGWObjectLock& actual2mock(::RGWObjectLock& actual)
+  {
+    return (mockable::RGWObjectLock&)actual;
+  }
+}
+
 class TestSFSSQLiteBuckets : public ::testing::Test {
 protected:
   void SetUp() override {
@@ -70,6 +103,11 @@ void compareBucketRGWInfo(const RGWBucketInfo & origin, const RGWBucketInfo & de
   ASSERT_EQ(origin.quota.max_objects, dest.quota.max_objects);
   ASSERT_EQ(origin.quota.enabled, dest.quota.enabled);
   ASSERT_EQ(origin.quota.check_on_raw, dest.quota.check_on_raw);
+  ASSERT_EQ(origin.obj_lock.get_days(), dest.obj_lock.get_days());
+  ASSERT_EQ(origin.obj_lock.get_years(), dest.obj_lock.get_years());
+  ASSERT_EQ(origin.obj_lock.get_mode(), dest.obj_lock.get_mode());
+  ASSERT_EQ(origin.obj_lock.has_rule(), dest.obj_lock.has_rule());
+  ASSERT_EQ(origin.obj_lock.retention_period_valid(), dest.obj_lock.retention_period_valid());
 }
 
 void compareBucketAttrs(const std::optional<rgw::sal::Attrs> & origin, const std::optional<rgw::sal::Attrs> & dest) {
@@ -131,8 +169,16 @@ DBOPBucketInfo createTestBucket(const std::string & suffix) {
     attrs[RGW_ATTR_ACL] = acl_bl;
     bucket.battrs = attrs;
   }
-  
+
   bucket.deleted = randomBool();
+
+  //object locking
+  mockable::RGWObjectLock &ol = mockable::actual2mock(bucket.binfo.obj_lock);
+  ol.enabled = true;
+  ol.rule.defaultRetention.years = 12;
+  ol.rule.defaultRetention.days = 31;
+  ol.rule.defaultRetention.mode = "GOVERNANCE";
+  ol.rule_exist = true;
 
   return bucket;
 }

@@ -30,8 +30,6 @@ struct DBObject {
   std::optional<BLOB> mtime;
   std::optional<BLOB> set_mtime;
   std::optional<BLOB> delete_at_time;
-  std::optional<BLOB> attrs;
-  std::optional<BLOB> acls;
 };
 
 struct DBOPObjectInfo {
@@ -43,8 +41,6 @@ struct DBOPObjectInfo {
   ceph::real_time mtime;
   ceph::real_time set_mtime;
   ceph::real_time delete_at;
-  rgw::sal::Attrs attrs;
-  RGWAccessControlPolicy acls;
 };
 
 }  // namespace rgw::sal::sfs::sqlite

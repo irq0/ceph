@@ -407,6 +407,7 @@ class SFStore : public StoreDriver {
     if (pquota_info) {
       db_binfo.binfo.quota = *pquota_info;
     }
+    db_binfo.binfo.flags = info.flags;
 
     struct timespec ts;
     ceph::real_clock::to_timespec(db_binfo.binfo.creation_time, ts);
@@ -414,7 +415,7 @@ class SFStore : public StoreDriver {
     info.bucket = bucket;
 
     db_binfo.binfo.bucket.marker = db_binfo.binfo.bucket.bucket_id =
-      info.bucket.marker = info.bucket.bucket_id = 
+      info.bucket.marker = info.bucket.bucket_id =
         bucket.name + "." + std::to_string(ts.tv_sec) + std::to_string(ts.tv_nsec);
 
     info.owner = db_binfo.binfo.owner;
@@ -423,7 +424,6 @@ class SFStore : public StoreDriver {
     info.placement_rule = db_binfo.binfo.placement_rule;
     info.requester_pays = false;
     info.quota = db_binfo.binfo.quota;
-    
     db_binfo.battrs = attrs;
 
     auto meta_buckets = sfs::get_meta_buckets(db_conn);

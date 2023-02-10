@@ -82,8 +82,6 @@ struct DBTestObject {
   std::optional<BLOB> mtime;
   std::optional<BLOB> set_mtime;
   std::optional<BLOB> delete_at_time;
-  std::optional<BLOB> attrs;
-  std::optional<BLOB> acls;
 };
 
 struct DBTestVersionedObject {
@@ -96,6 +94,7 @@ struct DBTestVersionedObject {
   uint object_state;
   std::string version_id;
   std::string etag;
+  std::optional<BLOB> attrs;
 };
 
 inline auto _make_test_storage(const std::string &path) {
@@ -152,8 +151,6 @@ inline auto _make_test_storage(const std::string &path) {
           sqlite_orm::make_column("mtime", &DBTestObject::mtime),
           sqlite_orm::make_column("set_mtime", &DBTestObject::set_mtime),
           sqlite_orm::make_column("delete_at_time", &DBTestObject::delete_at_time),
-          sqlite_orm::make_column("attrs", &DBTestObject::attrs),
-          sqlite_orm::make_column("acls", &DBTestObject::acls),
           sqlite_orm::foreign_key(&DBTestObject::bucket_id).references(&DBTestBucket::bucket_id)),
     sqlite_orm::make_table(std::string(VERSIONED_OBJECTS_TABLE),
           sqlite_orm::make_column("id", &DBTestVersionedObject::id, sqlite_orm::autoincrement(), sqlite_orm::primary_key()),
@@ -165,6 +162,7 @@ inline auto _make_test_storage(const std::string &path) {
           sqlite_orm::make_column("object_state", &DBTestVersionedObject::object_state),
           sqlite_orm::make_column("version_id", &DBTestVersionedObject::version_id),
           sqlite_orm::make_column("etag", &DBTestVersionedObject::etag),
+          sqlite_orm::make_column("attrs", &DBTestVersionedObject::attrs),
           sqlite_orm::foreign_key(&DBTestVersionedObject::object_id).references(&DBTestObject::object_id)),
     sqlite_orm::make_table(std::string(ACCESS_KEYS),
           sqlite_orm::make_column("id", &DBAccessKey::id, sqlite_orm::autoincrement(), sqlite_orm::primary_key()),

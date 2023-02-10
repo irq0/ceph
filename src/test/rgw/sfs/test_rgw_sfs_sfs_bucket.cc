@@ -196,6 +196,9 @@ TEST_F(TestSFSBucket, UserCreateBucketCheckGotFromCreate) {
   EXPECT_EQ(bucket_from_create->get_placement_rule().storage_class, "STANDARD");
   EXPECT_NE(bucket_from_create->get_attrs().find(RGW_ATTR_ACL), bucket_from_create->get_attrs().end());
   
+  EXPECT_FALSE(arg_info.flags & BUCKET_VERSIONED);
+  EXPECT_FALSE(arg_info.flags & BUCKET_OBJ_LOCK_ENABLED);
+
   auto acl_bl_it = bucket_from_create->get_attrs().find(RGW_ATTR_ACL);
   {
     RGWAccessControlPolicy aclp;
@@ -812,6 +815,7 @@ TEST_F(TestSFSBucket, TestListObjectsAndVersions) {
 }
 
 TEST_F(TestSFSBucket, TestListObjectsDelimiter) {
+
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
   auto store = new rgw::sal::SFStore(ceph_context.get(), getTestDir());
@@ -927,7 +931,7 @@ TEST_F(TestSFSBucket, TestListObjectsDelimiter) {
   EXPECT_EQ(results_delimiter_i.common_prefixes.size(), 2);
   EXPECT_NE(results_delimiter_i.common_prefixes.find("fi"),
             results_delimiter_i.common_prefixes.end());
-    EXPECT_NE(results_delimiter_i.common_prefixes.find("di"),
+  EXPECT_NE(results_delimiter_i.common_prefixes.find("di"),
             results_delimiter_i.common_prefixes.end());
 
   // use delimiter '/'
@@ -1017,7 +1021,7 @@ TEST_F(TestSFSBucket, TestListObjectsDelimiter) {
 
   // check common_prefixes (should be fi and di)
   EXPECT_EQ(results_delimiter_i_prefix_d.common_prefixes.size(), 1);
-    EXPECT_NE(results_delimiter_i_prefix_d.common_prefixes.find("di"),
+  EXPECT_NE(results_delimiter_i_prefix_d.common_prefixes.find("di"),
             results_delimiter_i_prefix_d.common_prefixes.end());
 }
 
@@ -1139,7 +1143,7 @@ TEST_F(TestSFSBucket, TestListObjectVersionsDelimiter) {
   EXPECT_EQ(results_delimiter_i.common_prefixes.size(), 2);
   EXPECT_NE(results_delimiter_i.common_prefixes.find("fi"),
             results_delimiter_i.common_prefixes.end());
-    EXPECT_NE(results_delimiter_i.common_prefixes.find("di"),
+  EXPECT_NE(results_delimiter_i.common_prefixes.find("di"),
             results_delimiter_i.common_prefixes.end());
 
   // use delimiter '/'
@@ -1229,6 +1233,74 @@ TEST_F(TestSFSBucket, TestListObjectVersionsDelimiter) {
 
   // check common_prefixes (should be fi and di)
   EXPECT_EQ(results_delimiter_i_prefix_d.common_prefixes.size(), 1);
-    EXPECT_NE(results_delimiter_i_prefix_d.common_prefixes.find("di"),
+  EXPECT_NE(results_delimiter_i_prefix_d.common_prefixes.find("di"),
             results_delimiter_i_prefix_d.common_prefixes.end());
+}
+
+TEST_F(TestSFSBucket, UserCreateBucketObjectLockEnabled) {
+  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
+  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
+  auto store = new rgw::sal::SFStore(ceph_context.get(), getTestDir());
+
+  NoDoutPrefix ndp(ceph_context.get(), 1);
+  RGWEnv env;
+  env.init(ceph_context.get());
+
+  createUser("ol_user_id", store->db_conn);
+
+  rgw_user arg_user("", "ol_user_id", "");
+  auto user = store->get_user(arg_user);
+
+  rgw_bucket arg_bucket("t_id", "ol_name", "");
+  rgw_placement_rule arg_pl_rule("default", "STANDARD");
+  std::string arg_swift_ver_location;
+  RGWQuotaInfo arg_quota_info;
+  RGWAccessControlPolicy arg_aclp = get_aclp_default();
+  rgw::sal::Attrs arg_attrs;
+  {
+    bufferlist acl_bl;
+    arg_aclp.encode(acl_bl);
+    arg_attrs[RGW_ATTR_ACL] = acl_bl;
+  }
+
+  RGWBucketInfo arg_info = get_binfo();
+  obj_version arg_objv;
+  bool existed = false;
+  req_info arg_req_info(ceph_context.get(), &env);
+
+  std::unique_ptr<rgw::sal::Bucket> bucket_from_create;
+
+  EXPECT_EQ(user->create_bucket(&ndp,                       //dpp
+                                arg_bucket,                 //b
+                                "zg1",                      //zonegroup_id
+                                arg_pl_rule,                //placement_rule
+                                arg_swift_ver_location,     //swift_ver_location
+                                &arg_quota_info,            //pquota_info
+                                arg_aclp,                   //policy
+                                arg_attrs,                  //attrs
+                                arg_info,                   //info
+                                arg_objv,                   //ep_objv
+                                false,                      //exclusive
+                                true,                       //obj_lock_enabled
+                                &existed,                   //existed
+                                arg_req_info,               //req_info
+                                &bucket_from_create,        //bucket
+                                null_yield                  //optional_yield
+                                ),
+            0);
+
+  EXPECT_TRUE(arg_info.flags & BUCKET_VERSIONED);
+  EXPECT_TRUE(arg_info.flags & BUCKET_OBJ_LOCK_ENABLED);
+
+  std::unique_ptr<rgw::sal::Bucket> bucket_from_store;
+
+  EXPECT_EQ(store->get_bucket(&ndp,
+                              user.get(),
+                              arg_info.bucket,
+                              &bucket_from_store,
+                              null_yield),
+            0);
+
+  EXPECT_EQ(bucket_from_create->get_info().flags, arg_info.flags);
+  EXPECT_EQ(bucket_from_create->get_info().flags, bucket_from_store->get_info().flags);
 }

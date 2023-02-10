@@ -65,7 +65,7 @@ struct DBOPBucketInfo {
 
   DBOPBucketInfo() = default;
 
-  DBOPBucketInfo(const RGWBucketInfo &info, const Attrs &attrs) : 
+  DBOPBucketInfo(const RGWBucketInfo &info, const Attrs &attrs) :
     binfo(info),
     battrs(attrs) { }
 

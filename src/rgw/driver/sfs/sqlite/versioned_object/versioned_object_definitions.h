@@ -32,6 +32,7 @@ struct DBVersionedObject {
   uint object_state;
   std::string version_id;
   std::string etag;
+  std::optional<BLOB> attrs;
 };
 
 struct DBOPVersionedObjectInfo {
@@ -44,6 +45,7 @@ struct DBOPVersionedObjectInfo {
   ObjectState object_state;
   std::string version_id;
   std::string etag;
+  rgw::sal::Attrs attrs;
 };
 
 }  // namespace rgw::sal::sfs::sqlite

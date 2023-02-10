@@ -169,6 +169,7 @@ class SFSObject : public StoreObject {
                          const real_time &mtime, uint64_t olh_epoch,
                          const DoutPrefixProvider *dpp,
                          optional_yield y) override;
+
   /** Move an object to the cloud */
   virtual int transition_to_cloud(
     Bucket* bucket,
@@ -180,7 +181,7 @@ class SFSObject : public StoreObject {
     const DoutPrefixProvider* dpp,
     optional_yield y
   );
-  
+
   virtual bool placement_rules_match(rgw_placement_rule &r1,
                                      rgw_placement_rule &r2) override;
   virtual int dump_obj_layout(const DoutPrefixProvider *dpp, optional_yield y,
@@ -189,7 +190,7 @@ class SFSObject : public StoreObject {
                                        const DoutPrefixProvider *dpp) override;
   virtual int swift_versioning_copy(const DoutPrefixProvider *dpp,
                                     optional_yield y) override;
-  
+
   /**
    * Obtain a Read Operation.
    */
@@ -208,25 +209,23 @@ class SFSObject : public StoreObject {
   virtual int omap_set_val_by_key(const DoutPrefixProvider *dpp,
                                   const std::string &key, bufferlist &val,
                                   bool must_exist, optional_yield y) override;
+
   virtual int chown(rgw::sal::User &new_user, const DoutPrefixProvider *dpp,
                     optional_yield y) override;
-  // will be removed in the future..
-  virtual int get_obj_state(
-    const DoutPrefixProvider *dpp,
-    RGWObjState **_state,
-    optional_yield y,
-    bool follow_olh = true
-  ) override {
-    *_state = &state;
-    return 0;
-  }
-  virtual int set_obj_attrs(const DoutPrefixProvider *dpp, Attrs *setattrs,
-                            Attrs *delattrs, optional_yield y) override {
-                              
-    return 0;
-  }
 
-  sfs::ObjectRef get_object_ref() {    
+  virtual int get_obj_state(const DoutPrefixProvider *dpp,
+                            RGWObjState **_state,
+                            optional_yield y,
+                            bool follow_olh = true) override;
+
+  virtual int set_obj_attrs(const DoutPrefixProvider *dpp,
+                            Attrs *setattrs,
+                            Attrs *delattrs,
+                            optional_yield y) override;
+
+  bool get_attr(const std::string &name, bufferlist& dest);
+
+  sfs::ObjectRef get_object_ref() {
     return objref;
   }
 
