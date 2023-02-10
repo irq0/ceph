@@ -135,16 +135,6 @@ jobs:
           docker kill $CONTAINER
 
   run-s3gw-tests:
-    strategy:
-      matrix:
-        op:
-          - create
-          # - list
-          - delete
-        resource:
-          - bucket
-          - object
-
     runs-on: self-hosted
     needs:
       - build-and-test
@@ -163,6 +153,12 @@ jobs:
           path: s3tests
           branch: ceph-master
 
+      - name: Checkout s3gw Infrastructure
+        uses: actions/checkout@v3
+        with:
+          path: s3gw
+          repository: aquarist-labs/s3gw
+
       - name: Download Radosgw Artifacts
         uses: actions/download-artifact@v3
         with:
@@ -177,39 +173,45 @@ jobs:
 
       - name: Install dependencies
         run: |
+          YQ_GH_URL=https://github.com/mikefarah/yq/releases/download
+          YQ_VERSION=v4.31.1
+          YQ_CHECKSUM=1aef844cbecbbf81036449ea5e7dfcdf19d2d374fab6303fdb8f849d04275d76
+
           sudo apt-get update
-          sudo apt-get install -y python3-nose
+          sudo apt-get install -y \
+            python3-nose \
+            wget
+
+          # Unfortunately, since yq is only available through snap on Ubuntu and
+          # that doesn't work in docker containers (at least not out of the
+          # box), this abomination is the way to go to install yq.
+          echo "${YQ_CHECKSUM}  yq" >> checksum
+          wget -O yq "${YQ_GH_URL}/${YQ_VERSION}/yq_linux_amd64"
+          sha256sum -c checksum \
+            && sudo mv yq /usr/bin/yq \
+            && sudo chmod +x /usr/bin/yq
 
           python3 -m pip \
             install --upgrade -r s3tests/requirements.txt
 
       - name: Run S3tests ${{ matrix.op }} ${{ matrix.resource }}
         run: |
-          export FIXTURES=$GITHUB_WORKSPACE/ceph/qa/rgw/store/sfs/tests/fixtures
-          export S3TEST_CONF=$FIXTURES/s3tests.conf
+          set -x
 
+          export CEPH_DIR="${GITHUB_WORKSPACE}/ceph"
+          export OUTPUT_DIR="${GITHUB_WORKSPACE}/s3test-results"
+          export FORCE_CONTAINER=ON
+          export \
+            FIXTURES="${GITHUB_WORKSPACE}/ceph/qa/rgw/store/sfs/tests/fixtures"
+
+          export S3TEST_REPO="${GITHUB_WORKSPACE}/s3tests"
+          export S3TEST_CONF="${FIXTURES}/s3tests.conf"
+          export S3TEST_LIST="${FIXTURES}/s3-tests.txt"
           pushd s3tests
+          "${GITHUB_WORKSPACE}/s3gw/tools/tests/s3tests-runner.sh"
+          popd
 
-          for t in $(yq \
-                      .${{ matrix.resource}}_${{ matrix.op }}[] \
-                      $FIXTURES/s3-tests.yaml) ; do
-
-            # run a separate instance of s3gw, so we know it's a clean env
-            # and a crash doesn't spoil later tests
-            CONTAINER=$(docker run --rm -d \
-              -v $GITHUB_WORKSPACE/ceph/build/bin:/radosgw/bin \
-              -v $GITHUB_WORKSPACE/ceph/build/lib:/radosgw/lib \
-              -p 7480:7480 \
-              quay.io/s3gw/run-radosgw \
-                --rgw-backend-store sfs \
-                --debug-rgw 1)
-
-            # Canonical, in their infinite wisdom decided to rename this
-            nosetests3 \
-              -v \
-              -s \
-              -a '!fails_on_rgw,!lifecycle_expiration,!fails_strict_rfc2616' \
-              s3tests_boto3.functional.test_s3:$t
-
-            docker kill $CONTAINER
-          done
+          ls -la "${OUTPUT_DIR}"
+          # TODO (https://github.com/aquarist-labs/s3gw/issues/29)
+          # Push results to status repo and display them in a nice fashion
+          # jq . ${OUTPUT_DIR}/report.json
