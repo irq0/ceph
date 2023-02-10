@@ -27,8 +27,6 @@ DBOPObjectInfo get_rgw_object(const DBObject& object) {
   assign_optional_value(object.mtime, rgw_object.mtime);
   assign_optional_value(object.set_mtime, rgw_object.set_mtime);
   assign_optional_value(object.delete_at_time, rgw_object.delete_at);
-  assign_optional_value(object.attrs, rgw_object.attrs);
-  assign_optional_value(object.acls, rgw_object.acls);
   return rgw_object;
 }
 
@@ -42,8 +40,6 @@ DBObject get_db_object(const DBOPObjectInfo& object) {
   assign_db_value(object.mtime, db_object.mtime);
   assign_db_value(object.set_mtime, db_object.set_mtime);
   assign_db_value(object.delete_at, db_object.delete_at_time);
-  assign_db_value(object.attrs, db_object.attrs);
-  assign_db_value(object.acls, db_object.acls);
   return db_object;
 }
 }  // namespace rgw::sal::sfs::sqlite

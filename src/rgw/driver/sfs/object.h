@@ -162,6 +162,7 @@ class SFSObject : public StoreObject {
       const real_time& mtime, uint64_t olh_epoch, const DoutPrefixProvider* dpp,
       optional_yield y
   ) override;
+
   /** Move an object to the cloud */
   virtual int transition_to_cloud(
       Bucket* bucket, rgw::sal::PlacementTier* tier, rgw_bucket_dir_entry& o,
@@ -202,23 +203,22 @@ class SFSObject : public StoreObject {
       const DoutPrefixProvider* dpp, const std::string& key, bufferlist& val,
       bool must_exist, optional_yield y
   ) override;
+
   virtual int chown(
       rgw::sal::User& new_user, const DoutPrefixProvider* dpp, optional_yield y
   ) override;
-  // will be removed in the future..
+
   virtual int get_obj_state(
       const DoutPrefixProvider* dpp, RGWObjState** _state, optional_yield y,
       bool follow_olh = true
-  ) override {
-    *_state = &state;
-    return 0;
-  }
+  ) override;
+
   virtual int set_obj_attrs(
       const DoutPrefixProvider* dpp, Attrs* setattrs, Attrs* delattrs,
       optional_yield y
-  ) override {
-    return 0;
-  }
+  ) override;
+
+  bool get_attr(const std::string& name, bufferlist& dest);
 
   sfs::ObjectRef get_object_ref() { return objref; }
 

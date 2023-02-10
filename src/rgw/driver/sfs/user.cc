@@ -167,6 +167,15 @@ int SFSUser::create_bucket(
   placement_rule.storage_class = "STANDARD";
   info.placement_rule = placement_rule;
 
+  /*
+    Automatically enable versioning for the bucket when
+    the user creates a bucket with Object Lock enabled.
+    This adheres to AmazonS3 behavior. see:
+    https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock-overview.html#object-lock-bucket-config
+  */
+  if (obj_lock_enabled)
+    info.flags |= BUCKET_VERSIONED | BUCKET_OBJ_LOCK_ENABLED;
+
   sfs::BucketRef bucketref = store->bucket_create(
       b, this->get_info(), zonegroup_id, placement_rule, swift_ver_location,
       pquota_info, attrs, info

@@ -55,6 +55,16 @@ void encode_blob(const RGWQuotaInfo& origin, BLOB_HOLDER& dest) {
 }
 
 template <typename BLOB_HOLDER>
+void encode_blob(const RGWObjectLock& origin, BLOB_HOLDER& dest) {
+  bufferlist buffer;
+  encode(origin, buffer);
+  dest.reserve(buffer.length());
+  std::copy(
+      buffer.c_str(), buffer.c_str() + buffer.length(), std::back_inserter(dest)
+  );
+}
+
+template <typename BLOB_HOLDER>
 void encode_blob(const RGWUserCaps& origin, BLOB_HOLDER& dest) {
   bufferlist buffer;
   encode(origin, buffer);

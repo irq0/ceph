@@ -73,8 +73,12 @@ struct Object {
   void metadata_change_version_state(SFStore* store, ObjectState state);
   void metadata_finish(SFStore* store);
 
+  void metadata_flush_attrs(SFStore* store);
+
   int delete_object_version(SFStore* store);
   void delete_object(SFStore* store);
+
+  bool get_attr(const std::string& name, bufferlist& dest);
 };
 
 using ObjectRef = std::shared_ptr<Object>;

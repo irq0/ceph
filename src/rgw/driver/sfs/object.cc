@@ -23,13 +23,22 @@ using namespace std;
 
 namespace rgw::sal {
 
-SFSObject::SFSReadOp::SFSReadOp(SFSObject* _source) : source(_source) {}
+SFSObject::SFSReadOp::SFSReadOp(SFSObject* _source) : source(_source) {
+  /*
+    This initialization code was originally into prepare() but that
+    was not sufficient to cover all cases.
+    There are pieces of SAL code that are calling get_*() methods
+    but they don't call prepare().
+    In those cases the SFSReadOp is not properly initialized and those
+    calls are going to fail.
+  */
+  source->refresh_meta();
+  objref = source->get_object_ref();
+}
 
 int SFSObject::SFSReadOp::prepare(
     optional_yield y, const DoutPrefixProvider* dpp
 ) {
-  source->refresh_meta();
-  objref = source->get_object_ref();
   if (!objref || objref->deleted) {
     // at this point, we don't have an objectref because
     // the object does not exist.
@@ -52,16 +61,13 @@ int SFSObject::SFSReadOp::get_attr(
     const DoutPrefixProvider* dpp, const char* name, bufferlist& dest,
     optional_yield y
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO: " << name << dendl;
-
-  if (std::strcmp(name, "user.rgw.acl") == 0) {
-    // TODO support 'user.rgw.acl' to support read_permissions. Return
-    // empty policy since our test user is admin for now.
-    RGWAccessControlPolicy policy;
-    policy.encode(dest);
-    return 0;
+  if (!objref || objref->deleted) {
+    return -ENOENT;
   }
-  return -ENOTSUP;
+  if (!objref->get_attr(name, dest)) {
+    return -ENODATA;
+  }
+  return 0;
 }
 
 // sync read
@@ -252,25 +258,98 @@ void SFSObject::gen_rand_obj_instance_name() {
   state.obj.key.set_instance(buf);
 }
 
+/*
+  This should be intended as a mere fetch of object's attributes.
+  The caller will likely call get_attrs() after get_obj_attrs().
+  This is how we have interpreted this call.
+  The average usage of this seems to suggest that one first calls
+  get_obj_attrs() and then it uses get_attrs().
+  Doubts remain that this could be entirely correct for all cases;
+  so for the time being, we leave target_obj empty.
+  We rely on the fact that, if in the future something could potentially fail
+  because target_obj is left empty, that fail will be explicit.
+*/
 int SFSObject::get_obj_attrs(
     optional_yield y, const DoutPrefixProvider* dpp, rgw_obj* target_obj
 ) {
-  lsfs_dout(dpp, 10) << " TODO" << dendl;
+  refresh_meta();
   return 0;
 }
+
+int SFSObject::get_obj_state(
+    const DoutPrefixProvider* dpp, RGWObjState** _state, optional_yield y,
+    bool follow_olh
+) {
+  *_state = &state;
+  return 0;
+}
+
+int SFSObject::set_obj_attrs(
+    const DoutPrefixProvider* dpp, Attrs* setattrs, Attrs* delattrs,
+    optional_yield y
+) {
+  ceph_assert(objref);
+  auto meta = objref->meta;
+  map<string, bufferlist>::iterator iter;
+
+  if (delattrs) {
+    for (iter = delattrs->begin(); iter != delattrs->end(); ++iter) {
+      meta.attrs.erase(iter->first);
+    }
+  }
+  if (setattrs) {
+    for (iter = setattrs->begin(); iter != setattrs->end(); ++iter) {
+      meta.attrs[iter->first] = iter->second;
+    }
+  }
+
+  //synch attrs caches
+  state.attrset = meta.attrs;
+  state.has_attrs = true;
+
+  objref->metadata_flush_attrs(store);
+  return 0;
+}
+
+bool SFSObject::get_attr(const std::string& name, bufferlist& dest) {
+  return objref->get_attr(name, dest);
+}
+
 int SFSObject::modify_obj_attrs(
     const char* attr_name, bufferlist& attr_val, optional_yield y,
     const DoutPrefixProvider* dpp
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  if (!attr_name) {
+    return 0;
+  }
+  ceph_assert(objref);
+  auto meta = objref->meta;
+  meta.attrs[attr_name] = attr_val;
+
+  //synch attrs caches
+  state.attrset = meta.attrs;
+  state.has_attrs = true;
+
+  objref->metadata_flush_attrs(store);
+  return 0;
 }
 
 int SFSObject::delete_obj_attrs(
     const DoutPrefixProvider* dpp, const char* attr_name, optional_yield y
 ) {
-  ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
-  return -ENOTSUP;
+  if (!attr_name) {
+    return 0;
+  }
+  ceph_assert(objref);
+  auto meta = objref->meta;
+  if (meta.attrs.erase(attr_name)) {
+    //synch attrs caches
+    state.attrset = meta.attrs;
+    state.has_attrs = true;
+
+    objref->metadata_flush_attrs(store);
+  }
+  return 0;
 }
 
 std::unique_ptr<MPSerializer> SFSObject::get_serializer(

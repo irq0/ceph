@@ -399,6 +399,7 @@ class SFStore : public StoreDriver {
     if (pquota_info) {
       db_binfo.binfo.quota = *pquota_info;
     }
+    db_binfo.binfo.flags = info.flags;
 
     struct timespec ts;
     ceph::real_clock::to_timespec(db_binfo.binfo.creation_time, ts);
@@ -416,7 +417,6 @@ class SFStore : public StoreDriver {
     info.placement_rule = db_binfo.binfo.placement_rule;
     info.requester_pays = false;
     info.quota = db_binfo.binfo.quota;
-
     db_binfo.battrs = attrs;
 
     auto meta_buckets = sfs::get_meta_buckets(db_conn);

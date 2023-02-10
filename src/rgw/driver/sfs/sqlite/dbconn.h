@@ -102,6 +102,7 @@ inline auto _make_storage(const std::string& path) {
           ),
           sqlite_orm::make_column("deleted", &DBBucket::deleted),
           sqlite_orm::make_column("bucket_attrs", &DBBucket::bucket_attrs),
+          sqlite_orm::make_column("object_lock", &DBBucket::object_lock),
           sqlite_orm::foreign_key(&DBBucket::owner_id)
               .references(&DBUser::user_id)
       ),
@@ -117,8 +118,6 @@ inline auto _make_storage(const std::string& path) {
           sqlite_orm::make_column("mtime", &DBObject::mtime),
           sqlite_orm::make_column("set_mtime", &DBObject::set_mtime),
           sqlite_orm::make_column("delete_at_time", &DBObject::delete_at_time),
-          sqlite_orm::make_column("attrs", &DBObject::attrs),
-          sqlite_orm::make_column("acls", &DBObject::acls),
           sqlite_orm::foreign_key(&DBObject::bucket_id)
               .references(&DBBucket::bucket_id)
       ),
@@ -142,6 +141,7 @@ inline auto _make_storage(const std::string& path) {
           ),
           sqlite_orm::make_column("version_id", &DBVersionedObject::version_id),
           sqlite_orm::make_column("etag", &DBVersionedObject::etag),
+          sqlite_orm::make_column("attrs", &DBVersionedObject::attrs),
           sqlite_orm::foreign_key(&DBVersionedObject::object_id)
               .references(&DBObject::object_id)
       ),

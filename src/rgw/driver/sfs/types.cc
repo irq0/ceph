@@ -71,6 +71,14 @@ void Object::metadata_change_version_state(SFStore* store, ObjectState state) {
   db_versioned_objs.store_versioned_object(*versioned_object);
 }
 
+void Object::metadata_flush_attrs(SFStore* store) {
+  sqlite::SQLiteVersionedObjects db_versioned_objs(store->db_conn);
+  auto versioned_object = db_versioned_objs.get_versioned_object(version_id);
+  ceph_assert(versioned_object.has_value());
+  versioned_object->attrs = meta.attrs;
+  db_versioned_objs.store_versioned_object(*versioned_object);
+}
+
 void Object::metadata_finish(SFStore* store) {
   sqlite::SQLiteObjects dbobjs(store->db_conn);
   auto db_object = dbobjs.get_object(path.get_uuid());
@@ -80,7 +88,6 @@ void Object::metadata_finish(SFStore* store) {
   db_object->mtime = meta.mtime;
   db_object->set_mtime = meta.set_mtime;
   db_object->delete_at = meta.delete_at;
-  db_object->attrs = meta.attrs;
   dbobjs.store_object(*db_object);
 
   sqlite::SQLiteVersionedObjects db_versioned_objs(store->db_conn);
@@ -91,6 +98,7 @@ void Object::metadata_finish(SFStore* store) {
   db_versioned_object->creation_time = meta.mtime;
   db_versioned_object->object_state = ObjectState::COMMITTED;
   db_versioned_object->etag = meta.etag;
+  db_versioned_object->attrs = meta.attrs;
   db_versioned_objs.store_versioned_object(*db_versioned_object);
 }
 
@@ -110,6 +118,15 @@ void Object::delete_object(SFStore* store) {
   // remove metadata
   sqlite::SQLiteObjects db_objs(store->db_conn);
   db_objs.remove_object(path.get_uuid());
+}
+
+bool Object::get_attr(const std::string& name, bufferlist& dest) {
+  auto iter = meta.attrs.find(name);
+  if (iter != meta.attrs.end()) {
+    dest = iter->second;
+    return true;
+  }
+  return false;
 }
 
 void MultipartObject::_abort(const DoutPrefixProvider* dpp) {
@@ -201,7 +218,6 @@ void Bucket::_finish_object(ObjectRef ref) {
   oinfo.mtime = ref->meta.mtime;
   oinfo.set_mtime = ref->meta.set_mtime;
   oinfo.delete_at = ref->meta.delete_at;
-  oinfo.attrs = ref->meta.attrs;
 
   sqlite::SQLiteObjects dbobjs(store->db_conn);
   dbobjs.store_object(oinfo);
@@ -314,7 +330,7 @@ void Bucket::_refresh_objects() {
       ref->meta.mtime = obj.mtime;
       ref->meta.set_mtime = obj.set_mtime;
       ref->meta.delete_at = obj.delete_at;
-      ref->meta.attrs = obj.attrs;
+      ref->meta.attrs = last_version->attrs;
       ref->version_id = last_version->id;
       ref->instance = last_version->version_id;
       ref->deleted = (last_version->object_state == ObjectState::DELETED);

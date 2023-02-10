@@ -73,8 +73,6 @@ void compareObjects(const DBOPObjectInfo & origin, const DBOPObjectInfo & dest) 
   ASSERT_EQ(origin.mtime, dest.mtime);
   ASSERT_EQ(origin.set_mtime, dest.set_mtime);
   ASSERT_EQ(origin.delete_at, dest.delete_at);
-  ASSERT_EQ(origin.attrs, dest.attrs);
-  ASSERT_EQ(origin.acls, dest.acls);
 }
 
 DBOPObjectInfo createTestObject(const std::string & suffix, CephContext *context, const std::string & username="usertest") {
@@ -87,16 +85,6 @@ DBOPObjectInfo createTestObject(const std::string & suffix, CephContext *context
   object.mtime = ceph::real_clock::now();
   object.set_mtime = ceph::real_clock::now();
   object.delete_at = ceph::real_clock::now();
-  bufferlist buffer;
-  std::string blob = "blob_test";
-  buffer.append(reinterpret_cast<const char *>(blob.c_str()), blob.length());
-  object.attrs["attr1"] = buffer;
-  RGWAccessControlPolicy policy(context);
-  rgw_user user;
-  user.id = username;
-  std::string name = "DEFAULT";
-  policy.create_default(user, name);
-  object.acls = policy;
   return object;
 }
 
