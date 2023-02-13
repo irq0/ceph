@@ -55,10 +55,18 @@ protected:
     return getDBFullPath(getTestDir());
   }
 
-  std::size_t getStoreNbFiles() {
+  std::size_t getStoreDataFileCount() {
     using std::filesystem::recursive_directory_iterator;
-    using fp = bool (*)( const std::filesystem::path&);
-    return std::count_if(recursive_directory_iterator(getTestDir()), recursive_directory_iterator{}, (fp)std::filesystem::is_regular_file);
+    return std::count_if(
+        recursive_directory_iterator(getTestDir()),
+        recursive_directory_iterator{}, [](const std::filesystem::path& path) {
+          return (std::filesystem::is_regular_file(path) &&
+                  !path.filename().string().starts_with("s3gw.db"));
+        });
+  }
+
+  std::size_t databaseFileExists() {
+    return std::filesystem::exists(getDBFullPath());
   }
 
   void createTestUser(DBConnRef conn) {
@@ -201,10 +209,12 @@ TEST_F(TestSFSGC, TestDeletedBuckets) {
   createTestObjectVersion(object2, version_id++, store->db_conn);
 
   // we should have 5 version files plus the sqlite db
-  EXPECT_EQ(getStoreNbFiles(), 6);
+  EXPECT_EQ(getStoreDataFileCount(), 5);
+  EXPECT_TRUE(databaseFileExists());
 
   // nothing should be removed
-  EXPECT_EQ(getStoreNbFiles(), 6);
+  EXPECT_EQ(getStoreDataFileCount(), 5);
+  EXPECT_TRUE(databaseFileExists());
   SQLiteVersionedObjects db_versioned_objs(store->db_conn);
   auto versions = db_versioned_objs.get_versioned_object_ids();
   EXPECT_EQ(versions.size(), 5);
@@ -212,7 +222,8 @@ TEST_F(TestSFSGC, TestDeletedBuckets) {
   // delete bucket 2
   deleteTestBucket("test_bucket_2", store->db_conn);
   // nothing should be removed permanently yet
-  EXPECT_EQ(getStoreNbFiles(), 6);
+  EXPECT_EQ(getStoreDataFileCount(), 5);
+  EXPECT_TRUE(databaseFileExists());
   versions = db_versioned_objs.get_versioned_object_ids();
   // we should have 1 more version (delete marker for 1 object)
   EXPECT_EQ(versions.size(), 6);
@@ -220,7 +231,8 @@ TEST_F(TestSFSGC, TestDeletedBuckets) {
   gc->process();
 
   // only objects for bucket 1 should be available
-  EXPECT_EQ(getStoreNbFiles(), 4);
+  EXPECT_EQ(getStoreDataFileCount(), 3);
+  EXPECT_TRUE(databaseFileExists());
   EXPECT_EQ(0, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_FALSE(bucketExists("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
@@ -231,7 +243,8 @@ TEST_F(TestSFSGC, TestDeletedBuckets) {
   gc->process();
 
   // only the db file should be present
-  EXPECT_EQ(getStoreNbFiles(), 1);
+  EXPECT_EQ(getStoreDataFileCount(), 0);
+  EXPECT_TRUE(databaseFileExists());
   EXPECT_EQ(0, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_FALSE(bucketExists("test_bucket_2", store->db_conn));
   EXPECT_EQ(0, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
@@ -271,7 +284,8 @@ TEST_F(TestSFSGC, TestDeletedBucketsMaxObjects) {
   createTestObjectVersion(object2, version_id++, store->db_conn);
 
   // we should have 5 version files plus the sqlite db
-  EXPECT_EQ(getStoreNbFiles(), 6);
+  EXPECT_EQ(getStoreDataFileCount(), 5);
+  EXPECT_TRUE(databaseFileExists());
 
   // delete bucket 2
   deleteTestBucket("test_bucket_2", store->db_conn);
@@ -279,7 +293,8 @@ TEST_F(TestSFSGC, TestDeletedBucketsMaxObjects) {
   gc->process();
 
   // only 1 file should be removed
-  EXPECT_EQ(getStoreNbFiles(), 5);
+  EXPECT_EQ(getStoreDataFileCount(), 4);
+  EXPECT_TRUE(databaseFileExists());
   // the object is still reachable in the db
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
@@ -287,20 +302,23 @@ TEST_F(TestSFSGC, TestDeletedBucketsMaxObjects) {
   gc->process();
 
   // one more version removed
-  EXPECT_EQ(getStoreNbFiles(), 4);
+  EXPECT_EQ(getStoreDataFileCount(), 3);
+  EXPECT_TRUE(databaseFileExists());
   // the object is still reachable in the db (versions removed)
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
 
   gc->process();
   // one more version removed
-  EXPECT_EQ(getStoreNbFiles(), 4);
+  EXPECT_EQ(getStoreDataFileCount(), 3);
+  EXPECT_TRUE(databaseFileExists());
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
 
   gc->process();
   // one more version removed
-  EXPECT_EQ(getStoreNbFiles(), 4);
+  EXPECT_EQ(getStoreDataFileCount(), 3);
+  EXPECT_TRUE(databaseFileExists());
   // the object is finally removed
   EXPECT_EQ(0, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
