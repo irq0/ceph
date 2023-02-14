@@ -1,6 +1,7 @@
 #include "dbconn.h"
 
 #include <filesystem>
+#include <system_error>
 
 namespace fs = std::filesystem;
 namespace orm = sqlite_orm;
@@ -17,6 +18,13 @@ std::string get_temporary_db_path(CephContext* ctt) {
 void DBConn::check_metadata_is_compatible(CephContext* ctt) {
   // create a copy of the actual metadata
   fs::copy(getDBPath(ctt), get_temporary_db_path(ctt));
+  try {
+    fs::copy(getDBPath(ctt) + "-wal", get_temporary_db_path(ctt) + "-wal");
+  } catch (const std::filesystem::filesystem_error& e) {
+    if (e.code() != std::errc::no_such_file_or_directory) {
+      throw e;
+    }
+  }
 
   // try to sync the storage based on the temporary db
   // in case something goes wrong show possible errors and return
@@ -55,6 +63,14 @@ void DBConn::check_metadata_is_compatible(CephContext* ctt) {
   }
   // remove the temporary db
   fs::remove(get_temporary_db_path(ctt));
+
+  try {
+    fs::remove(get_temporary_db_path(ctt) + "-wal");
+  } catch (const std::filesystem::filesystem_error& e) {
+    if (e.code() != std::errc::no_such_file_or_directory) {
+      throw e;
+    }
+  }
 
   // if there was a sync issue, throw an exception
   if (sync_error) {
