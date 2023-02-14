@@ -186,6 +186,14 @@ struct TestDB {
   explicit TestDB(const std::string & db_full_path)
     : storage(_make_test_storage(db_full_path))
   {
+    storage.on_open = [](sqlite3* db) {
+      sqlite3_extended_result_codes(db, 1);
+      sqlite3_busy_timeout(db, 10000);
+      sqlite3_exec(db,
+                   "PRAGMA journal_mode=WAL;PRAGMA synchronous=normal;"
+                   "PRAGMA temp_store = memory;PRAGMA mmap_size = 30000000000;",
+                   0, 0, 0);
+    };
     storage.open_forever();
     storage.busy_timeout(5000);
     storage.sync_schema();
