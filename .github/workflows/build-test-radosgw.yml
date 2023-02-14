@@ -13,7 +13,7 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout
@@ -39,7 +39,6 @@ jobs:
         run: |
           docker run --rm \
             -v $GITHUB_WORKSPACE/ceph:/srv/ceph \
-            -e NPROC=4 \
             -e WITH_TESTS=ON \
             quay.io/s3gw/build-radosgw:latest
 
@@ -55,23 +54,62 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y s3cmd
 
-      - name: Run smoke tests
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+
+      - name: Install Python Dependencies
         run: |
-          mkdir storage
-          docker run -d \
-            -v $GITHUB_WORKSPACE/storage:/data \
+          python3 -m pip install -r ceph/qa/rgw/store/sfs/tests/requirements.txt
+
+      - name: Run Integration tests
+        run: |
+          set -e
+          set -x
+
+          source ceph/qa/rgw/store/sfs/tests/helpers.sh
+
+          mkdir -p integration/storage
+          CONTAINER=$(docker run --rm -d \
+            -v $GITHUB_WORKSPACE/integration/storage:/data \
             -v $GITHUB_WORKSPACE/ceph/build/bin:/radosgw/bin \
             -v $GITHUB_WORKSPACE/ceph/build/lib:/radosgw/lib \
             -p 7480:7480 \
             quay.io/s3gw/run-radosgw \
               --rgw-backend-store sfs \
-              --debug-rgw 1
+              --debug-rgw 1)
 
-          sleep 5
-          # ^ This is needed to give the gateway some time to boot up.
-          # It also serves to make sure the gateway takes no more than 5 seconds
-          # to boot up.
+          wait_for_http_200 "http://127.0.0.1:7480"
 
-          echo "Running Tests:\n"
+          echo "Running Integration Tests:"
           cd ceph/qa/rgw/store/sfs/tests
-          ./run-tests.sh
+
+          python3 -m unittest test-*.py
+
+          docker kill $CONTAINER
+
+      - name: Run smoke tests
+        run: |
+          set -e
+          set -x
+
+          source ceph/qa/rgw/store/sfs/tests/helpers.sh
+
+          mkdir -p smoke/storage
+          CONTAINER=$(docker run --rm -d \
+            -v $GITHUB_WORKSPACE/smoke/storage:/data \
+            -v $GITHUB_WORKSPACE/ceph/build/bin:/radosgw/bin \
+            -v $GITHUB_WORKSPACE/ceph/build/lib:/radosgw/lib \
+            -p 7480:7480 \
+            quay.io/s3gw/run-radosgw \
+              --rgw-backend-store sfs \
+              --debug-rgw 1)
+
+          wait_for_http_200 "http://127.0.0.1:7480"
+
+          echo "Running Smoke Tests:"
+          cd ceph/qa/rgw/store/sfs/tests
+          ./sfs-smoke-test.sh 127.0.0.1:7480
+
+          docker kill $CONTAINER
