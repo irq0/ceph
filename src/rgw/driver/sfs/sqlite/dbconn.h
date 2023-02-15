@@ -71,7 +71,7 @@ inline auto _make_storage(const std::string& path) {
               "placement_storage_class", &DBUser::placement_storage_class
           ),
           sqlite_orm::make_column("placement_tags", &DBUser::placement_tags),
-          sqlite_orm::make_column("bucke_quota", &DBUser::bucke_quota),
+          sqlite_orm::make_column("bucket_quota", &DBUser::bucket_quota),
           sqlite_orm::make_column("temp_url_keys", &DBUser::temp_url_keys),
           sqlite_orm::make_column("user_quota", &DBUser::user_quota),
           sqlite_orm::make_column("type", &DBUser::type),

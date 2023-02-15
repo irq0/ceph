@@ -41,7 +41,7 @@ DBOPUserInfo get_rgw_user(const DBUser& user) {
       rgw_user.uinfo.default_placement.storage_class
   );
   assign_optional_value(user.placement_tags, rgw_user.uinfo.placement_tags);
-  assign_optional_value(user.bucke_quota, rgw_user.uinfo.quota.bucket_quota);
+  assign_optional_value(user.bucket_quota, rgw_user.uinfo.quota.bucket_quota);
   assign_optional_value(user.temp_url_keys, rgw_user.uinfo.temp_url_keys);
   assign_optional_value(user.user_quota, rgw_user.uinfo.quota.user_quota);
   assign_optional_value(user.type, rgw_user.uinfo.type);
@@ -76,7 +76,7 @@ DBUser get_db_user(const DBOPUserInfo& user) {
       db_user.placement_storage_class
   );
   assign_db_value(user.uinfo.placement_tags, db_user.placement_tags);
-  assign_db_value(user.uinfo.quota.bucket_quota, db_user.bucke_quota);
+  assign_db_value(user.uinfo.quota.bucket_quota, db_user.bucket_quota);
   assign_db_value(user.uinfo.temp_url_keys, db_user.temp_url_keys);
   assign_db_value(user.uinfo.quota.user_quota, db_user.user_quota);
   assign_db_value(user.uinfo.type, db_user.type);
