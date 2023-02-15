@@ -1,4 +1,5 @@
 #!/bin/bash
+#
 # Copyright 2022 SUSE, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,11 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -x
+[[ -n "${TRACE}" ]] && set -x
+set +e
 
-testpath=$(mktemp -d sfs.XXXX --tmpdir=/tmp)
+testpath=$(mktemp -q -d sfs.XXXX --tmpdir=/tmp)
 s3cfg=${testpath}/s3cfg
 url="${1}"
+retcode="0"
 
 usage() {
   cat << EOF
@@ -25,14 +28,8 @@ usage: $0 ADDRESS[:PORT[/LOCATION]]
 EOF
 }
 
-s3() {
-  s3cmd -c ${s3cfg} $*
-  return $?
-}
-
-[[ -z "${url}" ]] && usage && exit 1
-
-cat > ${s3cfg} << EOF
+setup() {
+  cat > "${s3cfg}" << EOF
 [default]
 access_key = test
 secret_key = test
@@ -44,101 +41,156 @@ signature_v2 = True
 signurl_use_https = False
 EOF
 
-pushd ${testpath}
+  pushd "${testpath}" > /dev/null || exit 1
+}
+
+cleanup() {
+  popd > /dev/null || exit 1
+
+  rm -rf "${testpath}"
+}
+
+success() {
+  [[ "$(caller 1 | cut -d' ' -f2)" == "main" ]] && \
+    echo -e "$(caller 1) \e[0;32mSUCCESS\e[0m"
+}
+
+failure() {
+  [[ "$(caller 1 | cut -d' ' -f2)" == "main" ]] && \
+    echo -e "$(caller 1) \e[1;31mFAILURE\e[0m"
+  retcode="1"
+}
+
+# this function is meant to be called indirectly from expect_success
+# it will ignore a failure, but not fail on success, unlike expect_failure,
+# which will fail on success
+# shellcheck disable=SC2317
+ignore_failure() {
+  "$@" || true
+}
+
+expect_failure() {
+  if "$@" > /dev/null 2>&1 ; then failure ; else success ; fi
+}
+
+expect_success() {
+  if "$@" > /dev/null 2>&1 ; then success ; else failure ; fi
+}
+
+expect_count() {
+  local count="$1"
+  shift
+  local cmd=("$@")
+  mapfile -t lst < <("${cmd[@]}")
+  [[ "${#lst[@]}" -eq "$count" ]] || failure
+  success
+}
+
+expect_in_bucket() {
+  local bucket="$1"
+  local objs=( "$@" )
+  mapfile -t lst < <(s3 ls -r "s3://${bucket}")
+  for obj in "${objs[@]}" ; do
+    echo "${lst[@]}" | grep -q "$obj" || failure
+  done
+  success
+}
+
+# this function is meant to be called indirectly from expect_success/failure
+# shellcheck disable=SC2317
+compare_file_hash() {
+  local aaa="$1"
+  local bbb="$2"
+  aaa_md5=$(md5sum -b "$aaa" | cut -f1 -d' ')
+  bbb_md5=$(md5sum -b "$bbb" | cut -f1 -d' ')
+  [[ "$aaa_md5" == "$bbb_md5" ]]
+}
+
+s3() {
+  s3cmd -c "${s3cfg}" "$@"
+}
+
+[[ -z "${url}" ]] && usage && exit 1
+
+setup
 
 # Please note: rgw will refuse bucket names with upper case letters.
 # This is due to amazon s3's bucket naming restrictions.
 # See:
 # https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
 #
-bucket="sfs-test-$(tr -dc a-z0-9 < /dev/urandom | head -c 4)"
+bucket="sfs-test-$(echo $RANDOM | sha1sum | head -c 4 | tr -dc a-z0-9)"
 
-s3 ls s3:// || exit 1
-s3 mb s3://${bucket} || exit 1
-s3 ls s3://${bucket} || exit 1
-s3 ls s3://${bucket}-dne && exit 1
+expect_success s3 ls "s3://"
+expect_success s3 mb "s3://${bucket}"
+expect_success s3 ls "s3://${bucket}"
+expect_failure s3 ls "s3://${bucket}-dne"
 
-dd if=/dev/random bs=1k count=1k of=obj1.bin || exit 1
-dd if=/dev/random bs=1k count=2k of=obj2.bin || exit 1
+dd if=/dev/random bs=1k count=1k of=obj1.bin status=none
+dd if=/dev/random bs=1k count=2k of=obj2.bin status=none
 
-s3 put obj1.bin s3://${bucket}/ || exit 1
-s3 put obj1.bin s3://${bucket}/obj1.bin || exit 1
-s3 put obj1.bin s3://${bucket}/obj1.bin.2 || exit 1
-s3 put obj1.bin s3://${bucket}/my/obj1.bin || exit 1
-s3 get s3://${bucket}/obj1.bin obj1.bin.local || exit 1
-orig_md5=$(md5sum -b obj1.bin | cut -f1 -d' ')
-down_md5=$(md5sum -b obj1.bin.local | cut -f1 -d' ')
+expect_success s3 put "obj1.bin" "s3://${bucket}/"
+expect_success s3 put "obj1.bin" "s3://${bucket}/obj1.bin"
+expect_success s3 put "obj1.bin" "s3://${bucket}/obj1.bin.2"
+expect_success s3 put "obj1.bin" "s3://${bucket}/my/obj1.bin"
+expect_success s3 get "s3://${bucket}/obj1.bin" "obj1.bin.local"
 
-[[ "${orig_md5}" == "${down_md5}" ]] || exit 1
+expect_success compare_file_hash "obj1.bin" "obj1.bin.local"
 
-s3 get s3://${bucket}/dne.bin && exit 1
+expect_failure s3 get "s3://${bucket}/dne.bin"
 
-must_have=("obj1.bin" "obj1.bin.2" "my/obj1.bin")
-ifs_old=$IFS
-IFS=$'\n'
-lst=($(s3 ls -r s3://${bucket}))
+expect_count 3 s3 ls -r "s3://${bucket}"
+expect_in_bucket "${bucket}" "obj1.bin" "obj1.bin.2" "my/obj1.bin"
 
-[[ ${#lst[@]} -eq 3 ]] || exit 1
-for what in ${must_have[@]} ; do
-  found=false
-  for e in ${lst[@]}; do
-    r=$(echo $e | grep "s3://${bucket}/${what}$")
-    [[ -n "${r}" ]] && found=true && break
-  done
-  $found || exit 1
-done
+expect_success s3 rm "s3://${bucket}/obj1.bin.2"
+expect_count 2 s3 ls -r "s3://${bucket}"
+expect_in_bucket "${bucket}" "obj1.bin" "my/obj1.bin"
 
-s3 rm s3://${bucket}/obj1.bin.2 || exit 1
+expect_success s3 put "obj2.bin" "s3://${bucket}/obj2.bin"
+expect_success s3 put "obj1.bin" "s3://${bucket}/obj2.bin"
+expect_success s3 get "s3://${bucket}/obj2.bin" "obj2.bin.local"
 
-s3 put obj2.bin s3://${bucket}/obj2.bin || exit 1
-s3 put obj1.bin s3://${bucket}/obj2.bin || exit 1
-s3 get s3://${bucket}/obj2.bin obj2.bin.local || exit 1
-md5_before=$(md5sum -b obj2.bin | cut -f1 -d' ')
-md5_after=$(md5sum -b obj2.bin.local | cut -f1 -d' ')
-md5_expected=$(md5sum -b obj1.bin | cut -f1 -d' ')
-
-[[ "${md5_before}" != "${md5_after}" ]] || exit 1
-[[ "${md5_after}" == "${md5_expected}" ]] || exit 1
-
-md5_obj1=$(md5sum -b obj1.bin | cut -f1 -d' ')
+expect_failure compare_file_hash "obj2.bin" "obj2.bin.local"
+expect_success compare_file_hash "obj1.bin" "obj2.bin.local"
 
 do_copy() {
-  dst_bucket=$1
+  local from_bucket="$1"
+  local to_bucket="$2"
 
   # For now this operation fails. While the copy actually succeeds, s3cmd then
   # tries to perform an ACL operation on the bucket/object, and that fails.
   # We need to ensure the object is there instead, and check it matches in
   # contents.
-  s3 cp s3://${bucket}/obj1.bin s3://${dst_bucket}/obj1.bin.copy || true
-  s3 get s3://${dst_bucket}/obj1.bin.copy obj1.bin.copy.${dst_bucket} || exit 1
+  expect_success \
+    ignore_failure \
+    s3 cp "s3://${from_bucket}/obj1.bin" "s3://${to_bucket}/obj1.bin.copy"
 
-  md5_copy=$(md5sum -b obj1.bin.copy.${dst_bucket} | cut -f1 -d' ')
-  [[ "${md5_copy}" == "${md5_obj1}" ]] || exit 1
-
-  if ! s3 ls -r s3://${dst_bucket} | grep -q obj1.bin.copy ; then
-    exit 1
-  fi
+  expect_in_bucket "$to_bucket" "obj1.bin.copy"
+  expect_success \
+    s3 get "s3://${to_bucket}/obj1.bin.copy" "obj1.bin.copy.${to_bucket}"
+  expect_success compare_file_hash "obj1.bin" "obj1.bin.copy.${to_bucket}"
+  success
 }
 
 # copy from $bucket/obj to $bucket/obj.copy
-do_copy ${bucket}
+do_copy "${bucket}" "${bucket}"
 
 # copy from $bucket/obj to $newbucket/obj.copy
 newbucket="${bucket}-2"
-s3 mb s3://${newbucket} || exit 1
-do_copy ${newbucket}
+expect_success s3 mb "s3://${newbucket}"
+do_copy "${bucket}" "${newbucket}"
 
 # delete the bucket contents
-s3 del --recursive --force s3://${bucket}
+expect_success s3 del --recursive --force "s3://${bucket}"
 
 # list the bucket, it should be empty
-lst=($(s3 ls -r s3://${bucket}))
-[[ ${#lst[@]} -eq 0 ]] || exit 1
+expect_count 0 s3 ls -r "s3://${bucket}"
 
 # remove the bucket
-s3 rb s3://${bucket}
+expect_success s3 rb "s3://${bucket}"
 
 # should no longer be available
-s3 ls -r s3://${bucket} && exit 1
+expect_failure s3 ls -r "s3://${bucket}"
 
-exit 0
+cleanup
+exit "$retcode"
