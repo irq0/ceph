@@ -43,7 +43,7 @@ struct DBUser {
   std::optional<std::string> placement_name;
   std::optional<std::string> placement_storage_class;
   std::optional<BLOB> placement_tags;
-  std::optional<BLOB> bucke_quota;
+  std::optional<BLOB> bucket_quota;
   std::optional<BLOB> temp_url_keys;
   std::optional<BLOB> user_quota;
   std::optional<int> type;

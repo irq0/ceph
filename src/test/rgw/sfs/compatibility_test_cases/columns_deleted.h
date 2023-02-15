@@ -23,7 +23,7 @@ struct DBTestUser {
   std::optional<std::string> placement_name;
   std::optional<std::string> placement_storage_class;
   std::optional<BLOB> placement_tags;
-  std::optional<BLOB> bucke_quota;
+  std::optional<BLOB> bucket_quota;
   std::optional<BLOB> temp_url_keys;
   std::optional<BLOB> user_quota;
   std::optional<int> type;
@@ -118,7 +118,7 @@ inline auto _make_test_storage(const std::string &path) {
           sqlite_orm::make_column("placement_name", &DBTestUser::placement_name),
           sqlite_orm::make_column("placement_storage_class", &DBTestUser::placement_storage_class),
           sqlite_orm::make_column("placement_tags", &DBTestUser::placement_tags),
-          sqlite_orm::make_column("bucke_quota", &DBTestUser::bucke_quota),
+          sqlite_orm::make_column("bucket_quota", &DBTestUser::bucket_quota),
           sqlite_orm::make_column("temp_url_keys", &DBTestUser::temp_url_keys),
           sqlite_orm::make_column("user_quota", &DBTestUser::user_quota),
           sqlite_orm::make_column("type", &DBTestUser::type),
