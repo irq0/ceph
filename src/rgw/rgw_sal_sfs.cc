@@ -553,9 +553,9 @@ SFStore::~SFStore() {
 
   if (filesystem_stats_updater.joinable()) {
 #ifdef CEPH_DEBUG_MUTEX
-     filesystem_stats_updater_cvar.notify_all(true);
+    filesystem_stats_updater_cvar.notify_all(true);
 #else
-     filesystem_stats_updater_cvar.notify_all();
+    filesystem_stats_updater_cvar.notify_all();
 #endif  // CEPH_DEBUG_MUTEX
     filesystem_stats_updater.join();
   }
