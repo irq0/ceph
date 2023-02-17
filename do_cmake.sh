@@ -66,16 +66,16 @@ if type ccache > /dev/null 2>&1 ; then
     ARGS+=" -DWITH_CCACHE=ON"
 fi
 
-cxx_compiler="g++"
-c_compiler="gcc"
-# 20 is used for more future-proof
-for i in $(seq 20 -1 11); do
-  if type -t gcc-$i > /dev/null; then
-    cxx_compiler="g++-$i"
-    c_compiler="gcc-$i"
-    break
-  fi
-done
+cxx_compiler="clang++-15"
+c_compiler="clang-15"
+# # 20 is used for more future-proof
+# for i in $(seq 20 -1 11); do
+#   if type -t gcc-$i > /dev/null; then
+#     cxx_compiler="g++-$i"
+#     c_compiler="gcc-$i"
+#     break
+#   fi
+# done
 ARGS+=" -DCMAKE_CXX_COMPILER=$cxx_compiler"
 ARGS+=" -DCMAKE_C_COMPILER=$c_compiler"
 

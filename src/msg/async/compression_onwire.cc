@@ -12,7 +12,7 @@ namespace ceph::compression::onwire {
 rxtx_t rxtx_t::create_handler_pair(
     CephContext* ctx,
     const CompConnectionMeta& comp_meta,
-    std::uint64_t compress_min_size)
+    uint64_t compress_min_size)
 {
   if (comp_meta.is_compress()) {
      CompressorRef compressor = Compressor::create(ctx, comp_meta.get_method());

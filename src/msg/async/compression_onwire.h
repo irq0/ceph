@@ -44,7 +44,7 @@ namespace ceph::compression::onwire {
 
   class TxHandler final : private Handler {
   public:
-    TxHandler(CephContext* const cct, CompressorRef compressor, int mode, std::uint64_t min_size)
+    TxHandler(CephContext* const cct, CompressorRef compressor, int mode, uint64_t min_size)
       : Handler(cct, compressor),
 	m_min_size(min_size),
 	m_mode(static_cast<Compressor::CompressionMode>(mode))
@@ -97,7 +97,7 @@ namespace ceph::compression::onwire {
     static rxtx_t create_handler_pair(
       CephContext* ctx,
       const CompConnectionMeta& comp_meta,
-      std::uint64_t compress_min_size);
+      uint64_t compress_min_size);
   };
 }
 
