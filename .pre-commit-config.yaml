@@ -1,0 +1,19 @@
+fail_fast: false
+files: >-
+  (?x)^(
+    src/rgw/driver/sfs/.*|
+    src/rgw/rgw_sal_sfs\.(h|cc)
+  )$
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+    - id: trailing-whitespace
+    - id: mixed-line-ending
+
+- repo: https://github.com/codespell-project/codespell
+  rev: v2.1.0
+  hooks:
+    - id: codespell
+      args:
+        - --ignore-words=.codespell-ignore
