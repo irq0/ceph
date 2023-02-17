@@ -240,7 +240,7 @@ bool SFSBucket::is_owner(User* user) {
 
 int SFSBucket::check_empty(const DoutPrefixProvider* dpp, optional_yield y) {
   /** Check in the backing store if this bucket is empty */
-  // check if there are still objecs owned by the bucket
+  // check if there are still objects owned by the bucket
   sfs::sqlite::SQLiteObjects db_objects(store->db_conn);
   auto objects = db_objects.get_object_ids(get_name());
   sfs::sqlite::SQLiteVersionedObjects db_versions(store->db_conn);

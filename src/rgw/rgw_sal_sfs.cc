@@ -258,7 +258,7 @@ int SFStore::get_config_key_val(string name, bufferlist* bl) {
  to make handle point at a const string which indicates what type of
  metadata we're dealing with, then check that value and call an instance
  of the appropriate rgw::sal::sfs::sqlite::SQLite* class to get the
- metdata we care about.
+ metadata we care about.
 
  TODO: replace this nasty hack.
  */
