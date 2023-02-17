@@ -241,14 +241,12 @@ int main() {
 CHECK_C_COMPILER_FLAG("-fdiagnostics-color=always"
   COMPILER_SUPPORTS_DIAGNOSTICS_COLOR)
 
-set(DIAGNOSTICS_COLOR "auto"
+set(DIAGNOSTICS_COLOR "always"
   CACHE STRING "Used if the C/C++ compiler supports the -fdiagnostics-color option. May have one of three values -- 'auto' (default), 'always', or 'never'. If set to 'always' and the compiler supports the option, 'make [...] | less -R' will make visible diagnostics colorization of compiler output.")
 
-if(COMPILER_SUPPORTS_DIAGNOSTICS_COLOR)
   add_compile_options(
     "$<$<COMPILE_LANGUAGE:C>:-fdiagnostics-color=${DIAGNOSTICS_COLOR}>"
     "$<$<COMPILE_LANGUAGE:CXX>:-fdiagnostics-color=${DIAGNOSTICS_COLOR}>")
-endif()
 
 if(MINGW)
   # Fedora and RHEL set CMAKE_DL_LIBS on MINGW, which we must un-set here.
