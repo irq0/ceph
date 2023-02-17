@@ -96,7 +96,7 @@ int SFSBucket::list(const DoutPrefixProvider *dpp, ListParams &params, int max,
       results.objs.push_back(dirent);
     }
   }
-  
+
   lsfs_dout(dpp, 10) << "found " << results.objs.size() << " objects" << dendl;
   return 0;
 }
@@ -232,7 +232,7 @@ bool SFSBucket::is_owner(User *user) {
 int SFSBucket::check_empty(const DoutPrefixProvider *dpp,
                                   optional_yield y) {
   /** Check in the backing store if this bucket is empty */
-  // check if there are still objecs owned by the bucket
+  // check if there are still objects owned by the bucket
   sfs::sqlite::SQLiteObjects db_objects(store->db_conn);
   auto objects = db_objects.get_object_ids(get_name());
   sfs::sqlite::SQLiteVersionedObjects db_versions(store->db_conn);
@@ -284,18 +284,18 @@ std::unique_ptr<MultipartUpload> SFSBucket::get_multipart_upload(
 
 /**
  * @brief Obtain a list of on-going multipart uploads on this bucket.
- * 
- * @param dpp 
- * @param prefix 
+ *
+ * @param dpp
+ * @param prefix
  * @param marker First key (non-inclusive) to be returned. This is not the same
  * key as the one the user provides; instead, it's the meta-key for the upload
  * with the key the user provided.
- * @param delim 
+ * @param delim
  * @param max_uploads Maximum number of entries in the list. Defaults to 1000.
  * @param uploads Vector to be populated with the results.
- * @param common_prefixes 
+ * @param common_prefixes
  * @param is_truncated Whether the returned list is complete.
- * @return int 
+ * @return int
  */
 int SFSBucket::list_multiparts(
     const DoutPrefixProvider *dpp,

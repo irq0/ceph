@@ -31,7 +31,7 @@ class SFStore;
  * Instead of returning an actual object, which entails meeting several
  * criteria, we choose instead to extend the SFSObject class and overriding the
  * bits that are relevant for the SAL layer's expected path.
- * 
+ *
  * For reference, check 'rgw_op.cc', RGWCompleteMultipart::execute().
  */
 struct SFSMultipartMetaObject : public SFSObject {

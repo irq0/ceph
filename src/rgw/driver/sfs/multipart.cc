@@ -161,7 +161,7 @@ int SFSMultipartUpload::complete(
     store->get_data_path() / outobj->get_storage_path();
   // ensure directory structure exists
   std::filesystem::create_directories(outpath.parent_path());
-  
+
   ofstream out{outpath, std::ios::binary | std::ios::app};
 
   auto parts_it = parts.cbegin();

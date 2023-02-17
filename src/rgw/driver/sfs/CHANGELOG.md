@@ -24,7 +24,7 @@ and this project adheres to
 
 ### Fixed
 
-- Fixed segfault when SFSAtomicWriter::complete is called whith mtime output
+- Fixed segfault when SFSAtomicWriter::complete is called with mtime output
   variable set to nullptr
 
 ### Changed

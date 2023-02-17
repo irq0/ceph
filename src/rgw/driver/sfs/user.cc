@@ -138,7 +138,7 @@ int SFSUser::list_buckets(const DoutPrefixProvider *dpp,
         ));
     }
   }
-  
+
   ldpp_dout(dpp, 10) << __func__ << ": buckets=" << buckets.get_buckets()
                      << dendl;
   return 0;

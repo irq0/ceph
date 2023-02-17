@@ -39,7 +39,7 @@ void DBConn::check_metadata_is_compatible(CephContext *ctt) {
         std::vector<std::string> non_compatible_tables;
         for (auto const& [table_name, sync_result] : sync_res) {
             if (sync_result == orm::sync_schema_result::dropped_and_recreated) {
-                // this result is aggresive as it drops the table and
+                // this result is aggressive as it drops the table and
                 // recreates it.
                 // Data loss is expected and we should warn the user and
                 // stop the final sync in the real database.

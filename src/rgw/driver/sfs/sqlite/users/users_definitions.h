@@ -22,7 +22,7 @@ namespace rgw::sal::sfs::sqlite  {
 using BLOB = std::vector<char>;
 
 // user to be mapped in DB
-// Optinal values mean they might have (or not) a value defined.
+// Optional values mean they might have (or not) a value defined.
 // Blobs are stored as std::vector<char> but we could specialise the encoder and decoder templates
 // from sqlite_orm to store blobs in any user defined type.
 struct DBUser {
@@ -65,7 +65,7 @@ struct DBAccessKey {
 };
 
 // Struct with information needed by SAL layer
-// Becase sqlite_orm doesn't like nested members like, for instance, uinfo.user_id.id
+// Because sqlite_orm doesn't like nested members like, for instance, uinfo.user_id.id
 // we need to create this structure that will be returned to the user using the SQLiteUsers API.
 // The structure stored and retrieved from the database will be DBUser and the one
 // received and returned by the SQLiteUsers API will be DBOPUserInfo.

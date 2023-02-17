@@ -100,7 +100,7 @@ int SFSAtomicWriter::process(bufferlist &&data, uint64_t offset) {
     lsfs_dout(dpp, 10) << "final piece, wrote " << bytes_written << " bytes"
                        << dendl;
   }
-  
+
   return 0;
 }
 
