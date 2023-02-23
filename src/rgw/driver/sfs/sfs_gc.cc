@@ -13,6 +13,7 @@
  */
 #include "sfs_gc.h"
 
+#include "driver/sfs/types.h"
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
 
 
@@ -81,8 +82,7 @@ void SFSGC::process_deleted_buckets() {
   sqlite::SQLiteBuckets db_buckets(store->db_conn);
   auto deleted_buckets = db_buckets.get_deleted_buckets_ids();
   lsfs_dout(this, 10) << "deleted buckets found = "
-                     << deleted_buckets.size() << dendl;
-  for (auto const& bucket_id : deleted_buckets) {
+                     << deleted_buckets.size() << dendl;  for (auto const& bucket_id : deleted_buckets) {
     if (max_objects <= 0) {
       break;
     }
@@ -97,21 +97,23 @@ void SFSGC::delete_objects(const std::string & bucket_id) {
     if (max_objects <= 0) {
       break;
     }
-    auto obj_instance = std::make_shared<Object>(object.name,
-                                                 object.uuid,
-                                                 true);
-    delete_object(obj_instance);
+    auto obj_instance = std::unique_ptr<Object>(
+        std::move(Object::create_for_immediate_deletion(object)));
+    delete_object(*obj_instance.get());
   }
 }
 
-void SFSGC::delete_versioned_objects(const std::shared_ptr<Object> & object) {
+void SFSGC::delete_versioned_objects(const Object& object) {
   sqlite::SQLiteVersionedObjects db_ver_objs(store->db_conn);
-  auto versions = db_ver_objs.get_versioned_objects(object->path.get_uuid());
+  auto versions = db_ver_objs.get_versioned_objects(object.path.get_uuid());
   for (auto const& version : versions) {
     if (max_objects <= 0) {
       break;
     }
-    delete_versioned_object(object, version.id);
+
+    Object to_be_deleted(object);
+    to_be_deleted.version_id = version.id;
+    delete_versioned_object(to_be_deleted);
   }
 }
 
@@ -128,26 +130,26 @@ void SFSGC::delete_bucket(const std::string & bucket_id) {
   }
 }
 
-void SFSGC::delete_object(const std::shared_ptr<Object> & object) {
+void SFSGC::delete_object(const Object& object) {
   // delete its versions first
   delete_versioned_objects(object);
   if (max_objects > 0) {
-    object->delete_object(store);
+    object.delete_object_metadata(store);
+    object.delete_object_data(store, true);
     lsfs_dout(this, 30) << "Deleted object: "
-                        << object->path.get_uuid()
+                        << object.path.get_uuid()
                         << dendl;
     --max_objects;
   }
 }
 
-void SFSGC::delete_versioned_object(const std::shared_ptr<Object> & object,
-                                    uint id) {
-  object->version_id = id;
-  object->delete_object_version(store);
+void SFSGC::delete_versioned_object(const Object& object) {
+  object.delete_object_version(store);
+  object.delete_object_data(store, false);
   lsfs_dout(this, 30) << "Deleted version: ("
-                      << object->path.get_uuid()
+                      << object.path.get_uuid()
                       << ","
-                      << id
+                      << object.version_id
                       << ")"
                       << dendl;
   --max_objects;

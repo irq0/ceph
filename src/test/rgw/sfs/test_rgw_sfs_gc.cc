@@ -120,7 +120,8 @@ protected:
                                                 const std::string & bucket_id,
                                                 const std::string & name,
                                                 DBConnRef conn) {
-    auto object = std::make_shared<rgw::sal::sfs::Object>(name);
+    auto object = std::shared_ptr<rgw::sal::sfs::Object>(
+	rgw::sal::sfs::Object::create_for_testing(name));
     SQLiteObjects db_objects(conn);
     DBOPObjectInfo db_object;
     db_object.uuid = object->path.get_uuid();
@@ -162,9 +163,8 @@ protected:
     SQLiteObjects db_objects(conn);
     auto objects = db_objects.get_objects(bucket_id);
     for (auto & object: objects) {
-        auto objptr = std::make_shared<rgw::sal::sfs::Object>(object.name,
-                                                              object.uuid,
-                                                              false);
+        auto objptr = std::shared_ptr<rgw::sal::sfs::Object>(
+	    rgw::sal::sfs::Object::create_for_immediate_deletion(object));
         deleteTestObject(objptr, conn);
     }
     bucket->deleted = true;

@@ -128,18 +128,18 @@ int SFSAtomicWriter::complete(
                      << dendl;
 
   ceph_assert(bytes_written == accounted_size);
+  const auto now = ceph::real_clock::now();
+  objref->update_meta({.size = accounted_size,
+                       .etag = etag,
+                       .mtime = now,
+                       .set_mtime = set_mtime,
+                       .delete_at = delete_at});
 
-  sfs::Object::Meta &meta = objref->meta;
-  meta.size = accounted_size;
-  meta.etag = etag;
-  meta.mtime = ceph::real_clock::now();
-  meta.set_mtime = set_mtime;
-  meta.delete_at = delete_at;
-  meta.attrs = attrs;
-  bucketref->finish(dpp, obj.get_name());
+  objref->update_attrs(attrs);
+  objref->metadata_finish(store);
 
   if (mtime != nullptr) {
-    *mtime = meta.mtime;
+    *mtime = now;
   }
   objref->metadata_finish(store);
   return 0;

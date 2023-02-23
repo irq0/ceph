@@ -30,7 +30,7 @@ std::unique_ptr<rgw::sal::Object> SFSMultipartUpload::get_meta_obj() {
     );
   mmo->set_attrs(mp->attrs);
   mmo->set_object_ref(mp->objref);
-  mp->objref->meta.attrs = mp->attrs;
+  mp->objref->update_attrs(mp->attrs);
   return mmo;
 }
 
@@ -260,11 +260,13 @@ int SFSMultipartUpload::complete(
                      << ", offset: " << ofs
                      << ", etag: " << etag << dendl;
 
-  sfs::Object::Meta& meta = outobj->meta;
+
+  sfs::Object::Meta meta = outobj->get_meta();
   meta.size = accounted_size;
   meta.etag = etag;
   meta.mtime = ceph::real_clock::now();
-  meta.attrs = mp->attrs;
+  outobj->update_meta(meta);
+  outobj->update_attrs(mp->attrs);
 
   // remove all multipart objects. This should be done lazily in the future.
   for (const auto &[n, part] : parts) {
@@ -310,7 +312,7 @@ int SFSMultipartUpload::get_info(
   }
 
   if (attrs) {
-    *attrs = mp->objref->meta.attrs;
+    *attrs = mp->objref->get_attrs();
   }
 
   return 0;

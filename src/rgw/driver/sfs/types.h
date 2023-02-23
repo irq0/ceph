@@ -22,6 +22,7 @@
 
 #include "common/ceph_mutex.h"
 
+#include "rgw_common.h"
 #include "rgw_sal.h"
 #include "rgw/driver/sfs/uuid_path.h"
 #include "rgw/driver/sfs/sqlite/dbconn.h"
@@ -38,51 +39,88 @@ namespace rgw::sal::sfs {
 
 struct UnknownObjectException : public std::exception { };
 
-
-struct Object {
-
+class Object {
+ public:
   struct Meta {
     size_t size;
     std::string etag;
     ceph::real_time mtime;
     ceph::real_time set_mtime;
     ceph::real_time delete_at;
-    std::map<std::string, bufferlist> attrs;
   };
 
   std::string name;
   std::string instance;
   uint version_id{0};
   UUIDPath path;
-  Meta meta;
   bool deleted;
 
-  Object(const std::string &_name)
-  : name(_name), path(UUIDPath::create()), deleted(false) { }
+ private:
+  Meta meta;
+  std::map<std::string, bufferlist> attrs;
 
-  Object(const std::string &_name, const uuid_d &_uuid, bool _deleted)
-  : name(_name), path(_uuid), deleted(_deleted) { }
+ protected:
+  Object(const std::string& _name, const uuid_d& _uuid);
 
-  Object(const rgw_obj_key &key)
-  : name(key.name), instance(key.instance), path(UUIDPath::create()), deleted(false) { }
+  Object(const rgw_obj_key& key)
+      : name(key.name),
+        instance(key.instance),
+        path(UUIDPath::create()),
+        deleted(false) {
+  }
+
+ public:
+  static Object* create_for_immediate_deletion(
+      const sqlite::DBOPObjectInfo& object);
+  static Object* create_for_query(const std::string& name, const uuid_d& uuid,
+                                  bool deleted, uint version_id);
+  static Object* create_for_testing(const std::string& name);
+  static Object* create_from_obj_key(const rgw_obj_key& key);
+  static Object* create_for_multipart(const std::string& name);
+
+  static Object* create_commit_delete_marker(const rgw_obj_key& key,
+                                             SFStore* store,
+                                             const std::string& bucket_id);
+  static Object* create_commit_new_object(const rgw_obj_key& key,
+                                          SFStore* store,
+                                          const std::string& bucket_id);
+
+  const Meta get_meta() const;
+  const Meta get_default_meta() const;
+  void update_meta(const Meta& update);
+
+  bool get_attr(const std::string& name, bufferlist& dest);
+  void set_attr(const std::string& name, bufferlist& value);
+  Attrs::size_type del_attr(const std::string& name);
+  Attrs get_attrs();
+  void update_attrs(const Attrs& update);
 
   std::filesystem::path get_storage_path() const;
 
-  void metadata_init(SFStore *store, const std::string & bucket_id,
-                     bool new_object, bool new_version);
-  void metadata_change_version_state(SFStore *store, ObjectState state);
-  void metadata_finish(SFStore *store);
+  // Add new object version. Sets version_id to the one created
+  void add_new_version(SFStore* store);
 
-  void metadata_flush_attrs(SFStore *store);
+  // Change obj version state.
+  // Use this for example to update objs to in flight states like
+  // WRITING.
+  // Special case: DELETED sets this to deleted
+  // and commits a deletion time
+  void metadata_change_version_state(SFStore* store, ObjectState state);
 
-  int delete_object_version(SFStore *store);
-  void delete_object(SFStore *store);
+  // Commit all object state to database
+  // Including meta and attrs
+  // Sets obj version state to COMMITTED
+  void metadata_finish(SFStore* store);
 
-  bool get_attr(const std::string &name, bufferlist& dest);
+  // Commit attrs to database
+  void metadata_flush_attrs(SFStore* store);
+
+  int delete_object_version(SFStore* store) const;
+  void delete_object_metadata(SFStore* store) const;
+  void delete_object_data(SFStore* store, bool all) const;
 };
 
 using ObjectRef = std::shared_ptr<Object>;
-
 
 /**
  * @brief Represents a part's object.
@@ -233,7 +271,8 @@ struct MultipartUpload {
     }
     std::string part_obj_name =
       objref->name + "." + upload_id + ".part." + std::to_string(part_num);
-    auto part_obj = std::make_shared<Object>(part_obj_name);
+    auto part_obj = std::shared_ptr<Object>(
+        Object::create_for_multipart(part_obj_name));
     auto part = std::make_shared<MultipartObject>(part_obj, upload_id);
     parts[part_num] = part;
     return part;
@@ -275,21 +314,21 @@ class Bucket {
   RGWBucketInfo info;
   rgw::sal::Attrs attrs;
   bool deleted{false};
-
- public:
   std::map<std::string, ObjectRef> objects;
   ceph::mutex obj_map_lock = ceph::make_mutex("obj_map_lock");
+
+ public:
   ceph::mutex multipart_map_lock = ceph::make_mutex("multipart_map_lock");
   std::map<std::string, MultipartUploadRef> multiparts;
 
-  Bucket(const Bucket&) = default;
+  Bucket(const Bucket&) = delete;
 
  private:
+  std::optional<ObjectRef> get_from_db(const std::string &name);
   void _refresh_objects();
   void _undelete_object(ObjectRef objref, const rgw_obj_key & key,
                         sqlite::SQLiteVersionedObjects & sqlite_versioned_objects,
                         sqlite::DBOPVersionedObjectInfo & last_version);
-  void _finish_object(ObjectRef obj);
 
  public:
   Bucket(
@@ -357,20 +396,34 @@ class Bucket {
     return info.flags;
   }
 
-  ObjectRef get_or_create(const rgw_obj_key &key);
+ private:
+  bool want_new_version(const rgw_obj_key &key, ObjectRef obj);
 
-  ObjectRef get(const std::string &name) {
-    auto it = objects.find(name);
-    if (it == objects.end()) {
-      throw UnknownObjectException();
-    }
-    return objects[name];
-  }
+ public:
+  // Return object ref for key
+  // Object does not need to not exist
+  // if it doesn't it will be created, added to cache
+  // if it does
+  //  we return that
+  // if key.instance is not empty and instance != stored instance
+  //  we create additionally a new version
+  ObjectRef get_or_create(const rgw_obj_key& key);
 
-  void finish(const DoutPrefixProvider *dpp, const std::string &objname);
+  // Get object from cache (with/without mutex).
+  // Caller is expected to take obj_map_lock
+  ObjectRef get_unmutexed(const std::string& name);
+  ObjectRef get(const std::string& name);
+  // Get copy of all object in cache
+  std::vector<ObjectRef> get_all();
 
+  // S3 delete object operation: deletes a version
+  // or creates a deleted tombstone
+  // Updates cached object to deleted version
   void delete_object(ObjectRef objref, const rgw_obj_key & key);
 
+  // Delete a non existing object
+  // creates object in database and cache
+  // toumbstone version that object
   std::string create_non_existing_object_delete_marker(const rgw_obj_key & key);
 
   MultipartUploadRef get_multipart(
@@ -389,7 +442,8 @@ class Bucket {
       return mp;
     }
 
-    ObjectRef obj = std::make_shared<Object>(oid);
+    ObjectRef obj = std::shared_ptr<Object>(
+        Object::create_from_obj_key(oid));
     MultipartUploadRef mp =
       std::make_shared<MultipartUpload>(obj, upload_id, owner, mtime);
     multiparts[upload_id] = mp;
@@ -407,7 +461,6 @@ class Bucket {
     multiparts.erase(it);
 
     objref->metadata_finish(store);
-    _finish_object(objref);
   }
 
   std::string gen_multipart_upload_id() {

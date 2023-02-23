@@ -22,7 +22,6 @@ const static std::string TEST_DIR = "rgw_sfs_tests";
 
 const static std::string TEST_USERNAME = "test_username";
 const static std::string TEST_BUCKET = "test_bucket";
-const static std::string TEST_OBJECT_NAME = "test_object";
 const static std::string TEST_OBJECT_ID = "80943a6d-9f72-4001-bac0-a9a036be8c49";
 const static std::string TEST_OBJECT_ID_1 = "9f06d9d3-307f-4c98-865b-cd3b087acc4f";
 const static std::string TEST_OBJECT_ID_2 = "af06d9d3-307f-4c98-865b-cd3b087acc4f";

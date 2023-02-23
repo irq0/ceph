@@ -62,7 +62,8 @@ protected:
                                                 const std::string & bucket_id,
                                                 const std::string & name,
                                                 DBConnRef conn) {
-    auto object = std::make_shared<rgw::sal::sfs::Object>(name);
+    auto object = std::shared_ptr<rgw::sal::sfs::Object>(
+	rgw::sal::sfs::Object::create_for_testing(name));
     SQLiteObjects db_objects(conn);
     DBOPObjectInfo db_object;
     db_object.uuid = object->path.get_uuid();
@@ -132,8 +133,8 @@ void compareListEntry(const rgw_bucket_dir_entry & entry,
                       std::shared_ptr<rgw::sal::sfs::Object> object,
                       const std::string & username) {
   EXPECT_EQ(entry.key.name, object->name);
-  EXPECT_EQ(entry.meta.etag, object->meta.etag);
-  EXPECT_EQ(entry.meta.mtime, object->meta.mtime);
+  EXPECT_EQ(entry.meta.etag, object->get_meta().etag);
+  EXPECT_EQ(entry.meta.mtime, object->get_meta().mtime);
   EXPECT_EQ(entry.meta.owner_display_name, username + "_display_name");
   EXPECT_EQ(entry.meta.owner, username);
 }

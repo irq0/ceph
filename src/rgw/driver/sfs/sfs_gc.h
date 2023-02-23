@@ -71,11 +71,11 @@ public:
   void process_deleted_buckets();
 
   void delete_objects(const std::string & bucket_id);
-  void delete_versioned_objects(const std::shared_ptr<Object> & object);
+  void delete_versioned_objects(const Object& object);
 
   void delete_bucket(const std::string & bucket_id);
-  void delete_object(const std::shared_ptr<Object> & object);
-  void delete_versioned_object(const std::shared_ptr<Object> & object, uint id);
+  void delete_object(const Object& object);
+  void delete_versioned_object(const Object& object);
 
 };
 

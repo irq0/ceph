@@ -11,6 +11,7 @@
  * License version 2.1, as published by the Free Software
  * Foundation. See file COPYING.
  */
+#include "driver/sfs/types.h"
 #include "rgw_sal_sfs.h"
 #include "driver/sfs/object.h"
 #include "driver/sfs/sqlite/sqlite_versioned_objects.h"
@@ -271,8 +272,9 @@ int SFSObject::copy_object(
     return -EIO;
   }
 
-  dstref->meta = objref->meta;
-  dstref->meta.mtime = ceph::real_clock::now();
+  auto dest_meta = objref->get_meta();
+  dest_meta.mtime = ceph::real_clock::now();
+  dstref->update_meta(dest_meta);
   dstref->metadata_finish(store);
 
   return 0;
@@ -318,22 +320,21 @@ int SFSObject::set_obj_attrs(const DoutPrefixProvider *dpp,
                              Attrs *delattrs,
                              optional_yield y) {
   ceph_assert(objref);
-  auto meta = objref->meta;
   map<string, bufferlist>::iterator iter;
 
   if(delattrs) {
     for(iter = delattrs->begin(); iter != delattrs->end(); ++iter) {
-      meta.attrs.erase(iter->first);
+      objref->del_attr(iter->first);
     }
   }
   if(setattrs) {
     for(iter = setattrs->begin(); iter != setattrs->end(); ++iter) {
-      meta.attrs[iter->first] = iter->second;
+      objref->set_attr(iter->first, iter->second);
     }
   }
 
   //synch attrs caches
-  state.attrset = attrs = meta.attrs;
+  state.attrset = attrs = objref->get_attrs();
   state.has_attrs = true;
 
   objref->metadata_flush_attrs(store);
@@ -351,11 +352,10 @@ int SFSObject::modify_obj_attrs(const char *attr_name,
     return 0;
   }
   ceph_assert(objref);
-  auto meta = objref->meta;
-  meta.attrs[attr_name] = attr_val;
+  objref->set_attr(attr_name, attr_val);
 
   //synch attrs caches
-  state.attrset = attrs = meta.attrs;
+  state.attrset = attrs = objref->get_attrs();
   state.has_attrs = true;
 
   objref->metadata_flush_attrs(store);
@@ -369,11 +369,10 @@ int SFSObject::delete_obj_attrs(const DoutPrefixProvider *dpp,
     return 0;
   }
   ceph_assert(objref);
-  auto meta = objref->meta;
-  if(meta.attrs.erase(attr_name)){
+  if(objref->del_attr(attr_name)){
 
     //synch attrs caches
-    state.attrset = attrs = meta.attrs;
+    state.attrset = attrs = objref->get_attrs();
     state.has_attrs = true;
 
     objref->metadata_flush_attrs(store);
@@ -484,7 +483,7 @@ void SFSObject::refresh_meta() {
     bucketref = store->get_bucket_ref(bucket->get_name());
   }
   try {
-    objref = bucketref->get(get_name());
+    objref = bucketref->get_unmutexed(get_name());
   } catch (sfs::UnknownObjectException &e) {
     // object probably not created yet?
     return;
@@ -494,7 +493,7 @@ void SFSObject::refresh_meta() {
 
 void SFSObject::_refresh_meta_from_object() {
   ceph_assert(objref);
-  auto meta = objref->meta;
+  auto meta = objref->get_meta();
   if (!get_instance().empty() && get_instance() != objref->instance) {
     // object specific version requested and it's not the last one
     sfs::sqlite::SQLiteVersionedObjects db_versioned_objects(store->db_conn);
@@ -502,15 +501,15 @@ void SFSObject::_refresh_meta_from_object() {
     if (db_version.has_value()) {
       auto uuid = objref->path.get_uuid();
       auto deleted = db_version->object_state == ObjectState::DELETED;
-      objref = std::make_shared<sfs::Object>(get_name(), uuid, deleted);
-      objref->version_id = db_version->id;
+      objref.reset(std::move(sfs::Object::create_for_query(get_name(), uuid, deleted,
+                                                           db_version->id)));
       set_obj_size(db_version->size);
     }
   } else {
     set_obj_size(meta.size);
   }
-  attrs = meta.attrs;
-  set_attrs(meta.attrs);
+  attrs = objref->get_attrs();
+  set_attrs(attrs);
   state.mtime = meta.mtime;
 }
 
