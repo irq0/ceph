@@ -14,6 +14,7 @@
 #pragma once
 
 #include <sqlite3.h>
+#include <sqlite_orm/sqlite_orm.h>
 #include <memory>
 #include <filesystem>
 #include "common/ceph_mutex.h"
@@ -48,6 +49,12 @@ class sqlite_sync_exception : public std::exception {
 
 inline auto _make_storage(const std::string &path) {
   return sqlite_orm::make_storage(path,
+     sqlite_orm::make_unique_index("bucket_id_name_unique",
+                                   sqlite_orm::indexed_column(&DBObject::bucket_id),
+                                   sqlite_orm::indexed_column(&DBObject::name)),
+     sqlite_orm::make_unique_index("object_id_version_id_unique",
+                                   sqlite_orm::indexed_column(&DBVersionedObject::object_id),
+                                   sqlite_orm::indexed_column(&DBVersionedObject::version_id)),
     sqlite_orm::make_table(std::string(USERS_TABLE),
           sqlite_orm::make_column("user_id", &DBUser::user_id, sqlite_orm::primary_key()),
           sqlite_orm::make_column("tenant", &DBUser::tenant),
