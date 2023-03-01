@@ -1,6 +1,7 @@
 #include "dbconn.h"
 
 #include <filesystem>
+#include <string>
 #include <system_error>
 
 namespace fs = std::filesystem;
@@ -55,10 +56,14 @@ void DBConn::check_metadata_is_compatible(CephContext* ctt) {
       }
       result_message += "] are no longer compatible.";
     }
-  } catch (std::exception& e) {
+  } catch (const std::system_error& e) {
     // check for any other errors (foreign keys constrains, etc...)
     result_message =
         "Metadata database might be corrupted or is no longer compatible";
+    result_message.append(std::to_string(e.code().value()));
+    result_message.append(" - ");
+    result_message.append(e.what());
+    sync_error = true;
     sync_error = true;
   }
   // remove the temporary db
