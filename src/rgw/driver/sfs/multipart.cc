@@ -167,7 +167,6 @@ int SFSMultipartUpload::complete(
   auto parts_it = parts.cbegin();
   auto etags_it = part_etags.cbegin();
 
-  outobj->metadata_change_version_state(store, ObjectState::WRITING);
   for (; parts_it != parts.cend() && etags_it != part_etags.cend();
         ++parts_it, ++etags_it) {
     ceph_assert(etags_it->first >= 0);

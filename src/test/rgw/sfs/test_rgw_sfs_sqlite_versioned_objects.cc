@@ -684,7 +684,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestUpdate) {
   ASSERT_TRUE(ret_ver_object.has_value());
   compareVersionedObjects(object, *ret_ver_object);
 
-  object.object_state = rgw::sal::ObjectState::WRITING;
+  object.object_state = rgw::sal::ObjectState::OPEN;
   db_versioned_objects->store_versioned_object(object);
 
   ret_ver_object = db_versioned_objects->get_versioned_object(1);

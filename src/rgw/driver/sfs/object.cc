@@ -261,7 +261,6 @@ int SFSObject::copy_object(
     return -EEXIST;
   }
 
-  dstref->metadata_change_version_state(store, ObjectState::WRITING);
   lsfs_dout(dpp, 10) << "copying file from '" << srcpath << "' to '"
                      << dstpath << "'" << dendl;
   std::filesystem::create_directories(dstpath.parent_path());

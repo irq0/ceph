@@ -77,8 +77,6 @@ int SFSAtomicWriter::process(bufferlist &&data, uint64_t offset) {
   lsfs_dout(dpp, 10) << "data len: " << data.length()
                      << ", offset: " << offset << dendl;
 
-  objref->metadata_change_version_state(store, ObjectState::WRITING);
-
   std::filesystem::path object_path =
       store->get_data_path() / objref->get_storage_path();
   ceph_assert(std::filesystem::exists(object_path));
