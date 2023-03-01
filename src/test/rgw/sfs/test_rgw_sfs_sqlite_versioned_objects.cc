@@ -470,7 +470,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, Testobject_stateConversion) {
 
   auto ret_object = db_objects.get_versioned_object(db_object.id);
   ASSERT_TRUE(ret_object.has_value());
-  ASSERT_EQ(rgw::sal::ObjectState::WRITING, ret_object->object_state);
+  ASSERT_EQ(rgw::sal::ObjectState::UNUSED_WRITING, ret_object->object_state);
 
   db_object.object_state = 2;
   storage.replace(db_object);
