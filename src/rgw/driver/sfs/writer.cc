@@ -134,8 +134,6 @@ int SFSAtomicWriter::complete(
                        .delete_at = delete_at});
 
   objref->update_attrs(attrs);
-  objref->metadata_finish(store);
-
   if (mtime != nullptr) {
     *mtime = now;
   }
