@@ -43,6 +43,7 @@ jobs:
         run: |
           docker run --rm \
             -v $GITHUB_WORKSPACE/ceph:/srv/ceph \
+            -e NPROC=16 \
             -e WITH_TESTS=ON \
             quay.io/s3gw/build-radosgw:latest
 
