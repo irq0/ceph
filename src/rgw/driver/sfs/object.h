@@ -230,6 +230,10 @@ class SFSObject : public StoreObject {
     return objref;
   }
 
+  void set_object_ref(sfs::ObjectRef objref) {
+    this->objref = objref;
+  }
+
   void refresh_meta();
 
   const std::string get_cls_name() { return "object"; }
