@@ -331,7 +331,7 @@ if(WITH_RADOSGW_DBSTORE)
   target_link_libraries(rgw_common PRIVATE global dbstore)
 endif()
 
-if(WITH_RADOSGW_SIMPLEFILE)
+if(WITH_RADOSGW_SFS)
   find_package(SQLite3 REQUIRED)
   target_link_libraries(rgw_common PRIVATE sqlite3)
 ENDIF()
