@@ -20,8 +20,8 @@
 
 #include "common/Formatter.h"
 #include "common/ceph_json.h"
-#include "driver/sfs/bucket_mgr.h"
 #include "driver/sfs/multipart.h"
+#include "driver/sfs/types.h"
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
 
@@ -33,8 +33,7 @@ class SFSObject;
 class SFSBucket : public StoreBucket {
  private:
   SFStore* store;
-  BucketMgrRef mgr;
-  const std::filesystem::path path;
+  sfs::BucketRef bucket;
   RGWAccessControlPolicy acls;
 
  protected:
@@ -59,24 +58,12 @@ class SFSBucket : public StoreBucket {
   SFSBucket(const SFSBucket&) = default;
 
   void write_meta(const DoutPrefixProvider* dpp);
-  // void read_meta(const DoutPrefixProvider *dpp);
-  // void add_multipart(const std::string &oid, const std::string &meta);
-  // void remove_multipart(const std::string &oid, const std::string &meta);
+
+  std::unique_ptr<Object> _get_object(sfs::ObjectRef obj);
 
  public:
-  SFSBucket(
-      const std::filesystem::path& _path, SFStore* _store, BucketMgrRef _mgr
-  );
+  SFSBucket(SFStore* _store, sfs::BucketRef _bucket);
   SFSBucket& operator=(const SFSBucket&) = delete;
-
-  void init(
-      const DoutPrefixProvider* dpp, const rgw_bucket& b,
-      const RGWUserInfo& owner
-  );
-
-  std::filesystem::path bucket_path() const;
-  std::filesystem::path bucket_metadata_path() const;
-  std::filesystem::path objects_path() const;
 
   virtual std::unique_ptr<Bucket> clone() override {
     return std::unique_ptr<Bucket>(new SFSBucket{*this});

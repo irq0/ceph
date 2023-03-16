@@ -13,7 +13,6 @@
  */
 #include <fstream>
 
-#include "driver/sfs/bucket_mgr.h"
 #include "driver/sfs/multipart.h"
 #include "rgw_sal_sfs.h"
 
@@ -23,57 +22,36 @@ using namespace std;
 
 namespace rgw::sal {
 
-SFSBucket::SFSBucket(
-    const std::filesystem::path& _path, SFStore* _store, BucketMgrRef _mgr
-)
-    : store(_store), mgr(_mgr), path(_path), acls() {
-  ldout(store->ceph_context(), 10) << __func__ << ": TODO" << dendl;
-}
-
-void SFSBucket::init(
-    const DoutPrefixProvider* dpp, const rgw_bucket& b, const RGWUserInfo& owner
-) {
-  ldpp_dout(dpp, 10) << __func__ << ": init bucket: " << get_name() << "["
-                     << path << "]" << dendl;
-  auto meta_path = bucket_metadata_path();
-  auto obj_path = objects_path();
-  ceph_assert(!std::filesystem::exists(meta_path));
-  ceph_assert(!std::filesystem::exists(obj_path));
-  std::filesystem::create_directory(obj_path);
-
-  info.bucket = b;
-  info.owner = owner.user_id;
+SFSBucket::SFSBucket(SFStore* _store, sfs::BucketRef _bucket)
+    : store(_store), bucket(_bucket), acls() {
+  info.bucket = bucket->get_bucket();
+  info.owner = bucket->get_owner().user_id;
   info.creation_time = ceph::real_clock::now();
   info.placement_rule.name = "default";
   info.placement_rule.storage_class = "STANDARD";
-
-  write_meta(dpp);
 }
 
 void SFSBucket::write_meta(const DoutPrefixProvider* dpp) {
-  auto meta_path = bucket_metadata_path();
+  // TODO
+}
 
-  lsfs_dout(dpp, 10) << "write metadata to " << meta_path << dendl;
-
-  SFSBucket::Meta meta;
-  meta.info = info;
-  // meta.multipart = multipart;
-
-  ofstream ofs;
-  ofs.open(meta_path);
-
-  JSONFormatter f(true);
-  f.open_object_section("meta");
-  encode_json("meta", meta, &f);
-  f.close_section();
-  f.flush(ofs);
-  ofs.close();
+std::unique_ptr<Object> SFSBucket::_get_object(sfs::ObjectRef obj) {
+  rgw_obj_key key(obj->name);
+  return make_unique<SFSObject>(this->store, key, this, bucket);
 }
 
 std::unique_ptr<Object> SFSBucket::get_object(const rgw_obj_key& key) {
   ldout(store->ceph_context(), 10)
       << "bucket::" << __func__ << ": key" << key << dendl;
-  return make_unique<SFSObject>(this->store, key, this);
+  std::lock_guard l(bucket->obj_map_lock);
+  auto it = bucket->objects.find(key.name);
+  if (it == bucket->objects.end()) {
+    ldout(store->ceph_context(), 10)
+        << "unable to find key " << key << " in bucket " << bucket->get_name()
+        << dendl;
+    return nullptr;
+  }
+  return _get_object(it->second);
 }
 
 /**
@@ -84,23 +62,12 @@ int SFSBucket::list(
     optional_yield y
 ) {
   lsfs_dout(dpp, 10) << "iterate bucket " << get_name() << dendl;
-  auto objects_map = mgr->get_objects();
-  lsfs_dout(dpp, 10) << "num objects: " << objects_map.size() << dendl;
 
-  for (const auto& entry : objects_map) {
-    lsfs_dout(dpp, 10) << "obj: " << entry.first << ", h: " << entry.second
-                       << dendl;
-  }
+  std::lock_guard l(bucket->obj_map_lock);
+  for (const auto& [name, objref] : bucket->objects) {
+    lsfs_dout(dpp, 10) << "object: " << name << dendl;
 
-  for (const auto& [name, hash] : objects_map) {
-    lsfs_dout(dpp, 10) << "object: " << name << ", hash: " << hash << dendl;
-
-    rgw_obj_key objkey(name);
-    auto data_path = store->object_path(get_key(), objkey);
-    ceph_assert(std::filesystem::exists(data_path));
-    ceph_assert(std::filesystem::is_regular_file(data_path));
-
-    auto obj = get_object(objkey);
+    auto obj = _get_object(objref);
     rgw_bucket_dir_entry dirent;
     dirent.key = cls_rgw_obj_key(name);
     dirent.meta.accounted_size = obj->get_obj_size();
@@ -133,30 +100,7 @@ int SFSBucket::remove_bucket_bypass_gc(
 int SFSBucket::load_bucket(
     const DoutPrefixProvider* dpp, optional_yield y, bool get_stats
 ) {
-  std::filesystem::path meta_file_path = bucket_metadata_path();
-  ceph_assert(std::filesystem::exists(meta_file_path));
-  JSONParser bucket_meta_parser;
-  if (!bucket_meta_parser.parse(meta_file_path.c_str())) {
-    lsfs_dout(dpp, 10) << "Failed to parse bucket metadata from "
-                       << meta_file_path << ". Returing EINVAL" << dendl;
-    return -EINVAL;
-  }
-
-  auto it = bucket_meta_parser.find("meta");
-  ceph_assert(!it.end());
-
-  SFSBucket::Meta meta;
-  JSONDecoder::decode_json("meta", meta, &bucket_meta_parser);
-  lsfs_dout(dpp, 10) "bucket name: " << meta.info.bucket.get_key() << dendl;
-
-  info = meta.info;
-  // multipart = meta.multipart;
-
-  auto f = new JSONFormatter(true);
-  lsfs_dout(dpp, 10) << ": info: ";
-  info.dump(f);
-  f->flush(*_dout);
-  *_dout << dendl;
+  // TODO
   return 0;
 }
 
@@ -298,20 +242,6 @@ int SFSBucket::put_info(
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
-}
-
-// bucket_path returns the path containing bucket metadata and objects
-std::filesystem::path SFSBucket::bucket_path() const {
-  return path;
-}
-// bucket_metadata_path returns the path to the metadata file metadata_fn
-std::filesystem::path SFSBucket::bucket_metadata_path() const {
-  return path / "_meta.json";
-}
-// objects_path returns the path to the buckets objects. Each
-// subdirectory points to an object
-std::filesystem::path SFSBucket::objects_path() const {
-  return path / "objects";
 }
 
 }  // namespace rgw::sal

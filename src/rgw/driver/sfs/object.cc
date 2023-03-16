@@ -21,21 +21,21 @@ using namespace std;
 
 namespace rgw::sal {
 
-SFSObject::SFSReadOp::SFSReadOp(SFSObject* _source, RGWObjectCtx* _rctx)
-    : source(_source), rctx(_rctx) {}
+SFSObject::SFSReadOp::SFSReadOp(SFSObject* _source) : source(_source) {}
 
 int SFSObject::SFSReadOp::prepare(
     optional_yield y, const DoutPrefixProvider* dpp
 ) {
   source->refresh_meta();
-
-  auto objdata = source->get_data_path();
-  auto objmeta = source->get_metadata_path();
-
-  if (!std::filesystem::exists(objmeta)) {
-    lsfs_dout(dpp, 10) << "object metadata not found at " << objmeta << dendl;
+  objref = source->get_object_ref();
+  if (!objref) {
+    // at this point, we don't have an objectref because
+    // the object does not exist.
     return -ENOENT;
-  } else if (!std::filesystem::exists(objdata)) {
+  }
+
+  objdata = source->store->get_data_path() / objref->path.to_path();
+  if (!std::filesystem::exists(objdata)) {
     lsfs_dout(dpp, 10) << "object data not found at " << objdata << dendl;
     return -ENOENT;
   }
@@ -75,13 +75,14 @@ int SFSObject::SFSReadOp::read(
                      << ", offset: " << ofs << ", end: " << end
                      << ", len: " << len << dendl;
 
-  auto objpath = source->get_data_path();
-  ceph_assert(std::filesystem::exists(objpath));
+  // auto objpath = source->get_data_path();
+  // ceph_assert(std::filesystem::exists(objpath));
+  ceph_assert(std::filesystem::exists(objdata));
 
   std::string error;
-  int ret = bl.pread_file(objpath.c_str(), ofs, len, &error);
+  int ret = bl.pread_file(objdata.c_str(), ofs, len, &error);
   if (ret < 0) {
-    lsfs_dout(dpp, 10) << "failed to read object from file " << objpath
+    lsfs_dout(dpp, 10) << "failed to read object from file " << objdata
                        << ". Returning EIO." << dendl;
     return -EIO;
   }
@@ -101,15 +102,16 @@ int SFSObject::SFSReadOp::iterate(
                      << ", offset: " << ofs << ", end: " << end
                      << ", len: " << len << dendl;
 
-  auto objpath = source->get_data_path();
-  ceph_assert(std::filesystem::exists(objpath));
+  // auto objpath = source->get_data_path();
+  // ceph_assert(std::filesystem::exists(objpath));
+  ceph_assert(std::filesystem::exists(objdata));
 
   // TODO chunk the read
   bufferlist bl;
   std::string error;
-  int ret = bl.pread_file(objpath.c_str(), ofs, len, &error);
+  int ret = bl.pread_file(objdata.c_str(), ofs, len, &error);
   if (ret < 0) {
-    lsfs_dout(dpp, 10) << "failed to read object from file " << objpath
+    lsfs_dout(dpp, 10) << "failed to read object from file " << objdata
                        << ". Returning EIO." << dendl;
     return -EIO;
   }
@@ -118,8 +120,10 @@ int SFSObject::SFSReadOp::iterate(
   return 0;
 }
 
-SFSObject::SFSDeleteOp::SFSDeleteOp(SFSObject* _source, BucketMgrRef _mgr)
-    : source(_source), mgr(_mgr) {}
+SFSObject::SFSDeleteOp::SFSDeleteOp(
+    SFSObject* _source, sfs::BucketRef _bucketref
+)
+    : source(_source), bucketref(_bucketref) {}
 
 int SFSObject::SFSDeleteOp::delete_obj(
     const DoutPrefixProvider* dpp, optional_yield y
@@ -127,16 +131,13 @@ int SFSObject::SFSDeleteOp::delete_obj(
   lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
                      << ", object: " << source->get_name() << dendl;
 
-  mgr->remove_object(source);
-
-  auto objpath = source->get_data_path();
-  auto metapath = source->get_metadata_path();
-
-  if (!std::filesystem::exists(objpath)) {
-    return 0;  // no-op; succeed.
+  // do the quick and dirty thing for now
+  ceph_assert(bucketref);
+  if (!source->objref) {
+    source->refresh_meta();
   }
-  std::filesystem::remove(metapath);
-  std::filesystem::remove(objpath);
+  ceph_assert(source->objref);
+  bucketref->delete_object(source->objref);
   return 0;
 }
 
@@ -144,8 +145,8 @@ int SFSObject::delete_object(
     const DoutPrefixProvider* dpp, optional_yield y, bool prevent_versioning
 ) {
   lsfs_dout(dpp, 10) << "prevent_versioning: " << prevent_versioning << dendl;
-  auto mgr = store->get_bucket_mgr(get_bucket()->get_name());
-  SFSObject::SFSDeleteOp del(this, mgr);
+  auto ref = store->get_bucket_ref(get_bucket()->get_name());
+  SFSObject::SFSDeleteOp del(this, ref);
   return del.delete_obj(dpp, y);
 }
 
@@ -272,45 +273,24 @@ int SFSObject::chown(
 
 std::unique_ptr<rgw::sal::Object::DeleteOp> SFSObject::get_delete_op() {
   ceph_assert(bucket != nullptr);
-  auto mgr = store->get_bucket_mgr(bucket->get_name());
-  return std::make_unique<SFSObject::SFSDeleteOp>(this, mgr);
+  auto ref = store->get_bucket_ref(bucket->get_name());
+  return std::make_unique<SFSObject::SFSDeleteOp>(this, ref);
 }
 
-void SFSObject::write_meta() {
-  auto metapath = get_metadata_path();
-
-  ofstream ofs(metapath);
-  JSONFormatter f(true);
-  f.open_object_section("meta");
-  encode_json("meta", meta, &f);
-  f.close_section();  // meta
-  f.flush(ofs);
-  ofs.close();
-}
-
-void SFSObject::load_meta() {
-  auto metapath = get_metadata_path();
-
-  ldout(store->ctx(), 10) << "load metadata for " << get_name() << dendl;
-
-  if (!std::filesystem::exists(metapath)) {
-    ldout(store->ctx(), 10) << "unable to find meta for object " << get_name()
-                            << " at " << metapath << dendl;
+void SFSObject::refresh_meta() {
+  if (!bucketref) {
+    bucketref = store->get_bucket_ref(bucket->get_name());
+  }
+  try {
+    objref = bucketref->get(get_name());
+    ;
+  } catch (sfs::UnknownObjectException& e) {
+    // object probably not created yet?
     return;
   }
-
-  JSONParser parser;
-  bool res = parser.parse(metapath.c_str());
-  ceph_assert(res);
-
-  auto it = parser.find("meta");
-  ceph_assert(!it.end());
-
-  JSONDecoder::decode_json("meta", meta, &parser);
-
-  set_obj_size(meta.size);
-  set_attrs(meta.attrs);
-  state.mtime = meta.mtime;
+  set_obj_size(objref->meta.size);
+  set_attrs(objref->meta.attrs);
+  state.mtime = objref->meta.mtime;
 }
 
 std::filesystem::path SFSObject::get_data_path() {

@@ -39,18 +39,13 @@ int SFStore::get_bucket(
     const DoutPrefixProvider* dpp, User* u, const rgw_bucket& b,
     std::unique_ptr<Bucket>* result, optional_yield y
 ) {
-  const auto path = bucket_path(b);
-  if (!std::filesystem::exists(path)) {
-    ldpp_dout(dpp, 10) << __func__ << ": bucket "
-                       << " path does not exist: " << path << dendl;
+  std::lock_guard l(buckets_map_lock);
+  auto it = buckets.find(b.name);
+  if (it == buckets.end()) {
     return -ENOENT;
   }
-  auto mgr = get_bucket_mgr(b.name);
-  auto bucket = make_unique<SFSBucket>(path, this, mgr);
-  const int ret = bucket->load_bucket(dpp, y);
-  if (ret < 0) {
-    return ret;
-  }
+  auto bucketref = it->second;
+  auto bucket = make_unique<SFSBucket>(this, bucketref);
   ldpp_dout(dpp, 10) << __func__ << ": bucket: " << bucket->get_name() << dendl;
   result->reset(bucket.release());
   return 0;
@@ -60,20 +55,14 @@ int SFStore::get_bucket(
     const DoutPrefixProvider* dpp, User* u, const std::string& tenant,
     const std::string& name, std::unique_ptr<Bucket>* bucket, optional_yield y
 ) {
-  // TODO implement get_bucket by name
   ldpp_dout(dpp, 10) << __func__ << ": get_bucket by name: " << name << dendl;
-  const auto path = buckets_path() / name;
-  if (!std::filesystem::exists(path)) {
-    ldpp_dout(dpp, 10) << __func__ << ": bucket " << name << " does not exist"
-                       << dendl;
+  std::lock_guard l(buckets_map_lock);
+  auto it = buckets.find(name);
+  if (it == buckets.end()) {
     return -ENOENT;
   }
-  auto mgr = get_bucket_mgr(name);
-  auto b = make_unique<SFSBucket>(path, this, mgr);
-  const int ret = b->load_bucket(dpp, y);
-  if (ret < 0) {
-    return ret;
-  }
+  auto bucketref = it->second;
+  auto b = make_unique<SFSBucket>(this, bucketref);
   ldpp_dout(dpp, 10) << __func__ << ": bucket: " << b->get_name() << dendl;
   bucket->reset(b.release());
   return 0;

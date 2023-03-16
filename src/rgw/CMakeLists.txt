@@ -218,7 +218,6 @@ if(WITH_RADOSGW_SFS)
   list(APPEND librgw_common_srcs
     rgw_sal_sfs.cc
     driver/sfs/bucket.cc
-    driver/sfs/bucket_mgr.cc
     driver/sfs/multipart.cc
     driver/sfs/object.cc
     driver/sfs/user.cc

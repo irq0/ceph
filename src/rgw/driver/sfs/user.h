@@ -92,6 +92,8 @@ class SFSUser : public StoreUser {
       const std::string& mfa_str, bool* verified, const DoutPrefixProvider* dpp,
       optional_yield y
   ) override;
+
+  std::string get_cls_name() const { return "user"; }
 };
 
 }  // namespace rgw::sal

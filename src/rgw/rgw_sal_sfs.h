@@ -19,7 +19,6 @@
 #include <filesystem>
 
 #include "driver/sfs/bucket.h"
-#include "driver/sfs/bucket_mgr.h"
 #include "driver/sfs/object.h"
 #include "driver/sfs/user.h"
 #include "driver/sfs/zone.h"
@@ -90,7 +89,7 @@ class SFStore : public StoreDriver {
   const std::filesystem::path data_path;
   CephContext* const cctx;
   ceph::mutex buckets_map_lock = ceph::make_mutex("buckets_map_lock");
-  std::map<std::string, BucketMgrRef> buckets_map;
+  std::map<std::string, sfs::BucketRef> buckets;
 
  public:
   SFStore(CephContext* c, const std::filesystem::path& data_path);
@@ -312,18 +311,6 @@ class SFStore : public StoreDriver {
       const std::string& unique_tag
   ) override;
 
-  BucketMgrRef get_bucket_mgr(const std::string& bucketname) {
-    std::lock_guard l(buckets_map_lock);
-    const auto it = buckets_map.find(bucketname);
-    if (it != buckets_map.cend()) {
-      return it->second;
-    }
-
-    auto mgr = std::make_shared<BucketMgr>(cctx, this, bucketname);
-    buckets_map.insert(std::make_pair(bucketname, mgr));
-    return mgr;
-  }
-
   virtual const std::string& get_compression_type(const rgw_placement_rule& rule
   ) override {
     return zone.get_params().get_compression_type(rule);
@@ -333,6 +320,8 @@ class SFStore : public StoreDriver {
   }
 
   virtual void register_admin_apis(RGWRESTMgr* mgr) override;
+
+  std::filesystem::path get_data_path() const { return data_path; }
 
   /**
    * Returns path to meta directory.
@@ -403,6 +392,47 @@ class SFStore : public StoreDriver {
     const std::string_view in{obj.name};
     const auto hash = calc_hash_sha256(in);
     return hash.to_str();
+  }
+
+  bool _bucket_exists(const std::string& name) {
+    const auto it = buckets.find(name);
+    return it != buckets.cend();
+  }
+
+  bool bucket_exists(const rgw_bucket& bucket) {
+    std::lock_guard l(buckets_map_lock);
+    return _bucket_exists(bucket.name);
+  }
+
+  sfs::BucketRef bucket_create(
+      const rgw_bucket& bucket, const RGWUserInfo& owner
+  ) {
+    std::lock_guard l(buckets_map_lock);
+    if (_bucket_exists(bucket.name)) {
+      return nullptr;
+    }
+
+    sfs::BucketRef b = std::make_shared<sfs::Bucket>(this, bucket, owner);
+    buckets[bucket.name] = b;
+    return b;
+  }
+
+  std::list<sfs::BucketRef> bucket_list() {
+    std::list<sfs::BucketRef> lst;
+    std::lock_guard l(buckets_map_lock);
+    for (const auto& [name, bucketref] : buckets) {
+      lst.push_back(bucketref);
+    }
+    return lst;
+  }
+
+  sfs::BucketRef get_bucket_ref(const std::string& name) {
+    std::lock_guard l(buckets_map_lock);
+    auto it = buckets.find(name);
+    if (it == buckets.end()) {
+      return nullptr;
+    }
+    return it->second;
   }
 
   std::string get_cls_name() const { return "sfstore"; }

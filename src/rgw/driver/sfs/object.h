@@ -16,9 +16,11 @@
 
 #include <filesystem>
 
-#include "driver/sfs/bucket_mgr.h"
+#include "rgw/driver/sfs/bucket.h"
+#include "rgw/driver/sfs/types.h"
 #include "rgw_sal.h"
 #include "rgw_sal_store.h"
+#include "uuid_path.h"
 
 namespace rgw::sal {
 
@@ -28,53 +30,24 @@ class SFSObject : public StoreObject {
  private:
   SFStore* store;
   RGWAccessControlPolicy acls;
+  sfs::BucketRef bucketref;
+  sfs::ObjectRef objref;
 
  protected:
   SFSObject(SFSObject&) = default;
-  void init() { load_meta(); }
 
  public:
-  struct Meta {
-    size_t size;
-    std::string etag;
-    ceph::real_time mtime;
-    ceph::real_time set_mtime;
-    ceph::real_time delete_at;
-    std::map<std::string, bufferlist> attrs;
-
-    Meta() {}
-    ~Meta() = default;
-
-    void dump(Formatter* f) const {
-      encode_json("size", size, f);
-      encode_json("etag", etag, f);
-      encode_json("mtime", mtime, f);
-      encode_json("set_mtime", set_mtime, f);
-      encode_json("delete_at", delete_at, f);
-      encode_json("attrs", attrs, f);
-    }
-
-    void decode_json(JSONObj* obj) {
-      JSONDecoder::decode_json("size", size, obj);
-      JSONDecoder::decode_json("etag", etag, obj);
-      JSONDecoder::decode_json("mtime", mtime, obj);
-      JSONDecoder::decode_json("set_mtime", set_mtime, obj);
-      JSONDecoder::decode_json("delete_at", delete_at, obj);
-      JSONDecoder::decode_json("attrs", attrs, obj);
-    }
-  };
-  SFSObject::Meta meta;
-
   /**
    * reads an object's contents.
    */
   struct SFSReadOp : public ReadOp {
    private:
     SFSObject* source;
-    RGWObjectCtx* rctx;
+    sfs::ObjectRef objref;
+    std::filesystem::path objdata;
 
    public:
-    SFSReadOp(SFSObject* _source, RGWObjectCtx* _rctx);
+    SFSReadOp(SFSObject* _source);
 
     virtual int prepare(optional_yield y, const DoutPrefixProvider* dpp)
         override;
@@ -100,10 +73,10 @@ class SFSObject : public StoreObject {
   struct SFSDeleteOp : public DeleteOp {
    private:
     SFSObject* source;
-    BucketMgrRef mgr;
+    sfs::BucketRef bucketref;
 
    public:
-    SFSDeleteOp(SFSObject* _source, BucketMgrRef _mgr);
+    SFSDeleteOp(SFSObject* _source, sfs::BucketRef _bucketref);
     virtual int delete_obj(const DoutPrefixProvider* dpp, optional_yield y)
         override;
 
@@ -117,9 +90,11 @@ class SFSObject : public StoreObject {
 
   SFSObject(SFStore* _st, const rgw_obj_key& _k)
       : StoreObject(_k), store(_st) {}
-  SFSObject(SFStore* _st, const rgw_obj_key& _k, Bucket* _b)
-      : StoreObject(_k, _b), store(_st) {
-    init();
+  SFSObject(
+      SFStore* _st, const rgw_obj_key& _k, Bucket* _b, sfs::BucketRef _bucket
+  )
+      : StoreObject(_k, _b), store(_st), bucketref(_bucket) {
+    refresh_meta();
   }
 
   virtual std::unique_ptr<Object> clone() override {
@@ -197,7 +172,7 @@ class SFSObject : public StoreObject {
    * Obtain a Read Operation.
    */
   virtual std::unique_ptr<ReadOp> get_read_op() override {
-    return std::make_unique<SFSObject::SFSReadOp>(this, nullptr);
+    return std::make_unique<SFSObject::SFSReadOp>(this);
   }
   /**
    * Obtain a Delete Operation.
@@ -230,13 +205,14 @@ class SFSObject : public StoreObject {
     return 0;
   }
 
+  sfs::ObjectRef get_object_ref() { return objref; }
+
   std::filesystem::path get_data_path();
   std::filesystem::path get_metadata_path();
 
+  void refresh_meta();
+
   const std::string get_cls_name() { return "object"; }
-  void write_meta();
-  void load_meta();
-  void refresh_meta() { load_meta(); }
 };
 
 }  // namespace rgw::sal

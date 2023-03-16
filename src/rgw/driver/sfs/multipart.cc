@@ -65,17 +65,6 @@ std::unique_ptr<rgw::sal::Object> SFSMultipartUpload::get_meta_obj() {
 int SFSMultipartUpload::write_metadata(
     const DoutPrefixProvider* dpp, SFSMultipartMeta& metadata
 ) {
-  auto obj = get_meta_obj();
-
-  bufferlist bl;
-  encode(metadata, bl);
-
-  SFSBucket* b = static_cast<SFSBucket*>(bucket);
-  std::filesystem::path metafn = b->objects_path() / get_meta();
-  bl.write_file(metafn.c_str());
-
-  lsfs_dout(dpp, 10) << "wrote metadata to " << metafn
-                     << ", len: " << bl.length() << dendl;
   return 0;
 }
 

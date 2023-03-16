@@ -24,7 +24,6 @@
 #include "cls/rgw/cls_rgw_client.h"
 #include "common/Clock.h"
 #include "common/errno.h"
-#include "driver/sfs/bucket_mgr.h"
 #include "driver/sfs/notification.h"
 #include "driver/sfs/writer.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
@@ -111,11 +110,13 @@ std::unique_ptr<Writer> SFStore::get_atomic_writer(
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": return basic atomic writer" << dendl;
   std::string bucketname = _head_obj->get_bucket()->get_name();
-  ceph_assert(buckets_map.count(bucketname) > 0);
-  auto mgr = buckets_map[bucketname];
+
+  std::lock_guard l(buckets_map_lock);
+  ceph_assert(buckets.count(bucketname) > 0);
+  auto bucketref = buckets[bucketname];
   return std::make_unique<SFSAtomicWriter>(
-      dpp, y, _head_obj, this, mgr, owner, ptail_placement_rule, olh_epoch,
-      unique_tag
+      dpp, y, std::move(_head_obj), this, bucketref, owner,
+      ptail_placement_rule, olh_epoch, unique_tag
   );
 }
 
@@ -383,13 +384,7 @@ void SFStore::maybe_init_store() {
 
 void SFStore::init_buckets() {
   ldout(cctx, 10) << "init buckets" << dendl;
-  auto p = buckets_path();
-  for (auto const& entry : std::filesystem::directory_iterator{p}) {
-    auto name = entry.path().filename().string();
-    auto mgr = get_bucket_mgr(name);
-    ldout(cctx, 10) << "init buckets > bucket: " << name
-                    << ", objects: " << mgr->size() << dendl;
-  }
+  // TODO
 }
 
 SFStore::SFStore(CephContext* c, const std::filesystem::path& data_path)
