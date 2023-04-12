@@ -19,7 +19,6 @@
 #include <memory>
 
 #include "buckets/bucket_definitions.h"
-#include "common/ceph_mutex.h"
 #include "lifecycle/lifecycle_definitions.h"
 #include "objects/object_definitions.h"
 #include "sqlite_orm.h"
