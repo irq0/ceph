@@ -45,15 +45,15 @@ std::vector<DBOPObjectInfo> SQLiteObjects::get_objects(
 ) const {
   auto storage = conn->get_storage();
   auto objects =
-      storage.get_all<DBObject>(where(is_equal(&DBObject::bucket_id, bucket_id))
-      );
+      storage->get_all<DBObject>(where(is_equal(&DBObject::bucket_id, bucket_id)
+      ));
   return get_rgw_objects(objects);
 }
 
 std::optional<DBOPObjectInfo> SQLiteObjects::get_object(const uuid_d& uuid
 ) const {
   auto storage = conn->get_storage();
-  auto object = storage.get_pointer<DBObject>(uuid.to_string());
+  auto object = storage->get_pointer<DBObject>(uuid.to_string());
   std::optional<DBOPObjectInfo> ret_value;
   if (object) {
     ret_value = get_rgw_object(*object);
@@ -65,7 +65,7 @@ std::optional<DBOPObjectInfo> SQLiteObjects::get_object(
     const std::string& bucket_id, const std::string& object_name
 ) const {
   auto storage = conn->get_storage();
-  auto objects = storage.get_all<DBObject>(where(
+  auto objects = storage->get_all<DBObject>(where(
       is_equal(&DBObject::bucket_id, bucket_id) and
       is_equal(&DBObject::name, object_name)
   ));
@@ -80,23 +80,23 @@ std::optional<DBOPObjectInfo> SQLiteObjects::get_object(
 void SQLiteObjects::store_object(const DBOPObjectInfo& object) const {
   auto storage = conn->get_storage();
   auto db_object = get_db_object(object);
-  storage.replace(db_object);
+  storage->replace(db_object);
 }
 
 void SQLiteObjects::remove_object(const uuid_d& uuid) const {
   auto storage = conn->get_storage();
-  storage.remove<DBObject>(uuid.to_string());
+  storage->remove<DBObject>(uuid.to_string());
 }
 
 std::vector<uuid_d> SQLiteObjects::get_object_ids() const {
   auto storage = conn->get_storage();
-  return get_rgw_uuids(storage.select(&DBObject::object_id));
+  return get_rgw_uuids(storage->select(&DBObject::object_id));
 }
 
 std::vector<uuid_d> SQLiteObjects::get_object_ids(const std::string& bucket_id
 ) const {
   auto storage = conn->get_storage();
-  return get_rgw_uuids(storage.select(
+  return get_rgw_uuids(storage->select(
       &DBObject::object_id, where(c(&DBObject::bucket_id) = bucket_id)
   ));
 }

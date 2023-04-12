@@ -318,7 +318,7 @@ TEST_F(TestSFSSQLiteObjects, CreateObjectForNonExistingBucket) {
 
   EXPECT_THROW({
     try {
-        storage.replace(db_object);;
+        storage->replace(db_object);;
     } catch( const std::system_error & e ) {
         EXPECT_STREQ( "FOREIGN KEY constraint failed: constraint failed", e.what() );
         throw;

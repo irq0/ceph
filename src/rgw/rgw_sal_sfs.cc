@@ -403,9 +403,9 @@ http::status SFSStatusPage::render(std::ostream& os) {
 
   os << "<h2>SQLite</h2>\n"
      << "<ul>\n"
-     << "<li> filename: " << db.filename() << "</li>\n"
-     << "<li> libversion: " << db.libversion() << "</li>\n"
-     << "<li> total_changes: " << db.total_changes() << "</li>\n";
+     << "<li> filename: " << db->filename() << "</li>\n"
+     << "<li> libversion: " << db->libversion() << "</li>\n"
+     << "<li> total_changes: " << db->total_changes() << "</li>\n";
 
   int current;
   int highwater;

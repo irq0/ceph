@@ -197,13 +197,14 @@ inline auto _make_storage(const std::string& path) {
 using Storage = decltype(_make_storage(""));
 
 class DBConn {
-  Storage storage;
+  const std::unique_ptr<Storage> storage;
 
  public:
   sqlite3* sqlite_db;
 
-  DBConn(CephContext* cct) : storage(_make_storage(getDBPath(cct))) {
-    storage.on_open = [this](sqlite3* db) {
+  DBConn(CephContext* cct)
+      : storage(std::make_unique<Storage>(_make_storage(getDBPath(cct)))) {
+    storage->on_open = [this](sqlite3* db) {
       sqlite_db = db;
 
       sqlite3_extended_result_codes(db, 1);
@@ -215,17 +216,17 @@ class DBConn {
           0, 0, 0
       );
     };
-    storage.open_forever();
-    storage.busy_timeout(5000);
+    storage->open_forever();
+    storage->busy_timeout(5000);
     check_metadata_is_compatible(cct);
-    storage.sync_schema();
+    storage->sync_schema();
   }
   virtual ~DBConn() = default;
 
   DBConn(const DBConn&) = delete;
   DBConn& operator=(const DBConn&) = delete;
 
-  inline auto get_storage() { return storage; }
+  Storage* get_storage() { return storage.get(); }
 
   std::string getDBPath(CephContext* cct) const {
     auto rgw_sfs_path = cct->_conf.get_val<std::string>("rgw_sfs_data_path");

@@ -27,7 +27,7 @@ SQLiteUsers::SQLiteUsers(DBConnRef _conn) : conn(_conn) {}
 std::optional<DBOPUserInfo> SQLiteUsers::get_user(const std::string& userid
 ) const {
   auto storage = conn->get_storage();
-  auto user = storage.get_pointer<DBUser>(userid);
+  auto user = storage->get_pointer<DBUser>(userid);
   std::optional<DBOPUserInfo> ret_value;
   if (user) {
     ret_value = get_rgw_user(*user);
@@ -53,7 +53,7 @@ std::optional<DBOPUserInfo> SQLiteUsers::get_user_by_access_key(
   auto user_id = _get_user_id_by_access_key(storage, key);
   std::optional<DBOPUserInfo> ret_value;
   if (user_id.has_value()) {
-    auto user = storage.get_pointer<DBUser>(user_id);
+    auto user = storage->get_pointer<DBUser>(user_id);
     if (user) {
       ret_value = get_rgw_user(*user);
     }
@@ -63,27 +63,27 @@ std::optional<DBOPUserInfo> SQLiteUsers::get_user_by_access_key(
 
 std::vector<std::string> SQLiteUsers::get_user_ids() const {
   auto storage = conn->get_storage();
-  return storage.select(&DBUser::user_id);
+  return storage->select(&DBUser::user_id);
 }
 
 void SQLiteUsers::store_user(const DBOPUserInfo& user) const {
   auto storage = conn->get_storage();
   auto db_user = get_db_user(user);
-  storage.replace(db_user);
+  storage->replace(db_user);
   _store_access_keys(storage, user);
 }
 
 void SQLiteUsers::remove_user(const std::string& userid) const {
   auto storage = conn->get_storage();
   _remove_access_keys(storage, userid);
-  storage.remove<DBUser>(userid);
+  storage->remove<DBUser>(userid);
 }
 
 template <class... Args>
 std::vector<DBOPUserInfo> SQLiteUsers::get_users_by(Args... args) const {
   std::vector<DBOPUserInfo> users_return;
   auto storage = conn->get_storage();
-  auto users = storage.get_all<DBUser>(args...);
+  auto users = storage->get_all<DBUser>(args...);
   for (auto& user : users) {
     users_return.push_back(get_rgw_user(user));
   }
@@ -91,7 +91,7 @@ std::vector<DBOPUserInfo> SQLiteUsers::get_users_by(Args... args) const {
 }
 
 void SQLiteUsers::_store_access_keys(
-    rgw::sal::sfs::sqlite::Storage storage, const DBOPUserInfo& user
+    rgw::sal::sfs::sqlite::Storage* storage, const DBOPUserInfo& user
 ) const {
   // remove existing keys for the user (in case any of them had changed)
   _remove_access_keys(storage, user.uinfo.user_id.id);
@@ -99,21 +99,21 @@ void SQLiteUsers::_store_access_keys(
     DBAccessKey db_key;
     db_key.access_key = key.first;
     db_key.user_id = user.uinfo.user_id.id;
-    storage.insert(db_key);
+    storage->insert(db_key);
   }
 }
 
 void SQLiteUsers::_remove_access_keys(
-    rgw::sal::sfs::sqlite::Storage storage, const std::string& userid
+    rgw::sal::sfs::sqlite::Storage* storage, const std::string& userid
 ) const {
-  storage.remove_all<DBAccessKey>(where(c(&DBAccessKey::user_id) = userid));
+  storage->remove_all<DBAccessKey>(where(c(&DBAccessKey::user_id) = userid));
 }
 
 std::optional<std::string> SQLiteUsers::_get_user_id_by_access_key(
-    rgw::sal::sfs::sqlite::Storage storage, const std::string& key
+    rgw::sal::sfs::sqlite::Storage* storage, const std::string& key
 ) const {
   auto keys =
-      storage.get_all<DBAccessKey>(where(c(&DBAccessKey::access_key) = key));
+      storage->get_all<DBAccessKey>(where(c(&DBAccessKey::access_key) = key));
   std::optional<std::string> ret_value;
   if (keys.size() > 0) {
     // in case we have 2 keys that are equal in different users we return

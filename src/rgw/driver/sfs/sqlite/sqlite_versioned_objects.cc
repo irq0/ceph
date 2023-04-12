@@ -33,7 +33,7 @@ SQLiteVersionedObjects::SQLiteVersionedObjects(DBConnRef _conn) : conn(_conn) {}
 std::optional<DBOPVersionedObjectInfo>
 SQLiteVersionedObjects::get_versioned_object(uint id) const {
   auto storage = conn->get_storage();
-  auto object = storage.get_pointer<DBVersionedObject>(id);
+  auto object = storage->get_pointer<DBVersionedObject>(id);
   std::optional<DBOPVersionedObjectInfo> ret_value;
   if (object) {
     ret_value = get_rgw_versioned_object(*object);
@@ -45,7 +45,7 @@ std::optional<DBOPVersionedObjectInfo>
 SQLiteVersionedObjects::get_versioned_object(const std::string& version_id
 ) const {
   auto storage = conn->get_storage();
-  auto versioned_objects = storage.get_all<DBVersionedObject>(
+  auto versioned_objects = storage->get_all<DBVersionedObject>(
       where(c(&DBVersionedObject::version_id) = version_id)
   );
   ceph_assert(versioned_objects.size() <= 1);
@@ -61,7 +61,7 @@ uint SQLiteVersionedObjects::insert_versioned_object(
 ) const {
   auto storage = conn->get_storage();
   auto db_object = get_db_versioned_object(object);
-  return storage.insert(db_object);
+  return storage->insert(db_object);
 }
 
 void SQLiteVersionedObjects::store_versioned_object(
@@ -69,17 +69,17 @@ void SQLiteVersionedObjects::store_versioned_object(
 ) const {
   auto storage = conn->get_storage();
   auto db_object = get_db_versioned_object(object);
-  storage.update(db_object);
+  storage->update(db_object);
 }
 
 void SQLiteVersionedObjects::remove_versioned_object(uint id) const {
   auto storage = conn->get_storage();
-  storage.remove<DBVersionedObject>(id);
+  storage->remove<DBVersionedObject>(id);
 }
 
 std::vector<uint> SQLiteVersionedObjects::get_versioned_object_ids() const {
   auto storage = conn->get_storage();
-  return storage.select(&DBVersionedObject::id);
+  return storage->select(&DBVersionedObject::id);
 }
 
 std::vector<uint> SQLiteVersionedObjects::get_versioned_object_ids(
@@ -87,7 +87,7 @@ std::vector<uint> SQLiteVersionedObjects::get_versioned_object_ids(
 ) const {
   auto storage = conn->get_storage();
   auto uuid = object_id.to_string();
-  return storage.select(
+  return storage->select(
       &DBVersionedObject::id, where(c(&DBVersionedObject::object_id) = uuid)
   );
 }
@@ -96,7 +96,7 @@ std::vector<DBOPVersionedObjectInfo>
 SQLiteVersionedObjects::get_versioned_objects(const uuid_d& object_id) const {
   auto storage = conn->get_storage();
   auto uuid = object_id.to_string();
-  auto versioned_objects = storage.get_all<DBVersionedObject>(
+  auto versioned_objects = storage->get_all<DBVersionedObject>(
       where(c(&DBVersionedObject::object_id) = uuid)
   );
   return get_rgw_versioned_objects(versioned_objects);
@@ -106,14 +106,14 @@ std::optional<DBOPVersionedObjectInfo>
 SQLiteVersionedObjects::get_last_versioned_object(const uuid_d& object_id
 ) const {
   auto storage = conn->get_storage();
-  auto last_version_id = storage.max(
+  auto last_version_id = storage->max(
       &DBVersionedObject::id,
       where(c(&DBVersionedObject::object_id) = object_id.to_string())
   );
   std::optional<DBOPVersionedObjectInfo> ret_value;
   if (last_version_id) {
     auto last_version =
-        storage.get_pointer<DBVersionedObject>(*last_version_id);
+        storage->get_pointer<DBVersionedObject>(*last_version_id);
     if (last_version) {
       ret_value = get_rgw_versioned_object(*last_version);
     }

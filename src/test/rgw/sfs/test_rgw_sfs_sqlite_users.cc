@@ -324,9 +324,9 @@ TEST_F(TestSFSSQLiteUsers, UseStorage) {
   db_user.user_id = "test_storage";
 
   // we have to use replace because the primary key of rgw_user is a string
-  storage.replace(db_user);
+  storage->replace(db_user);
 
-  auto user = storage.get_pointer<DBUser>("test_storage");
+  auto user = storage->get_pointer<DBUser>("test_storage");
 
   ASSERT_NE(user, nullptr);
   ASSERT_EQ(user->user_id, "test_storage");
@@ -342,7 +342,7 @@ TEST_F(TestSFSSQLiteUsers, UseStorage) {
   auto db_user_2 = get_db_user(rgw_user_2);
 
   // we have to use replace because the primary key of rgw_user is a string
-  storage.replace(db_user_2);
+  storage->replace(db_user_2);
 
   // now use the SqliteUsers method, so user is already converted
   auto ret_user = db_users.get_user("test1");

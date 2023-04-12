@@ -439,7 +439,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, CreateObjectForNonExistingBucket) {
 
   EXPECT_THROW({
     try {
-        storage.replace(db_object);;
+        storage->replace(db_object);;
     } catch( const std::system_error & e ) {
         EXPECT_STREQ( "FOREIGN KEY constraint failed: constraint failed", e.what() );
         throw;
@@ -466,21 +466,21 @@ TEST_F(TestSFSSQLiteVersionedObjects, Testobject_stateConversion) {
   ASSERT_EQ(0, db_object.object_state);
 
   db_object.object_state = 1;
-  storage.replace(db_object);
+  storage->replace(db_object);
 
   auto ret_object = db_objects.get_versioned_object(db_object.id);
   ASSERT_TRUE(ret_object.has_value());
   ASSERT_EQ(rgw::sal::ObjectState::COMMITTED, ret_object->object_state);
 
   db_object.object_state = 2;
-  storage.replace(db_object);
+  storage->replace(db_object);
 
   ret_object = db_objects.get_versioned_object(db_object.id);
   ASSERT_TRUE(ret_object.has_value());
   ASSERT_EQ(rgw::sal::ObjectState::LOCKED, ret_object->object_state);
 
   db_object.object_state = 3;
-  storage.replace(db_object);
+  storage->replace(db_object);
 
   ret_object = db_objects.get_versioned_object(db_object.id);
   ASSERT_TRUE(ret_object.has_value());
@@ -506,7 +506,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, Testobject_stateBadValue) {
   ASSERT_EQ(0, db_object.object_state);
 
   db_object.object_state = 10;
-  storage.replace(db_object);
+  storage->replace(db_object);
 
   EXPECT_THROW({
     try {
