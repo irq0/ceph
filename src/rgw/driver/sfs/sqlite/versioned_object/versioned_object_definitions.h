@@ -19,6 +19,10 @@
 #include "rgw/rgw_common.h"
 #include "rgw_common.h"
 
+#if FMT_VERSION >= 90000
+#include <fmt/ostream.h>
+#endif
+
 namespace rgw::sal::sfs::sqlite {
 
 using BLOB = std::vector<char>;
@@ -50,3 +54,22 @@ struct DBOPVersionedObjectInfo {
 };
 
 }  // namespace rgw::sal::sfs::sqlite
+
+inline std::ostream& operator<<(
+    std::ostream& out, const rgw::sal::sfs::sqlite::DBOPVersionedObjectInfo& o
+) {
+  return out << "DBOPVersionedObjectInfo("
+             << "id:" << o.id << " object_id:" << o.object_id.to_string()
+             << " checksum:" << o.checksum
+             << " deletion_time:" << o.deletion_time << " size:" << o.size
+             << " creation_time:" << o.creation_time
+             << " object_state:" << static_cast<int>(o.object_state)
+             << " version_id:" << o.version_id << " etag:" << o.etag
+             << " attrs(n):" << o.attrs.size() << ")";
+}
+
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<rgw::sal::sfs::sqlite::DBOPVersionedObjectInfo>
+    : fmt::ostream_formatter {};
+#endif
