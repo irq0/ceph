@@ -243,9 +243,13 @@ class DBConn {
 
   std::string getDBPath(CephContext* cct) const {
     auto rgw_sfs_path = cct->_conf.get_val<std::string>("rgw_sfs_data_path");
-    auto db_path =
-        std::filesystem::path(rgw_sfs_path) / std::string(SCHEMA_DB_NAME);
-    return db_path.string();
+    if (rgw_sfs_path.find(":memory:") != rgw_sfs_path.npos) {
+      return rgw_sfs_path;
+    } else {
+      auto db_path =
+          std::filesystem::path(rgw_sfs_path) / std::string(SCHEMA_DB_NAME);
+      return db_path.string();
+    }
   }
 
   void check_metadata_is_compatible(CephContext* ctt);

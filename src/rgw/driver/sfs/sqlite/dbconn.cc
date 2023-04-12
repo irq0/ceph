@@ -16,6 +16,9 @@ std::string get_temporary_db_path(CephContext* ctt) {
 }
 
 void DBConn::check_metadata_is_compatible(CephContext* ctt) {
+  if (getDBPath(ctt).find(":memory:") != getDBPath(ctt).npos) {
+    return;
+  }
   // create a copy of the actual metadata
   fs::copy(getDBPath(ctt), get_temporary_db_path(ctt));
   try {
