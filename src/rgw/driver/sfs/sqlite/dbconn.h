@@ -207,6 +207,21 @@ class DBConn {
 
       sqlite3_extended_result_codes(db, 1);
       sqlite3_busy_timeout(db, 10000);
+      sqlite3_config(
+          SQLITE_CONFIG_LOG,
+          [](void* pArg, int err_code, const char* msg) {
+            std::cerr << __func__ << "[SQLITE] " << err_code << ": " << msg
+                      << std::endl;
+          }
+      );
+      sqlite3_trace_v2(
+          db, SQLITE_TRACE_STMT,
+          [](unsigned int what, void* ctx, void* stmt, void* sql) {
+            std::cerr << "[SQL] " << static_cast<char*>(sql) << std::endl;
+            return 0;
+          },
+          nullptr
+      );
       sqlite3_exec(
           db,
           "PRAGMA journal_mode=WAL;PRAGMA synchronous=normal;PRAGMA temp_store "
