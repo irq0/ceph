@@ -14,6 +14,7 @@
 #include "driver/sfs/user.h"
 
 #include <filesystem>
+#include <system_error>
 
 #include "driver/sfs/bucket.h"
 #include "rgw/driver/sfs/sqlite/sqlite_users.h"
@@ -26,7 +27,14 @@ using namespace std;
 namespace rgw::sal {
 
 int SFSUser::read_attrs(const DoutPrefixProvider* dpp, optional_yield y) {
-  return load_user(dpp, y);
+  try {
+    return load_user(dpp, y);
+  } catch (const std::system_error& e) {
+    lsfs_dout(dpp, -1) << __func__ << "!!! BUG Unhandled system error. "
+                       << e.code() << ": " << e.what()
+                       << ". replying internal error" << dendl;
+    return -ERR_INTERNAL_ERROR;
+  }
 }
 
 int SFSUser::merge_and_store_attrs(
