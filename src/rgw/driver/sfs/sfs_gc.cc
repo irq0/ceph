@@ -13,6 +13,9 @@
  */
 #include "sfs_gc.h"
 
+#include <filesystem>
+#include <system_error>
+
 #include "driver/sfs/types.h"
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
 
@@ -94,23 +97,7 @@ void SFSGC::delete_objects(const std::string& bucket_id) {
     if (max_objects <= 0) {
       break;
     }
-    auto obj_instance =
-        std::unique_ptr<Object>(Object::create_for_immediate_deletion(object));
-    delete_object(*obj_instance.get());
-  }
-}
-
-void SFSGC::delete_versioned_objects(const Object& object) {
-  sqlite::SQLiteVersionedObjects db_ver_objs(store->db_conn);
-  auto versions = db_ver_objs.get_versioned_objects(object.path.get_uuid());
-  for (auto const& version : versions) {
-    if (max_objects <= 0) {
-      break;
-    }
-
-    Object to_be_deleted(object);
-    to_be_deleted.version_id = version.id;
-    delete_versioned_object(to_be_deleted);
+    delete_object(object.uuid);
   }
 }
 
@@ -125,23 +112,26 @@ void SFSGC::delete_bucket(const std::string& bucket_id) {
   }
 }
 
-void SFSGC::delete_object(const Object& object) {
-  // delete its versions first
-  delete_versioned_objects(object);
-  if (max_objects > 0) {
-    object.delete_object_metadata(store);
-    object.delete_object_data(store, true);
-    lsfs_dout(this, 30) << "Deleted object: " << object.path.get_uuid()
-                        << dendl;
-    --max_objects;
+void SFSGC::delete_object(const uuid_d& id) {
+  ObjectDeleter deleter(store->get_data_path(), store->db_conn, id);
+  std::vector<uint> versions_deleted;
+  try {
+    versions_deleted = deleter.delete_all();
+  } catch (const std::system_error& e) {
+    lsfs_dout(this, 30) << "Failed to delete object " << id
+                        << " retrying next iteration." << dendl;
+    return;
   }
-}
 
-void SFSGC::delete_versioned_object(const Object& object) {
-  object.delete_object_version(store);
-  object.delete_object_data(store, false);
-  lsfs_dout(this, 30) << "Deleted version: (" << object.path.get_uuid() << ","
-                      << object.version_id << ")" << dendl;
+  try {
+    deleter.delete_version_data(versions_deleted);
+    deleter.delete_data_directory();
+  } catch (const std::filesystem::filesystem_error& e) {
+    lsfs_dout(this, 10) << "Error while deleting object " << id
+                        << " data. Orphaned files may exists." << dendl;
+  }
+  lsfs_dout(this, 30) << "Deleted object " << id << ". "
+                      << versions_deleted.size() << " versions." << dendl;
   --max_objects;
 }
 

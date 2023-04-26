@@ -70,11 +70,8 @@ class SFSGC : public DoutPrefixProvider {
   void process_deleted_buckets();
 
   void delete_objects(const std::string& bucket_id);
-  void delete_versioned_objects(const Object& object);
-
+  void delete_object(const uuid_d& id);
   void delete_bucket(const std::string& bucket_id);
-  void delete_object(const Object& object);
-  void delete_versioned_object(const Object& object);
 };
 
 }  //  namespace rgw::sal::sfs
