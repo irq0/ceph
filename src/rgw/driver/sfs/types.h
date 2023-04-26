@@ -147,6 +147,18 @@ class ObjectDeleter {
   std::vector<uint> delete_all() const;
 };
 
+class ObjectAttr {
+ private:
+  sqlite::DBConnRef dbconn;
+
+ public:
+  ObjectAttr(sqlite::DBConnRef _dbconn);
+
+  static std::optional<rgw::sal::Attrs> get(
+      sqlite::DBConnRef _dbconn, const uuid_d& id
+  );
+};
+
 using ObjectRef = std::shared_ptr<Object>;
 
 /**

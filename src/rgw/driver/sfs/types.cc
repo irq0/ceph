@@ -18,6 +18,7 @@
 #include <string>
 #include <system_error>
 
+#include "conversion_utils.h"
 #include "dbconn.h"
 #include "driver/sfs/uuid_path.h"
 #include "objects/object_definitions.h"
@@ -310,6 +311,28 @@ std::vector<uint> ObjectDeleter::delete_all() const {
   transaction.commit();
   return result;
 }
+
+std::optional<rgw::sal::Attrs> ObjectAttr::get(
+    sqlite::DBConnRef _dbconn, const uuid_d& id
+) {
+  auto storage = _dbconn->get_storage();
+  auto rows = storage.select(
+      &sqlite::DBVersionedObject::attrs,
+      sqlite_orm::where(
+          sqlite_orm::c(&sqlite::DBVersionedObject::object_id) = id.to_string()
+      )
+  );
+
+  if (rows.size() < 1 || !rows[0].has_value()) {
+    return std::nullopt;
+  }
+
+  rgw::sal::Attrs result;
+  sqlite::decode_blob(rows[0].value(), result);
+  return result;
+}
+
+ObjectAttr::ObjectAttr(sqlite::DBConnRef _dbconn) : dbconn(_dbconn) {}
 
 void MultipartObject::_abort(const DoutPrefixProvider* dpp) {
   // assumes being called while holding the lock.
