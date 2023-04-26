@@ -218,8 +218,6 @@ class SFSObject : public StoreObject {
       optional_yield y
   ) override;
 
-  bool get_attr(const std::string& name, bufferlist& dest);
-
   sfs::ObjectRef get_object_ref() { return objref; }
 
   void set_object_ref(sfs::ObjectRef objref) { this->objref = objref; }

@@ -316,10 +316,6 @@ int SFSObject::set_obj_attrs(
   return 0;
 }
 
-bool SFSObject::get_attr(const std::string& name, bufferlist& dest) {
-  return objref->get_attr(name, dest);
-}
-
 int SFSObject::modify_obj_attrs(
     const char* attr_name, bufferlist& attr_val, optional_yield y,
     const DoutPrefixProvider* dpp
