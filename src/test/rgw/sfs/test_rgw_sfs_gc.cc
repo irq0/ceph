@@ -145,12 +145,11 @@ protected:
     db_versioned_objects.insert_versioned_object(db_version);
   }
 
-  void deleteTestObject(std::shared_ptr<rgw::sal::sfs::Object> & object,
+  void deleteTestObject(uuid_d id,
                         DBConnRef conn) {
     // delete mark the object
     SQLiteVersionedObjects db_versioned_objects(conn);
-    auto last_version = db_versioned_objects.get_last_versioned_object(
-                                                       object->path.get_uuid());
+    auto last_version = db_versioned_objects.get_last_versioned_object(id);
     ASSERT_TRUE(last_version.has_value());
     last_version->object_state = rgw::sal::ObjectState::DELETED;
     last_version->version_id.append("_next_");
@@ -166,9 +165,7 @@ protected:
     SQLiteObjects db_objects(conn);
     auto objects = db_objects.get_objects(bucket_id);
     for (auto & object: objects) {
-        auto objptr = std::shared_ptr<rgw::sal::sfs::Object>(
-	    rgw::sal::sfs::Object::create_for_immediate_deletion(object));
-        deleteTestObject(objptr, conn);
+        deleteTestObject(object.uuid, conn);
     }
     bucket->deleted = true;
     db_buckets.store_bucket(*bucket);
@@ -295,34 +292,26 @@ TEST_F(TestSFSGC, TestDeletedBucketsMaxObjects) {
 
   gc->process();
 
-  // only 1 file should be removed
-  EXPECT_EQ(getStoreDataFileCount(), 4);
+  // one object with 2 versions disappears
+  EXPECT_EQ(getStoreDataFileCount(), 3);
   EXPECT_TRUE(databaseFileExists());
   // the object is still reachable in the db
-  EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
+  EXPECT_EQ(0, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
 
   gc->process();
 
-  // one more version removed
+  // no new deletes -> no change
   EXPECT_EQ(getStoreDataFileCount(), 3);
   EXPECT_TRUE(databaseFileExists());
   // the object is still reachable in the db (versions removed)
-  EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
+  EXPECT_EQ(0, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
 
   gc->process();
-  // one more version removed
+  // no new deletes -> no change
   EXPECT_EQ(getStoreDataFileCount(), 3);
   EXPECT_TRUE(databaseFileExists());
-  EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
-  EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
-
-  gc->process();
-  // one more version removed
-  EXPECT_EQ(getStoreDataFileCount(), 3);
-  EXPECT_TRUE(databaseFileExists());
-  // the object is finally removed
   EXPECT_EQ(0, getNumberObjectsForBucket("test_bucket_2", store->db_conn));
   EXPECT_EQ(1, getNumberObjectsForBucket("test_bucket_1", store->db_conn));
 }

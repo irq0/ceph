@@ -67,9 +67,6 @@ class Object {
         deleted(false) {}
 
  public:
-  static Object* create_for_immediate_deletion(
-      const sqlite::DBOPObjectInfo& object
-  );
   static Object* create_for_query(
       const std::string& name, const uuid_d& uuid, bool deleted, uint version_id
   );
@@ -103,6 +100,9 @@ class Object {
   Attrs get_attrs();
   void update_attrs(const Attrs& update);
 
+  static std::filesystem::path get_storage_path(
+      const UUIDPath& path, uint version_id
+  );
   std::filesystem::path get_storage_path() const;
 
   /// Update version and commit to database
@@ -122,12 +122,29 @@ class Object {
 
   /// Commit attrs to database
   void metadata_flush_attrs(SFStore* store);
+};
 
-  int delete_object_version(SFStore* store) const;
-  void delete_object_metadata(SFStore* store) const;
-  /// Delete object _data_ (e.g payload of PUT operations) from disk.
-  // Set all=true to delete all versions, not just this version.
-  void delete_object_data(SFStore* store, bool all) const;
+/// Object and object version delete utility
+class ObjectDeleter {
+ private:
+  std::filesystem::path data_path;
+  sqlite::DBConnRef dbconn;
+  UUIDPath uuid;
+
+ public:
+  ObjectDeleter(
+      const std::filesystem::path data_path, sqlite::DBConnRef _dbconn,
+      const uuid_d& _uuid
+  );
+  /// Delete version database entry
+  void delete_version(uint version_id) const;
+  /// Delete version object data
+  void delete_version_data(std::vector<uint> versions) const;
+  /// Delete object _data_ including all versions.
+  void delete_data_directory() const;
+  /// Delete all versions and the object entry. NOT the data.
+  /// Returns version ids deleted.
+  std::vector<uint> delete_all() const;
 };
 
 using ObjectRef = std::shared_ptr<Object>;

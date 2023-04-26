@@ -163,7 +163,10 @@ void SFSAtomicWriter::cleanup() noexcept {
   }
 
   try {
-    objref->delete_object_version(store);
+    sfs::ObjectDeleter deleter(
+        object_path, store->db_conn, objref->path.get_uuid()
+    );
+    deleter.delete_version(objref->version_id);
   } catch (const std::system_error& e) {
     lsfs_dout(dpp, -1)
         << fmt::format(
