@@ -334,6 +334,43 @@ std::optional<rgw::sal::Attrs> ObjectAttr::get(
 
 ObjectAttr::ObjectAttr(sqlite::DBConnRef _dbconn) : dbconn(_dbconn) {}
 
+VersionedObjectHandle* VersionedObjectHandle::resolve(
+    const sqlite::DBConnRef _dbconn, const rgw_obj_key& key
+) {
+  auto storage = _dbconn->get_storage();
+
+  auto rows = storage.select(
+      sqlite_orm::columns(
+          &sqlite::DBVersionedObject::object_id, &sqlite::DBVersionedObject::id
+      ),
+      sqlite_orm::join<sqlite::DBObject>(
+          sqlite_orm::using_(&sqlite::DBVersionedObject::object_id)
+      ),
+      sqlite_orm::where(sqlite_orm::and_(
+          sqlite_orm::is_equal(&sqlite::DBObject::name, key.name),
+          sqlite_orm::is_equal(
+              &sqlite::DBVersionedObject::version_id, key.instance
+          )
+      ))
+  );
+  if (rows.size() != 1) {
+    return nullptr;
+  }
+
+  uuid_d id;
+  id.parse(std::get<0>(rows[0]).c_str());
+  return new VersionedObjectHandle(key, std::get<1>(rows[0]), UUIDPath(id));
+}
+
+std::ostream& operator<<(
+    std::ostream& out, const rgw::sal::sfs::VersionedObjectHandle& vo
+) {
+  return out << "VO("
+             << "key:" << vo.m_key << ", id:" << vo.object_id()
+             << ", version_id:" << vo.m_version_id << ", path:" << vo.path()
+             << ")";
+}
+
 void MultipartObject::_abort(const DoutPrefixProvider* dpp) {
   // assumes being called while holding the lock.
   ceph_assert(aborted);

@@ -29,6 +29,10 @@
 #include "rgw_common.h"
 #include "rgw_sal.h"
 
+#if FMT_VERSION >= 90000
+#include <fmt/ostream.h>
+#endif
+
 namespace rgw::sal {
 class SFStore;
 }
@@ -123,6 +127,45 @@ class Object {
   /// Commit attrs to database
   void metadata_flush_attrs(SFStore* store);
 };
+
+/// VersionedObjectHandle identifies an object plus version in
+/// different contexts and converts between them.
+///
+/// database: object_id (uuid), version_id (int)
+/// RGW: object name (rgw_obj_key), instance (string)
+/// filesystem: UUID path
+class VersionedObjectHandle {
+ private:
+  const rgw_obj_key m_key;
+  const uint m_version_id;
+  const UUIDPath m_path;
+
+ protected:
+  VersionedObjectHandle(
+      const rgw_obj_key& key, uint version_id, const UUIDPath& path
+  )
+      : m_key(key), m_version_id(version_id), m_path(path) {}
+
+ public:
+  /// path to object data
+  std::filesystem::path path() const {
+    return m_path.to_path() / std::to_string(m_version_id);
+  }
+  uint version_id() const { return m_version_id; };
+  uuid_d object_id() const { return m_path.get_uuid(); };
+
+  /// Get VersionedObjectHandle by resolving an existing from key.
+  /// Returns nullptr if no such object exists.
+  static VersionedObjectHandle* resolve(
+      const sqlite::DBConnRef _dbconn, const rgw_obj_key& key
+  );
+
+  friend std::ostream& operator<<(
+      std::ostream& out, const VersionedObjectHandle& vo
+  );
+};
+
+std::ostream& operator<<(std::ostream& out, const VersionedObjectHandle& vo);
 
 /// Object and object version delete utility
 class ObjectDeleter {
@@ -475,5 +518,11 @@ static inline MetaBucketsRef get_meta_buckets(sqlite::DBConnRef conn) {
 }
 
 }  // namespace rgw::sal::sfs
+
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<rgw::sal::sfs::VersionedObjectHandle>
+    : fmt::ostream_formatter {};
+#endif
 
 #endif  // RGW_STORE_SFS_TYPES_H
