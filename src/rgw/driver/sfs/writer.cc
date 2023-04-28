@@ -16,6 +16,7 @@
 #include <fmt/ostream.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <filesystem>
 #include <memory>
 #include <ranges>
@@ -89,7 +90,7 @@ int SFSAtomicWriter::open() noexcept {
   );
   if (ret < 0) {
     lsfs_dout(dpp, -1) << "error opening file " << object_path << ": "
-                       << cpp_strerror(-fd) << dendl;
+                       << cpp_strerror(errno) << dendl;
     return -ERR_INTERNAL_ERROR;
   }
 
