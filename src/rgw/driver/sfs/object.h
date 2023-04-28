@@ -44,12 +44,18 @@ class SFSObject : public StoreObject {
    */
   struct SFSReadOp : public ReadOp {
    private:
-    SFSObject* source;
-    sfs::ObjectRef objref;
-    std::filesystem::path objdata;
+    SFSObject* const source;
+    const sfs::VersionedObjectHandle vo;
+    const std::filesystem::path objdata;
+
+    int fd;
+    int read_to_bl(
+        const DoutPrefixProvider* dpp, int64_t ofs, int64_t len, bufferlist& bl
+    );
 
    public:
-    SFSReadOp(SFSObject* _source);
+    SFSReadOp(SFSObject* _source, const sfs::VersionedObjectHandle& _vo);
+    ~SFSReadOp();
 
     virtual int prepare(optional_yield y, const DoutPrefixProvider* dpp)
         override;
@@ -187,9 +193,8 @@ class SFSObject : public StoreObject {
   /**
    * Obtain a Read Operation.
    */
-  virtual std::unique_ptr<ReadOp> get_read_op() override {
-    return std::make_unique<SFSObject::SFSReadOp>(this);
-  }
+  virtual std::unique_ptr<ReadOp> get_read_op() override;
+
   /**
    * Obtain a Delete Operation.
    */

@@ -14,8 +14,10 @@
 #include "driver/sfs/object.h"
 
 #include "driver/sfs/multipart.h"
+#include "driver/sfs/object_state.h"
 #include "driver/sfs/sqlite/sqlite_versioned_objects.h"
 #include "driver/sfs/types.h"
+#include "rgw_common.h"
 #include "rgw_sal_sfs.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -24,36 +26,57 @@ using namespace std;
 
 namespace rgw::sal {
 
-SFSObject::SFSReadOp::SFSReadOp(SFSObject* _source) : source(_source) {
-  /*
-    This initialization code was originally into prepare() but that
-    was not sufficient to cover all cases.
-    There are pieces of SAL code that are calling get_*() methods
-    but they don't call prepare().
-    In those cases the SFSReadOp is not properly initialized and those
-    calls are going to fail.
-  */
-  source->refresh_meta();
-  objref = source->get_object_ref();
+// Read
+
+std::unique_ptr<SFSObject::ReadOp> SFSObject::get_read_op() {
+  sfs::VersionedObjectHandle* vo =
+      sfs::VersionedObjectHandle::resolve(store->db_conn, get_key());
+
+  if (vo) {
+    refresh_meta();  // ReadOp requires size set
+    return std::make_unique<SFSObject::SFSReadOp>(this, *vo);
+  } else {
+    return nullptr;
+    // TODO handle read to non existing / new / deleted object
+    // use separate operation?
+  }
 }
+
+SFSObject::SFSReadOp::SFSReadOp(
+    SFSObject* _source, const sfs::VersionedObjectHandle& _vo
+)
+    : source(_source),
+      vo(_vo),
+      objdata(_source->store->get_data_path() / _vo.path()) {}
 
 int SFSObject::SFSReadOp::prepare(
     optional_yield y, const DoutPrefixProvider* dpp
 ) {
-  if (!objref || objref->deleted) {
-    // at this point, we don't have an objectref because
-    // the object does not exist.
+  // TODO move existence check elsewhere. Perhaps a separate ReadOp.
+  const auto state = sfs::ObjectAttr::state(source->store->db_conn, vo);
+  if (!state.has_value() || state.value() == ObjectState::DELETED) {
     return -ENOENT;
   }
 
-  objdata = source->store->get_data_path() / objref->get_storage_path();
-  if (!std::filesystem::exists(objdata)) {
-    lsfs_dout(dpp, 10) << "object data not found at " << objdata << dendl;
-    return -ENOENT;
+  // open the file to ensure that regardless of concurrent deletes, we
+  // can finish the read operation that we started
+  int ret = ::open(objdata.c_str(), O_CLOEXEC | O_RDONLY, 0644);
+  if (ret < 0) {
+    if (errno == ENOENT) {
+      lsfs_dout(dpp, 10) << "object data file disappeared. likely from a "
+                            "concurrent delete. returning ENOENT."
+                         << dendl;
+      return -ENOENT;
+    }
+    lsfs_dout(dpp, -1) << "error opening file " << objdata << ": "
+                       << cpp_strerror(errno) << dendl;
+    return -ERR_INTERNAL_ERROR;
   }
+  fd = ret;
 
   lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
                      << ", obj: " << source->get_name()
+                     << ", fn: " << objdata.string() << ", fd: " << fd
                      << ", size: " << source->get_obj_size() << dendl;
   if (params.lastmod) {
     *params.lastmod = source->get_mtime();
@@ -61,17 +84,39 @@ int SFSObject::SFSReadOp::prepare(
   return 0;
 }
 
+SFSObject::SFSReadOp::~SFSReadOp() {
+  if (fd >= 0) {
+    ::close(fd);
+  }
+}
+
 int SFSObject::SFSReadOp::get_attr(
     const DoutPrefixProvider* dpp, const char* name, bufferlist& dest,
     optional_yield y
 ) {
-  if (!objref || objref->deleted) {
+  const auto maybe_attrs = sfs::ObjectAttr::get(source->store->db_conn, vo);
+  lsfs_dout(dpp, 20) << fmt::format(
+                            "{} name:{} have_attrs:{}", vo, name,
+                            maybe_attrs.has_value()
+                        )
+                     << dendl;
+
+  if (!maybe_attrs.has_value()) {
     return -ENOENT;
   }
-  if (!objref->get_attr(name, dest)) {
+
+  const auto attrs = maybe_attrs.value();
+  if (const auto search = attrs.find(name); search != attrs.end()) {
+    lsfs_dout(dpp, 20) << fmt::format(
+                              "{} name:{} nattrs:{} value:{}", vo, name,
+                              attrs.size(), search->second.to_str()
+                          )
+                       << dendl;
+    dest.append(search->second);
+    return 0;
+  } else {
     return -ENODATA;
   }
-  return 0;
 }
 
 // sync read
@@ -79,24 +124,44 @@ int SFSObject::SFSReadOp::read(
     int64_t ofs, int64_t end, bufferlist& bl, optional_yield y,
     const DoutPrefixProvider* dpp
 ) {
-  // TODO bounds check, etc.
   const auto len = end + 1 - ofs;
-  lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
-                     << ", obj: " << source->get_name()
-                     << ", size: " << source->get_obj_size()
-                     << ", offset: " << ofs << ", end: " << end
-                     << ", len: " << len << dendl;
+  lsfs_dout(dpp, 20) << fmt::format(
+                            "{} sync bucket:{} {}:{} fd:{}, osize:{}", vo,
+                            source->bucket->get_name(), ofs, len, fd,
+                            source->get_obj_size()
+                        )
+                     << dendl;
+  return read_to_bl(dpp, ofs, len, bl);
+}
 
-  ceph_assert(std::filesystem::exists(objdata));
-
-  std::string error;
-  int ret = bl.pread_file(objdata.c_str(), ofs, len, &error);
-  if (ret < 0) {
-    lsfs_dout(dpp, 10) << "failed to read object from file " << objdata
-                       << ". Returning EIO." << dendl;
-    return -EIO;
+int SFSObject::SFSReadOp::read_to_bl(
+    const DoutPrefixProvider* dpp, int64_t ofs, int64_t len, bufferlist& bl
+) {
+  const ssize_t lseek_ret = ::lseek64(fd, ofs, SEEK_SET);
+  if (lseek_ret < 0) {
+    lsfs_dout(dpp, -1) << fmt::format(
+                              "seek to offset {} failed with {}. "
+                              "fn: {}, fd: {}. "
+                              "returning internal error",
+                              cpp_strerror(errno), ofs, objdata.string(), fd
+                          )
+                       << dendl;
+    return -ERR_INTERNAL_ERROR;
   }
-  return len;
+
+  const ssize_t read_ret = bl.read_fd(fd, len);
+  if (read_ret < 0) {
+    lsfs_dout(dpp, -1) << fmt::format(
+                              "read at offset:len {}:{}  failed with {}. "
+                              "fn: {}, fd: {}. "
+                              "returning internal error",
+                              ofs, len, cpp_strerror(errno), objdata.string(),
+                              fd
+                          )
+                       << dendl;
+    return -ERR_INTERNAL_ERROR;
+  }
+  return read_ret;
 }
 
 // async read
@@ -106,37 +171,31 @@ int SFSObject::SFSReadOp::iterate(
 ) {
   // TODO bounds check, etc.
   const auto len = end + 1 - ofs;
-  lsfs_dout(dpp, 10) << "bucket: " << source->bucket->get_name()
-                     << ", obj: " << source->get_name()
-                     << ", size: " << source->get_obj_size()
-                     << ", offset: " << ofs << ", end: " << end
-                     << ", len: " << len << dendl;
-
-  ceph_assert(std::filesystem::exists(objdata));
-  std::string error;
-
+  lsfs_dout(dpp, 20) << fmt::format(
+                            "{} async bucket:{} {}:{} fd:{}, osize:{}", vo,
+                            source->bucket->get_name(), ofs, len, fd,
+                            source->get_obj_size()
+                        )
+                     << dendl;
   const uint64_t max_chunk_size = 10485760;  // 10MB
   uint64_t missing = len;
   while (missing > 0) {
-    uint64_t size = std::min(missing, max_chunk_size);
+    const uint64_t size = std::min(missing, max_chunk_size);
     bufferlist bl;
-    int ret = bl.pread_file(objdata.c_str(), ofs, size, &error);
+    int ret = read_to_bl(dpp, ofs, size, bl);
     if (ret < 0) {
-      lsfs_dout(dpp, 0) << "failed to read object from file '" << objdata
-                        << ", offset: " << ofs << ", size: " << size << ": "
-                        << error << dendl;
-      return -EIO;
+      return ret;
     }
-    missing -= size;
-    lsfs_dout(dpp, 10) << "return " << size << "/" << len << ", offset: " << ofs
+    missing -= ret;
+    lsfs_dout(dpp, 10) << "return " << ret << "/" << len << ", offset: " << ofs
+                       << ", requested size " << size
                        << ", missing: " << missing << dendl;
     ret = cb->handle_data(bl, 0, size);
     if (ret < 0) {
       lsfs_dout(dpp, 0) << "failed to return object data: " << ret << dendl;
-      return -EIO;
+      return -ERR_INTERNAL_ERROR;
     }
-
-    ofs += size;
+    ofs += ret;
   }
   return len;
 }
