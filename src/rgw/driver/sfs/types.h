@@ -21,6 +21,7 @@
 #include <string>
 
 #include "common/ceph_mutex.h"
+#include "driver/sfs/object_state.h"
 #include "rgw/driver/sfs/sqlite/dbconn.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
@@ -198,7 +199,10 @@ class ObjectAttr {
   ObjectAttr(sqlite::DBConnRef _dbconn);
 
   static std::optional<rgw::sal::Attrs> get(
-      sqlite::DBConnRef _dbconn, const uuid_d& id
+      sqlite::DBConnRef _dbconn, const VersionedObjectHandle& vo
+  );
+  static std::optional<ObjectState> state(
+      sqlite::DBConnRef _dbconn, const VersionedObjectHandle& vo
   );
 };
 

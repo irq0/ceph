@@ -313,23 +313,46 @@ std::vector<uint> ObjectDeleter::delete_all() const {
 }
 
 std::optional<rgw::sal::Attrs> ObjectAttr::get(
-    sqlite::DBConnRef _dbconn, const uuid_d& id
+    sqlite::DBConnRef _dbconn, const VersionedObjectHandle& vo
 ) {
   auto storage = _dbconn->get_storage();
   auto rows = storage.select(
       &sqlite::DBVersionedObject::attrs,
-      sqlite_orm::where(
-          sqlite_orm::c(&sqlite::DBVersionedObject::object_id) = id.to_string()
-      )
+      sqlite_orm::where(sqlite_orm::and_(
+          sqlite_orm::is_equal(
+              &sqlite::DBVersionedObject::object_id, vo.object_id().to_string()
+          ),
+          sqlite_orm::is_equal(&sqlite::DBVersionedObject::id, vo.version_id())
+      ))
   );
 
-  if (rows.size() < 1 || !rows[0].has_value()) {
+  if (rows.size() != 1 || !rows[0].has_value()) {
     return std::nullopt;
   }
 
   rgw::sal::Attrs result;
   sqlite::decode_blob(rows[0].value(), result);
   return result;
+}
+
+std::optional<ObjectState> ObjectAttr::state(
+    sqlite::DBConnRef _dbconn, const VersionedObjectHandle& vo
+) {
+  auto storage = _dbconn->get_storage();
+  auto rows = storage.select(
+      &sqlite::DBVersionedObject::object_state,
+      sqlite_orm::where(sqlite_orm::and_(
+          sqlite_orm::is_equal(
+              &sqlite::DBVersionedObject::object_id, vo.object_id().to_string()
+          ),
+          sqlite_orm::is_equal(&sqlite::DBVersionedObject::id, vo.version_id())
+      ))
+  );
+
+  if (rows.size() != 1) {
+    return std::nullopt;
+  }
+  return static_cast<ObjectState>(rows[0]);
 }
 
 ObjectAttr::ObjectAttr(sqlite::DBConnRef _dbconn) : dbconn(_dbconn) {}
