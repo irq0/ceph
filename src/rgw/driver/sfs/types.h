@@ -191,6 +191,19 @@ class ObjectDeleter {
   std::vector<uint> delete_all() const;
 };
 
+/// Object and object version _soft_ delete utility
+class ObjectSoftDeleter {
+  /// Create new delete marker version
+  static void create_delete_marker(
+      sqlite::DBConnRef _dbconn, const VersionedObjectHandle& vo
+  );
+
+  /// mark version deleted
+  static void delete_version(
+      sqlite::DBConnRef _dbconn, const VersionedObjectHandle& vo
+  );
+};
+
 class ObjectAttr {
  private:
   sqlite::DBConnRef dbconn;
@@ -438,9 +451,6 @@ class Bucket {
   ObjectRef get(const std::string& name);
   /// Get copy of all objects
   std::vector<ObjectRef> get_all();
-
-  /// S3 delete object operation: delete version or create tombstone.
-  void delete_object(ObjectRef objref, const rgw_obj_key& key);
 
   /// Delete a non-existing object. Creates object with toumbstone
   // version in database.

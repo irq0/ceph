@@ -503,6 +503,10 @@ std::vector<ObjectRef> Bucket::get_all() {
   return result;
 }
 
+void ObjectSoftDeleter::delete_object(
+    sqlite::DBConnRef _dbconn, const VersionedObjectHandle& vo
+) {}
+
 void Bucket::delete_object(ObjectRef objref, const rgw_obj_key& key) {
   sqlite::SQLiteVersionedObjects db_versioned_objs(store->db_conn);
   // get the last available version to make a copy changing the object state to DELETED

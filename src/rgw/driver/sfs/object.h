@@ -76,15 +76,15 @@ class SFSObject : public StoreObject {
   };
 
   /**
-   * deletes an object.
+   * Soft deletes an object
    */
   struct SFSDeleteOp : public DeleteOp {
    private:
     SFSObject* source;
-    sfs::BucketRef bucketref;
+    const sfs::VersionedObjectHandle vo;
 
    public:
-    SFSDeleteOp(SFSObject* _source, sfs::BucketRef _bucketref);
+    SFSDeleteOp(SFSObject* _source, const sfs::VersionedObjectHandle& _vo);
     virtual int delete_obj(const DoutPrefixProvider* dpp, optional_yield y)
         override;
 

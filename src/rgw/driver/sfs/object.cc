@@ -200,10 +200,24 @@ int SFSObject::SFSReadOp::iterate(
   return len;
 }
 
+// Delete
+
+std::unique_ptr<rgw::sal::Object::DeleteOp> SFSObject::get_delete_op() {
+  sfs::VersionedObjectHandle* vo =
+      sfs::VersionedObjectHandle::resolve(store->db_conn, get_key());
+
+  if (vo) {
+    return std::make_unique<SFSObject::SFSDeleteOp>(this, *vo);
+  } else {
+    // deleting a non existing object does not make sense
+    return nullptr;
+  }
+}
+
 SFSObject::SFSDeleteOp::SFSDeleteOp(
-    SFSObject* _source, sfs::BucketRef _bucketref
+    SFSObject* _source, const sfs::VersionedObjectHandle& _vo
 )
-    : source(_source), bucketref(_bucketref) {}
+    : source(_source), vo(_vo) {}
 
 int SFSObject::SFSDeleteOp::delete_obj(
     const DoutPrefixProvider* dpp, optional_yield y
@@ -485,12 +499,6 @@ int SFSObject::chown(
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;
   return -ENOTSUP;
-}
-
-std::unique_ptr<rgw::sal::Object::DeleteOp> SFSObject::get_delete_op() {
-  ceph_assert(bucket != nullptr);
-  auto ref = store->get_bucket_ref(bucket->get_name());
-  return std::make_unique<SFSObject::SFSDeleteOp>(this, ref);
 }
 
 void SFSObject::refresh_meta() {
