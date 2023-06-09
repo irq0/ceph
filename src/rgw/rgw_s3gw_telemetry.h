@@ -65,7 +65,7 @@ class S3GWTelemetry {
     State()
         : m_mutex(make_mutex("S3GWTelemetry::State")),
           m_versions(),
-	  m_update_interval(std::chrono::minutes(10)),
+          m_update_interval(std::chrono::minutes(10)),
           m_status({{}, {}}) {}
     Status status() const {
       std::lock_guard<std::mutex> lock(mutex);
@@ -103,7 +103,7 @@ class S3GWTelemetry {
   ceph::condition_variable m_updater_cvar;
   ceph::mutex m_updater_mutex;
 
-  void updater_main(std::chrono::milliseconds update_interval);
+  void updater_main();
   void append_sfs_telemetry(JSONFormatter* f) const;
 
   /// Make POST to upgrade responder URL. Stores the raw response body data in response
@@ -141,8 +141,8 @@ class S3GWTelemetry {
   /// (https://github.com/longhorn/upgrade-responder/blob/master/upgraderesponder/service.go)
   bool parse_upgrade_response(
       bufferlist& response,
-      std::chrono::milliseconds* out_request_interval_minutes,
-      std::vector<Version>* out_versions
+      std::chrono::milliseconds& out_request_interval_minutes,
+      std::vector<Version>& out_versions
   ) const;
 
   /// Create "CheckUpgradeRequest"

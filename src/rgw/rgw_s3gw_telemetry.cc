@@ -53,23 +53,15 @@ S3GWTelemetry::S3GWTelemetry(
       m_updater_mutex(make_mutex("S3GWTelemetry::Updater")) {}
 
 void S3GWTelemetry::start() {
-  std::chrono::milliseconds interval =
-      m_cct->_conf.get_val<std::chrono::milliseconds>(
-          "rgw_s3gw_telemetry_update_interval"
-      );
+  const bool enabled = m_cct->_conf.get_val<bool>("rgw_s3gw_enable_telemetry");
 
-  if (interval.count() == 0) {
-    ldout(
-        m_cct, 1
-    ) << __func__
-      << ": telemetry update interval set to 0. telemetry disabled." << dendl;
+  if (!enabled) {
+    ldout(m_cct, 1) << __func__ << ": telemetry disabled by configuration."
+                    << dendl;
   } else {
     m_shutdown = false;
     m_updater = make_named_thread(
-        "s3gw_telemetry_updater", &S3GWTelemetry::updater_main, this,
-        m_cct->_conf.get_val<std::chrono::milliseconds>(
-            "rgw_s3gw_telemetry_update_interval"
-        )
+        "s3gw_telemetry_updater", &S3GWTelemetry::updater_main, this
     );
   }
 }
@@ -92,13 +84,14 @@ void S3GWTelemetry::update() {
   wake_up();
 }
 
-void S3GWTelemetry::updater_main(std::chrono::milliseconds update_interval) {
+void S3GWTelemetry::updater_main() {
   while (true) {
     std::unique_lock lock(m_updater_mutex);
-    ldout(m_cct, 19) << __func__ << ": updating telemetry" << dendl;
+    ldout(m_cct, 19) << __func__ << ": updating telemetry. interval_millis="
+                     << m_state.update_interval().count() << dendl;
     do_update();
     const auto shutdown_requested = m_updater_cvar.wait_for(
-        lock, update_interval, [&] { return m_shutdown; }
+        lock, m_state.update_interval(), [&] { return m_shutdown; }
     );
     if (shutdown_requested) {
       ldout(m_cct, 10) << __func__ << ": shutting down telemetry updater"
@@ -201,10 +194,9 @@ void S3GWTelemetry::Version::decode_json(JSONObj* obj) {
 }
 
 bool S3GWTelemetry::parse_upgrade_response(
-    bufferlist& response, std::chrono::milliseconds* out_update_interval,
-    std::vector<Version>* out_versions
+    bufferlist& response, std::chrono::milliseconds& out_update_interval,
+    std::vector<Version>& out_versions
 ) const {
-  std::vector<Version> result;
   JSONParser parser;
   if (!parser.parse(response.c_str(), response.length())) {
     ldout(m_cct, 2) << __func__ << ": failed to parse update responder JSON."
@@ -237,7 +229,7 @@ bool S3GWTelemetry::parse_upgrade_response(
                     << parsed_req_interval_minutes << dendl;
     return false;
   }
-  *out_update_interval = std::chrono::minutes(parsed_req_interval_minutes);
+  out_update_interval = std::chrono::minutes(parsed_req_interval_minutes);
 
   auto versions_iter = parser.find_first("versions");
   if (versions_iter.end()) {
@@ -252,7 +244,7 @@ bool S3GWTelemetry::parse_upgrade_response(
     try {
       Version v;
       v.decode_json(*version_iter);
-      out_versions->emplace_back(v);
+      out_versions.emplace_back(v);
     } catch (const JSONDecoder::err& ex) {
       ldout(m_cct, 2) << __func__
                       << ": failed to decode update responder JSON. "
@@ -284,9 +276,7 @@ void S3GWTelemetry::do_update() {
   if (success) {
     std::vector<Version> versions;
     std::chrono::milliseconds next_req_interval_minutes;
-    if (parse_upgrade_response(
-            response, &next_req_interval_minutes, &versions
-        )) {
+    if (parse_upgrade_response(response, next_req_interval_minutes, versions)) {
       m_state.update_success(now, versions, next_req_interval_minutes);
     }
   }

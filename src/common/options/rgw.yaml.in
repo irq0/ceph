@@ -3788,11 +3788,11 @@ options:
     Reserves space for metadata operations and SQLite updates.
   service:
     - rgw
-- name: rgw_s3gw_telemetry_update_interval
-  type: millisecs
+- name: rgw_s3gw_enable_telemetry
+  type: bool
   level: advanced
-  default: 3600000
-  desc: S3GW telemetry update inverval. Set to 0 to disable.
+  default: true
+  desc: Enable S3GW telemetry updates
   service:
     - rgw
 - name: rgw_s3gw_telemetry_upgrade_responder_url
