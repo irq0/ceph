@@ -1,9 +1,10 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
+#include <chrono>
 #include <sstream>
 
 #include "common/Formatter.h"
@@ -13,9 +14,7 @@
 #include "rgw_s3gw_telemetry.h"
 #include "rgw_sal_sfs.h"
 
-
-class MockSFStore : rgw::sal::SFStore {
-};
+class MockSFStore : rgw::sal::SFStore {};
 
 class TestS3GWTelemetry : public ::testing::Test {
  protected:
@@ -32,7 +31,7 @@ TEST_F(TestS3GWTelemetry, parses_valid_response) {
   bufferlist bl;
   bl.append(R"json(
   {
-    "requestIntervalInMinutes": 60,
+    "requestIntervalInMinutes": 42,
     "versions": [
         {
             "ExtraInfo": null,
@@ -47,36 +46,76 @@ TEST_F(TestS3GWTelemetry, parses_valid_response) {
     ]
 })json");
 
-  auto maybe_parsed = uut->parse_upgrade_response(bl);
-  ASSERT_TRUE(maybe_parsed.has_value());
-  auto parsed = maybe_parsed.value();
-  ASSERT_EQ(parsed.size(), 1);
-  ASSERT_EQ(parsed[0].name, "v0.23.42");
-  ASSERT_GT(parsed[0].release_date.time_since_epoch().count(), 0);
+  std::vector<S3GWTelemetry::Version> versions;
+  std::chrono::milliseconds interval;
+  ASSERT_TRUE(uut->parse_upgrade_response(bl, interval, versions));
+  ASSERT_TRUE(interval == std::chrono::minutes(42));
+  ASSERT_EQ(versions.size(), 1);
+  ASSERT_EQ(versions[0].name, "v0.23.42");
+  ASSERT_GT(versions[0].release_date.time_since_epoch().count(), 0);
 }
 
-TEST_F(TestS3GWTelemetry, broken_json_responses_return_nullopt) {
+TEST_F(TestS3GWTelemetry, broken_json_responses_return_false) {
   bufferlist bl;
   bl.append("{{{{ ~~~ BROKEN JSON]]]");
 
-  auto maybe_parsed = uut->parse_upgrade_response(bl);
-  ASSERT_FALSE(maybe_parsed.has_value());
+  std::vector<S3GWTelemetry::Version> versions;
+  std::chrono::milliseconds interval;
+  ASSERT_FALSE(uut->parse_upgrade_response(bl, interval, versions));
 }
 
-TEST_F(TestS3GWTelemetry, invalid_json_responses_return_nullopt) {
+TEST_F(TestS3GWTelemetry, invalid_json_responses_return_false) {
+  std::vector<S3GWTelemetry::Version> versions;
+  std::chrono::milliseconds interval;
   bufferlist bl;
   bl.append(R"json({
     "wat?": [23, 42]
 })json");
 
-  ASSERT_FALSE(uut->parse_upgrade_response(bl).has_value());
+  ASSERT_FALSE(uut->parse_upgrade_response(bl, interval, versions));
 
   bl.clear();
   bl.append(R"json({
     "versions": [23, 42]
 })json");
-  ASSERT_FALSE(uut->parse_upgrade_response(bl).has_value());
+  ASSERT_FALSE(uut->parse_upgrade_response(bl, interval, versions));
+}
 
+TEST_F(TestS3GWTelemetry, vaild_response_without_versions) {
+  std::vector<S3GWTelemetry::Version> versions;
+  std::chrono::milliseconds interval;
+  bufferlist bl;
+  bl.append(R"json(
+  {
+    "requestIntervalInMinutes": 23,
+    "versions": [
+    ]
+})json");
+  ASSERT_TRUE(uut->parse_upgrade_response(bl, interval, versions));
+  ASSERT_TRUE(interval == std::chrono::minutes(23));
+  ASSERT_EQ(versions.size(), 0);
+}
+
+TEST_F(TestS3GWTelemetry, request_interval_vaild_only_positive_integer) {
+  std::vector<S3GWTelemetry::Version> versions;
+  std::chrono::milliseconds interval;
+  bufferlist bl;
+  bl.append(R"json(
+  {
+    "requestIntervalInMinutes": -1,
+    "versions": [
+    ]
+})json");
+  ASSERT_FALSE(uut->parse_upgrade_response(bl, interval, versions));
+
+  bl.clear();
+  bl.append(R"json(
+  {
+    "requestIntervalInMinutes": "foo",
+    "versions": [
+    ]
+})json");
+  ASSERT_FALSE(uut->parse_upgrade_response(bl, interval, versions));
 }
 
 TEST_F(TestS3GWTelemetry, creates_valid_updateresponder_json_request) {

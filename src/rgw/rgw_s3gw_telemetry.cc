@@ -20,6 +20,7 @@
 #include <curl/curl.h>
 
 #include <boost/beast/http/status.hpp>
+#include <chrono>
 #include <memory>
 #include <thread>
 
@@ -199,8 +200,10 @@ void S3GWTelemetry::Version::decode_json(JSONObj* obj) {
   JSONDecoder::decode_json("ReleaseDate", release_date, obj, true);
 }
 
-std::optional<std::vector<S3GWTelemetry::Version>>
-S3GWTelemetry::parse_upgrade_response(bufferlist& response) const {
+bool S3GWTelemetry::parse_upgrade_response(
+    bufferlist& response, std::chrono::milliseconds* out_update_interval,
+    std::vector<Version>* out_versions
+) const {
   std::vector<Version> result;
   JSONParser parser;
   if (!parser.parse(response.c_str(), response.length())) {
@@ -208,14 +211,39 @@ S3GWTelemetry::parse_upgrade_response(bufferlist& response) const {
                     << dendl;
     ldout(m_cct, 20) << __func__ << ": response data was: " << response.to_str()
                      << dendl;
-    return std::nullopt;
+    return false;
   }
+
+  auto req_interval_iter = parser.find_first("requestIntervalInMinutes");
+  if (req_interval_iter.end()) {
+    ldout(m_cct, 2) << __func__ << ": failed to decode update responder JSON. "
+                    << " no requestIntervalInMinutes found" << dendl;
+    return false;
+  }
+  int parsed_req_interval_minutes = -1;
+  try {
+    JSONDecoder::decode_json(
+        "requestIntervalInMinutes", parsed_req_interval_minutes, &parser, true
+    );
+  } catch (const JSONDecoder::err& ex) {
+    ldout(m_cct, 2) << __func__ << ": failed to decode update responder JSON. "
+                    << ex.what() << dendl;
+    return false;
+  }
+
+  if (parsed_req_interval_minutes < 1) {
+    ldout(m_cct, 2) << __func__ << ": failed to decode update responder JSON. "
+                    << "invalid request interval "
+                    << parsed_req_interval_minutes << dendl;
+    return false;
+  }
+  *out_update_interval = std::chrono::minutes(parsed_req_interval_minutes);
 
   auto versions_iter = parser.find_first("versions");
   if (versions_iter.end()) {
     ldout(m_cct, 2) << __func__ << ": failed to decode update responder JSON. "
                     << " no versions object found" << dendl;
-    return std::nullopt;
+    return false;
   }
 
   JSONObj* versions_json = *versions_iter;
@@ -224,15 +252,16 @@ S3GWTelemetry::parse_upgrade_response(bufferlist& response) const {
     try {
       Version v;
       v.decode_json(*version_iter);
-      result.emplace_back(v);
+      out_versions->emplace_back(v);
     } catch (const JSONDecoder::err& ex) {
       ldout(m_cct, 2) << __func__
                       << ": failed to decode update responder JSON. "
                       << ex.what() << dendl;
-      return std::nullopt;
+      return false;
     }
   }
-  return result;
+
+  return true;
 }
 
 void S3GWTelemetry::do_update() {
@@ -253,9 +282,12 @@ void S3GWTelemetry::do_update() {
                    << dendl;
 
   if (success) {
-    auto parsed_response = parse_upgrade_response(response);
-    if (parsed_response.has_value()) {
-      m_state.update_success(now, parsed_response.value());
+    std::vector<Version> versions;
+    std::chrono::milliseconds next_req_interval_minutes;
+    if (parse_upgrade_response(
+            response, &next_req_interval_minutes, &versions
+        )) {
+      m_state.update_success(now, versions, next_req_interval_minutes);
     }
   }
 }

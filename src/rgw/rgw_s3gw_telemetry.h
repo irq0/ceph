@@ -42,7 +42,7 @@ class S3GWTelemetry {
   /// Version stores (partial) version information parsed from JSON
   /// replies. See
   /// https://github.com/longhorn/upgrade-responder/blob/master/upgraderesponder/service.go
-  /// Version struct
+  /// type Version
   struct Version {
     std::string name;
     ceph::real_time release_date;
@@ -56,11 +56,17 @@ class S3GWTelemetry {
     ceph::mutex m_mutex;
     /// parsed version information from the last successful update
     std::vector<Version> m_versions;
+    /// update interval from the last successful update
+    std::chrono::milliseconds m_update_interval;
     /// Keeps update status information
     Status m_status;
 
    public:
-    State() : m_mutex(make_mutex("S3GWTelemetry::State")), m_versions(), m_status({{}, {}}) {}
+    State()
+        : m_mutex(make_mutex("S3GWTelemetry::State")),
+          m_versions(),
+	  m_update_interval(std::chrono::minutes(10)),
+          m_status({{}, {}}) {}
     Status status() const {
       std::lock_guard<std::mutex> lock(mutex);
       return m_status;
@@ -69,17 +75,23 @@ class S3GWTelemetry {
       std::lock_guard<std::mutex> lock(mutex);
       return m_versions;
     }
+    std::chrono::milliseconds update_interval() const {
+      std::lock_guard<std::mutex> lock(mutex);
+      return m_update_interval;
+    };
     void update_attempt(const ceph::real_time next_attempt) {
       std::lock_guard<std::mutex> lock(mutex);
       m_status.last_attempt = next_attempt;
     }
     void update_success(
         const ceph::real_time next_success,
-        const std::vector<Version>& next_versions
+        const std::vector<Version>& next_versions,
+        std::chrono::milliseconds next_update_interval
     ) {
       std::lock_guard<std::mutex> lock(mutex);
       m_status.last_success = next_success;
       m_versions = next_versions;
+      m_update_interval = next_update_interval;
     }
   } m_state;
 
@@ -127,10 +139,12 @@ class S3GWTelemetry {
 
   /// Parse "CheckUpgradeResponse"
   /// (https://github.com/longhorn/upgrade-responder/blob/master/upgraderesponder/service.go)
-  std::optional<std::vector<Version>> parse_upgrade_response(
-      bufferlist& response
+  bool parse_upgrade_response(
+      bufferlist& response,
+      std::chrono::milliseconds* out_request_interval_minutes,
+      std::vector<Version>* out_versions
   ) const;
-  
+
   /// Create "CheckUpgradeRequest"
   /// (https://github.com/longhorn/upgrade-responder/blob/master/upgraderesponder/service.go)
   void create_update_responder_request(JSONFormatter* f) const;
