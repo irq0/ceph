@@ -109,7 +109,7 @@ _configure() {
 _build() {
   pushd "${SFS_BUILD_DIR}"
 
-  ninja -j "${NPROC}" bin/radosgw
+  ninja -j "${NPROC}" bin/radosgw crypto_plugins
 
   if [ "${WITH_TESTS}" == "ON" ] ; then
     # discover tests from build.ninja so we don't need to update this after
