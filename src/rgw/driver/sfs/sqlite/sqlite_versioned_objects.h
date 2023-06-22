@@ -34,7 +34,7 @@ class SQLiteVersionedObjects {
   std::optional<DBVersionedObject> get_versioned_object(
       const std::string& version_id, bool filter_deleted = true
   ) const;
-  std::optional<DBVersionedObject> get_non_deleted_versioned_object(
+  std::optional<DBVersionedObject> get_committed_versioned_object(
       const std::string& bucket_id, const std::string& object_name,
       const std::string& version_id
   ) const;
@@ -75,13 +75,12 @@ class SQLiteVersionedObjects {
 
  private:
   std::optional<DBVersionedObject>
-  get_non_deleted_versioned_object_specific_version(
+  get_committed_versioned_object_specific_version(
       const std::string& bucket_id, const std::string& object_name,
       const std::string& version_id
   ) const;
 
-  std::optional<DBVersionedObject>
-  get_non_deleted_versioned_object_last_version(
+  std::optional<DBVersionedObject> get_committed_versioned_object_last_version(
       const std::string& bucket_id, const std::string& object_name
   ) const;
 };

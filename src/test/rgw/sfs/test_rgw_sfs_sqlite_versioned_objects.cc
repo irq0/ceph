@@ -958,7 +958,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
 
   // try to get version (TEST_BUCKET, "test_name", "test_version_id_2")
   // corresponding to the second version
-  auto version = db_versioned_objects->get_non_deleted_versioned_object(
+  auto version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET, "test_name", "test_version_id_2"
   );
   ASSERT_TRUE(version.has_value());
@@ -966,7 +966,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   EXPECT_EQ(2, version->id);
 
   // don't pass any version. Should return the last one
-  version = db_versioned_objects->get_non_deleted_versioned_object(
+  version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET, "test_name", ""
   );
   ASSERT_TRUE(version.has_value());
@@ -974,7 +974,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   EXPECT_EQ(3, version->id);
 
   // pass a non existing version_id
-  version = db_versioned_objects->get_non_deleted_versioned_object(
+  version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET, "test_name", "this_version_does_not_exist"
   );
   ASSERT_FALSE(version.has_value());
@@ -996,7 +996,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   // first object it should still return versions from the first object
 
   // don't pass any version. Should return the last one
-  version = db_versioned_objects->get_non_deleted_versioned_object(
+  version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET, "test_name", ""
   );
   ASSERT_TRUE(version.has_value());
@@ -1005,7 +1005,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
 
   // try to get a deleted version (TEST_BUCKET, "test_name", "test_version_id_5")
   // corresponding to the second version
-  version = db_versioned_objects->get_non_deleted_versioned_object(
+  version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET, "test_name", "test_version_id_5"
   );
   // should not return that object
@@ -1013,7 +1013,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   ASSERT_FALSE(version.has_value());
 
   // still return valid version
-  version = db_versioned_objects->get_non_deleted_versioned_object(
+  version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET, "test_name", "test_version_id_3"
   );
   ASSERT_TRUE(version.has_value());
@@ -1030,7 +1030,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   EXPECT_EQ(6, db_versioned_objects->insert_versioned_object(object));
 
   // still return valid version for 1st object
-  version = db_versioned_objects->get_non_deleted_versioned_object(
+  version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET, "test_name", "test_version_id_3"
   );
   ASSERT_TRUE(version.has_value());
@@ -1038,7 +1038,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   EXPECT_EQ(3, version->id);
 
   // and also valid for the object in the second bucket
-  version = db_versioned_objects->get_non_deleted_versioned_object(
+  version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET_2, "test_name", "test_version_id_6"
   );
   ASSERT_TRUE(version.has_value());
@@ -1046,7 +1046,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   EXPECT_EQ(6, version->id);
 
   // but version 6 is not on first bucket
-  version = db_versioned_objects->get_non_deleted_versioned_object(
+  version = db_versioned_objects->get_committed_versioned_object(
       TEST_BUCKET, "test_name", "test_version_id_6"
   );
   ASSERT_FALSE(version.has_value());

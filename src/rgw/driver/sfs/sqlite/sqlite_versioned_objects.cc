@@ -54,16 +54,14 @@ std::optional<DBVersionedObject> SQLiteVersionedObjects::get_versioned_object(
 }
 
 std::optional<DBVersionedObject>
-SQLiteVersionedObjects::get_non_deleted_versioned_object(
+SQLiteVersionedObjects::get_committed_versioned_object(
     const std::string& bucket_id, const std::string& object_name,
     const std::string& version_id
 ) const {
   if (version_id.empty()) {
-    return get_non_deleted_versioned_object_last_version(
-        bucket_id, object_name
-    );
+    return get_committed_versioned_object_last_version(bucket_id, object_name);
   }
-  return get_non_deleted_versioned_object_specific_version(
+  return get_committed_versioned_object_specific_version(
       bucket_id, object_name, version_id
   );
 }
@@ -325,7 +323,7 @@ uint SQLiteVersionedObjects::add_delete_marker_transact(
 }
 
 std::optional<DBVersionedObject>
-SQLiteVersionedObjects::get_non_deleted_versioned_object_specific_version(
+SQLiteVersionedObjects::get_committed_versioned_object_specific_version(
     const std::string& bucket_id, const std::string& object_name,
     const std::string& version_id
 ) const {
@@ -336,9 +334,7 @@ SQLiteVersionedObjects::get_non_deleted_versioned_object_specific_version(
           on(is_equal(&DBObject::uuid, &DBVersionedObject::object_id))
       ),
       where(
-          is_not_equal(
-              &DBVersionedObject::object_state, ObjectState::DELETED
-          ) and
+          is_equal(&DBVersionedObject::object_state, ObjectState::COMMITTED) and
           is_equal(&DBObject::bucket_id, bucket_id) and
           is_equal(&DBObject::name, object_name) and
           is_equal(&DBVersionedObject::version_id, version_id)
@@ -359,7 +355,7 @@ SQLiteVersionedObjects::get_non_deleted_versioned_object_specific_version(
 }
 
 std::optional<DBVersionedObject>
-SQLiteVersionedObjects::get_non_deleted_versioned_object_last_version(
+SQLiteVersionedObjects::get_committed_versioned_object_last_version(
     const std::string& bucket_id, const std::string& object_name
 ) const {
   // we don't have a version_id, so return the last available one that is
@@ -373,7 +369,7 @@ SQLiteVersionedObjects::get_non_deleted_versioned_object_last_version(
       where(
           is_equal(&DBObject::bucket_id, bucket_id) and
           is_equal(&DBObject::name, object_name) and
-          is_not_equal(&DBVersionedObject::object_state, ObjectState::DELETED)
+          is_equal(&DBVersionedObject::object_state, ObjectState::COMMITTED)
       ),
       group_by(&DBVersionedObject::id), order_by(&DBVersionedObject::id).desc()
   );

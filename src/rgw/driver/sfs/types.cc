@@ -131,7 +131,7 @@ Object* Object::try_fetch_from_database(
   }
   sqlite::SQLiteVersionedObjects objs_versions(store->db_conn);
   // if version_id is empty it will get the last version for that object
-  auto version = objs_versions.get_non_deleted_versioned_object(
+  auto version = objs_versions.get_committed_versioned_object(
       bucket_id, name, version_id_query
   );
   if (!version.has_value()) {
