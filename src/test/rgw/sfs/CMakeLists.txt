@@ -16,3 +16,4 @@ add_s3gw_test(unittest_rgw_sfs_sqlite_lifecycle test_rgw_sfs_sqlite_lifecycle.cc
 add_s3gw_test(unittest_rgw_sfs_sfs_bucket test_rgw_sfs_sfs_bucket.cc)
 add_s3gw_test(unittest_rgw_sfs_sfs_user test_rgw_sfs_sfs_user.cc)
 add_s3gw_test(unittest_rgw_sfs_gc test_rgw_sfs_gc.cc)
+add_s3gw_test(unittest_rgw_sfs_object_state_machine test_rgw_sfs_object_state_machine.cc)
