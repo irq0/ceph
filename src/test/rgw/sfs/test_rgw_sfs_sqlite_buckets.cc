@@ -196,6 +196,7 @@ void createDBBucketBasic(
   db_bucket.bucket_name = name;
   db_bucket.bucket_id = bucket_id;
   db_bucket.owner_id = user;
+  db_bucket.deleted = false;
   storage.replace(db_bucket);
 }
 
