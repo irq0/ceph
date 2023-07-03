@@ -140,6 +140,7 @@ void RGWOp_User_Create::execute(optional_yield y)
   bool gen_key;
   bool suspended;
   bool system;
+  bool admin;
   bool exclusive;
 
   int32_t max_buckets;
@@ -162,6 +163,7 @@ void RGWOp_User_Create::execute(optional_yield y)
   RESTArgs::get_bool(s, "suspended", false, &suspended);
   RESTArgs::get_int32(s, "max-buckets", default_max_buckets, &max_buckets);
   RESTArgs::get_bool(s, "system", false, &system);
+  RESTArgs::get_bool(s, "admin", false, &admin);
   RESTArgs::get_bool(s, "exclusive", false, &exclusive);
   RESTArgs::get_string(s, "op-mask", op_mask_str, &op_mask_str);
   RESTArgs::get_string(s, "default-placement", default_placement_str, &default_placement_str);
@@ -217,6 +219,9 @@ void RGWOp_User_Create::execute(optional_yield y)
 
   if (s->info.args.exists("system"))
     op_state.set_system(system);
+
+  if (s->info.args.exists("admin"))
+    op_state.set_admin(admin);
 
   if (s->info.args.exists("exclusive"))
     op_state.set_exclusive(exclusive);
@@ -285,6 +290,7 @@ void RGWOp_User_Modify::execute(optional_yield y)
   bool gen_key;
   bool suspended;
   bool system;
+  bool admin;
   bool email_set;
   bool quota_set;
   int32_t max_buckets;
@@ -304,6 +310,7 @@ void RGWOp_User_Modify::execute(optional_yield y)
   RESTArgs::get_string(s, "key-type", key_type_str, &key_type_str);
 
   RESTArgs::get_bool(s, "system", false, &system);
+  RESTArgs::get_bool(s, "admin", false, &admin);
   RESTArgs::get_string(s, "op-mask", op_mask_str, &op_mask_str);
   RESTArgs::get_string(s, "default-placement", default_placement_str, &default_placement_str);
   RESTArgs::get_string(s, "placement-tags", placement_tags_str, &placement_tags_str);
@@ -355,6 +362,9 @@ void RGWOp_User_Modify::execute(optional_yield y)
 
   if (s->info.args.exists("system"))
     op_state.set_system(system);
+
+  if (s->info.args.exists("admin"))
+    op_state.set_admin(admin);
 
   if (!op_mask_str.empty()) {
     uint32_t op_mask;
