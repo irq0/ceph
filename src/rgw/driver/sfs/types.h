@@ -110,7 +110,7 @@ class Object {
   // Including meta and attrs
   // Sets obj version state to COMMITTED
   // For unversioned buckets it set the other versions state to DELETED
-  void metadata_finish(SFStore* store, bool versioning_enabled);
+  bool metadata_finish(SFStore* store, bool versioning_enabled);
 
   /// Commit attrs to database
   void metadata_flush_attrs(SFStore* store);
@@ -308,12 +308,12 @@ class Bucket {
       sqlite::DBVersionedObject& last_version
   );
 
-  void _delete_object_non_versioned(
+  bool _delete_object_non_versioned(
       ObjectRef objref, const rgw_obj_key& key,
       sqlite::SQLiteVersionedObjects& sqlite_versioned_objects
   );
 
-  void _delete_object_version(
+  bool _delete_object_version(
       ObjectRef objref, const rgw_obj_key& key,
       sqlite::SQLiteVersionedObjects& sqlite_versioned_objects,
       sqlite::DBVersionedObject& version
@@ -372,8 +372,8 @@ class Bucket {
 
   /// S3 delete object operation: delete version or create tombstone.
   /// If a delete marker was added, it returns the new version id generated for
-  /// it
-  void delete_object(
+  /// it. Return indicates if operation succeeded
+  bool delete_object(
       ObjectRef objref, const rgw_obj_key& key, bool versioned_bucket,
       std::string& delete_marker_version_id
   );

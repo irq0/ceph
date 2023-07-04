@@ -13,7 +13,11 @@
  */
 #include "sqlite_versioned_objects.h"
 
+#include <stdexcept>
+
+#include "driver/sfs/object_state.h"
 #include "rgw/driver/sfs/uuid_path.h"
+#include "versioned_object/versioned_object_definitions.h"
 
 using namespace sqlite_orm;
 
@@ -105,6 +109,29 @@ void SQLiteVersionedObjects::store_versioned_object(
   storage.update(object);
 }
 
+bool SQLiteVersionedObjects::store_versioned_object_if_state(
+    const DBVersionedObject& object, std::vector<ObjectState> allowed_states
+) const {
+  auto storage = conn->get_storage();
+  auto transaction = storage.transaction_guard();
+  const std::vector<int> version_in_allowed_state = storage.select(
+      count(&DBVersionedObject::id),
+      where(
+          in(&DBVersionedObject::object_state, allowed_states) and
+          is_equal(&DBVersionedObject::id, object.id)
+      )
+  );
+  if (version_in_allowed_state[0] == 0) {
+    // TODO(https://github.com/aquarist-labs/s3gw/issues/563) error handling
+    // throw exception (will be caught later in the sfs logic)
+    transaction.rollback();
+    return false;
+  }
+  storage.update(object);
+  transaction.commit();
+  return true;
+}
+
 void SQLiteVersionedObjects::store_versioned_object_delete_rest_transact(
     const DBVersionedObject& object
 ) const {
@@ -122,10 +149,48 @@ void SQLiteVersionedObjects::store_versioned_object_delete_rest_transact(
     );
     transaction.commit();
   } catch (const std::system_error& e) {
+    // TODO(https://github.com/aquarist-labs/s3gw/issues/563) error handling
     // throw exception (will be caught later in the sfs logic)
-    // TODO revisit this when error handling is defined
     throw(e);
   }
+}
+
+bool SQLiteVersionedObjects::
+    store_versioned_object_delete_rest_transact_if_state(
+        const DBVersionedObject& object, std::vector<ObjectState> allowed_states
+    ) const {
+  try {
+    auto storage = conn->get_storage();
+    auto transaction = storage.transaction_guard();
+    const auto version_in_allowed_state = storage.select(
+        count(), where(
+                     in(&DBVersionedObject::object_state, allowed_states) and
+                     is_equal(&DBVersionedObject::id, object.id)
+                 )
+    );
+
+    if (version_in_allowed_state[0] == 0) {
+      // TODO(https://github.com/aquarist-labs/s3gw/issues/563) error handling
+      // throw exception (will be caught later in the sfs logic)
+      transaction.rollback();
+      return false;
+    }
+    storage.update(object);
+    // soft delete the rest of this object
+    storage.update_all(
+        set(c(&DBVersionedObject::object_state) = ObjectState::DELETED),
+        where(
+            is_equal(&DBVersionedObject::object_id, object.object_id) and
+            is_not_equal(&DBVersionedObject::id, object.id)
+        )
+    );
+    transaction.commit();
+  } catch (const std::system_error& e) {
+    // TODO(https://github.com/aquarist-labs/s3gw/issues/563) error handling
+    // throw exception (will be caught later in the sfs logic)
+    return false;
+  }
+  return true;
 }
 
 void SQLiteVersionedObjects::remove_versioned_object(uint id) const {

@@ -43,9 +43,15 @@ class SQLiteVersionedObjects {
 
   uint insert_versioned_object(const DBVersionedObject& object) const;
   void store_versioned_object(const DBVersionedObject& object) const;
+  bool store_versioned_object_if_state(
+      const DBVersionedObject& object, std::vector<ObjectState> allowed_states
+  ) const;
   void remove_versioned_object(uint id) const;
   void store_versioned_object_delete_rest_transact(
       const DBVersionedObject& object
+  ) const;
+  bool store_versioned_object_delete_rest_transact_if_state(
+      const DBVersionedObject& object, std::vector<ObjectState> allowed_states
   ) const;
 
   std::vector<uint> get_versioned_object_ids(bool filter_deleted = true) const;

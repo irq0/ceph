@@ -201,7 +201,7 @@ void Object::metadata_flush_attrs(SFStore* store) {
   db_versioned_objs.store_versioned_object(*versioned_object);
 }
 
-void Object::metadata_finish(SFStore* store, bool versioning_enabled) {
+bool Object::metadata_finish(SFStore* store, bool versioning_enabled) {
   sqlite::SQLiteObjects dbobjs(store->db_conn);
   auto db_object = dbobjs.get_object(path.get_uuid());
   ceph_assert(db_object.has_value());
@@ -225,11 +225,15 @@ void Object::metadata_finish(SFStore* store, bool versioning_enabled) {
   db_versioned_object->etag = meta.etag;
   db_versioned_object->attrs = get_attrs();
   if (versioning_enabled) {
-    db_versioned_objs.store_versioned_object(*db_versioned_object);
-  } else {
-    db_versioned_objs.store_versioned_object_delete_rest_transact(
-        *db_versioned_object
+    return db_versioned_objs.store_versioned_object_if_state(
+        *db_versioned_object, {ObjectState::OPEN}
     );
+
+  } else {
+    return db_versioned_objs
+        .store_versioned_object_delete_rest_transact_if_state(
+            *db_versioned_object, {ObjectState::OPEN}
+        );
   }
 }
 
@@ -352,7 +356,7 @@ std::vector<ObjectRef> Bucket::get_all() {
   return result;
 }
 
-void Bucket::delete_object(
+bool Bucket::delete_object(
     ObjectRef objref, const rgw_obj_key& key, bool versioned_bucket,
     std::string& delete_marker_version_id
 ) {
@@ -360,11 +364,12 @@ void Bucket::delete_object(
   sqlite::SQLiteVersionedObjects db_versioned_objs(store->db_conn);
 
   if (!versioned_bucket) {
-    _delete_object_non_versioned(objref, key, db_versioned_objs);
+    return _delete_object_non_versioned(objref, key, db_versioned_objs);
   } else {
     if (key.instance.empty()) {
       delete_marker_version_id =
           _add_delete_marker(objref, key, db_versioned_objs);
+      return true;
     } else {
       // we have a version id (instance)
       auto version_to_delete =
@@ -372,12 +377,14 @@ void Bucket::delete_object(
       if (version_to_delete.has_value()) {
         if (version_to_delete->version_type == VersionType::DELETE_MARKER) {
           _undelete_object(objref, key, db_versioned_objs, *version_to_delete);
+          return true;
         } else {
-          _delete_object_version(
+          return _delete_object_version(
               objref, key, db_versioned_objs, *version_to_delete
           );
         }
       }
+      return false;
     }
   }
 }
@@ -427,16 +434,18 @@ void Bucket::_undelete_object(
   }
 }
 
-void Bucket::_delete_object_non_versioned(
+bool Bucket::_delete_object_non_versioned(
     ObjectRef objref, const rgw_obj_key& key,
     sqlite::SQLiteVersionedObjects& db_versioned_objs
 ) {
   auto version_to_delete =
       db_versioned_objs.get_last_versioned_object(objref->path.get_uuid());
-  _delete_object_version(objref, key, db_versioned_objs, *version_to_delete);
+  return _delete_object_version(
+      objref, key, db_versioned_objs, *version_to_delete
+  );
 }
 
-void Bucket::_delete_object_version(
+bool Bucket::_delete_object_version(
     ObjectRef objref, const rgw_obj_key& key,
     sqlite::SQLiteVersionedObjects& db_versioned_objs,
     sqlite::DBVersionedObject& version
@@ -445,8 +454,11 @@ void Bucket::_delete_object_version(
   version.delete_time = now;
   version.mtime = now;
   version.object_state = ObjectState::DELETED;
-  db_versioned_objs.store_versioned_object(version);
+  const bool ret = db_versioned_objs.store_versioned_object_if_state(
+      version, {ObjectState::OPEN, ObjectState::COMMITTED}
+  );
   objref->deleted = true;
+  return ret;
 }
 
 std::string Bucket::_add_delete_marker(
