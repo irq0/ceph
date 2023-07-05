@@ -156,7 +156,7 @@ void SQLiteVersionedObjects::store_versioned_object_delete_rest_transact(
 }
 
 bool SQLiteVersionedObjects::
-    store_versioned_object_delete_rest_transact_if_state(
+    store_versioned_object_delete_committed_transact_if_state(
         const DBVersionedObject& object, std::vector<ObjectState> allowed_states
     ) const {
   try {
@@ -176,11 +176,15 @@ bool SQLiteVersionedObjects::
       return false;
     }
     storage.update(object);
-    // soft delete the rest of this object
+    // soft delete all other _COMMITTED_ versions. Leave OPEN versions
+    // alone, as they may be an in progress write racing us.
     storage.update_all(
         set(c(&DBVersionedObject::object_state) = ObjectState::DELETED),
         where(
             is_equal(&DBVersionedObject::object_id, object.object_id) and
+            is_equal(
+                &DBVersionedObject::object_state, ObjectState::COMMITTED
+            ) and
             is_not_equal(&DBVersionedObject::id, object.id)
         )
     );

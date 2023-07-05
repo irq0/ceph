@@ -231,7 +231,7 @@ bool Object::metadata_finish(SFStore* store, bool versioning_enabled) {
 
   } else {
     return db_versioned_objs
-        .store_versioned_object_delete_rest_transact_if_state(
+        .store_versioned_object_delete_committed_transact_if_state(
             *db_versioned_object, {ObjectState::OPEN}
         );
   }
