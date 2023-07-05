@@ -369,10 +369,12 @@ uint SQLiteVersionedObjects::add_delete_marker_transact(
       auto last_version =
           storage.get_pointer<DBVersionedObject>(last_version_id);
       if (last_version &&
-          last_version->object_state == ObjectState::COMMITTED &&
+          (last_version->object_state == ObjectState::COMMITTED ||
+           last_version->object_state == ObjectState::OPEN) &&
           last_version->version_type == VersionType::REGULAR) {
         auto now = ceph::real_clock::now();
         last_version->version_type = VersionType::DELETE_MARKER;
+        last_version->object_state = ObjectState::COMMITTED;
         last_version->delete_time = now;
         last_version->mtime = now;
         last_version->version_id = delete_marker_id;
