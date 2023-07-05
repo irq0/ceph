@@ -1021,12 +1021,12 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   EXPECT_EQ(3, version->id);
 
   // SCENARIO 3. 2 Objects with the same name in different buckets.
-  // in this case the object in bucket TEST_BUCKET_2 is in open state
-  // (still writing to it), but that's still an alive object
+  // in this case the object in bucket TEST_BUCKET_2 is in committed state
   createObject(
       TEST_USERNAME, TEST_BUCKET_2, TEST_OBJECT_ID_3, ceph_context.get(), conn
   );
   object = createTestVersionedObject(6, TEST_OBJECT_ID_3, "6");
+  object.object_state = rgw::sal::sfs::ObjectState::COMMITTED;
   EXPECT_EQ(6, db_versioned_objects->insert_versioned_object(object));
 
   // still return valid version for 1st object
