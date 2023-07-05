@@ -302,13 +302,13 @@ test_cors_header_option
 test_atomic_read_1mb
 test_atomic_read_4mb
 test_atomic_read_8mb
-# test_atomic_write_1mb
-# test_atomic_write_4mb
-# test_atomic_write_8mb
-# test_atomic_dual_write_1mb
-# test_atomic_dual_write_4mb
-# test_atomic_dual_write_8mb
-# test_atomic_conditional_write_1mb
+test_atomic_write_1mb
+test_atomic_write_4mb
+test_atomic_write_8mb
+test_atomic_dual_write_1mb
+test_atomic_dual_write_4mb
+test_atomic_dual_write_8mb
+test_atomic_conditional_write_1mb
 # test_atomic_dual_conditional_write_1mb
 test_atomic_write_bucket_gone
 test_atomic_multipart_upload_write
