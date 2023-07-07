@@ -75,9 +75,11 @@ void S3GWTelemetry::wake_up() {
 }
 
 void S3GWTelemetry::stop() {
-  m_shutdown = true;
-  wake_up();
-  m_updater.join();
+  if (!m_shutdown) {
+    m_shutdown = true;
+    wake_up();
+    m_updater.join();
+  }
 }
 
 void S3GWTelemetry::update() {
