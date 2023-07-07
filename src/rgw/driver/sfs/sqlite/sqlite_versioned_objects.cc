@@ -114,22 +114,27 @@ bool SQLiteVersionedObjects::store_versioned_object_if_state(
 ) const {
   auto storage = conn->get_storage();
   auto transaction = storage.transaction_guard();
-  const std::vector<int> version_in_allowed_state = storage.select(
-      count(&DBVersionedObject::id),
+  storage.update_all(
+      set(c(&DBVersionedObject::object_id) = object.object_id,
+          c(&DBVersionedObject::checksum) = object.checksum,
+          c(&DBVersionedObject::size) = object.size,
+          c(&DBVersionedObject::create_time) = object.create_time,
+          c(&DBVersionedObject::delete_time) = object.delete_time,
+          c(&DBVersionedObject::commit_time) = object.commit_time,
+          c(&DBVersionedObject::mtime) = object.mtime,
+          c(&DBVersionedObject::object_state) = object.object_state,
+          c(&DBVersionedObject::version_id) = object.version_id,
+          c(&DBVersionedObject::etag) = object.etag,
+          c(&DBVersionedObject::attrs) = object.attrs,
+          c(&DBVersionedObject::version_type) = object.version_type),
       where(
-          in(&DBVersionedObject::object_state, allowed_states) and
-          is_equal(&DBVersionedObject::id, object.id)
+          is_equal(&DBVersionedObject::id, object.id) and
+          in(&DBVersionedObject::object_state, allowed_states)
       )
   );
-  if (version_in_allowed_state[0] == 0) {
-    // TODO(https://github.com/aquarist-labs/s3gw/issues/563) error handling
-    // throw exception (will be caught later in the sfs logic)
-    transaction.rollback();
-    return false;
-  }
-  storage.update(object);
+  const bool result = storage.changes() > 0;
   transaction.commit();
-  return true;
+  return result;
 }
 
 void SQLiteVersionedObjects::store_versioned_object_delete_rest_transact(
@@ -162,20 +167,29 @@ bool SQLiteVersionedObjects::
   try {
     auto storage = conn->get_storage();
     auto transaction = storage.transaction_guard();
-    const auto version_in_allowed_state = storage.select(
-        count(), where(
-                     in(&DBVersionedObject::object_state, allowed_states) and
-                     is_equal(&DBVersionedObject::id, object.id)
-                 )
+    storage.update_all(
+        set(c(&DBVersionedObject::object_id) = object.object_id,
+            c(&DBVersionedObject::checksum) = object.checksum,
+            c(&DBVersionedObject::size) = object.size,
+            c(&DBVersionedObject::create_time) = object.create_time,
+            c(&DBVersionedObject::delete_time) = object.delete_time,
+            c(&DBVersionedObject::commit_time) = object.commit_time,
+            c(&DBVersionedObject::mtime) = object.mtime,
+            c(&DBVersionedObject::object_state) = object.object_state,
+            c(&DBVersionedObject::version_id) = object.version_id,
+            c(&DBVersionedObject::etag) = object.etag,
+            c(&DBVersionedObject::attrs) = object.attrs,
+            c(&DBVersionedObject::version_type) = object.version_type),
+        where(
+            is_equal(&DBVersionedObject::id, object.id) and
+            in(&DBVersionedObject::object_state, allowed_states)
+        )
     );
-
-    if (version_in_allowed_state[0] == 0) {
-      // TODO(https://github.com/aquarist-labs/s3gw/issues/563) error handling
-      // throw exception (will be caught later in the sfs logic)
+    if (storage.changes() == 0) {
       transaction.rollback();
       return false;
     }
-    storage.update(object);
+
     // soft delete all other _COMMITTED_ versions. Leave OPEN versions
     // alone, as they may be an in progress write racing us.
     storage.update_all(
