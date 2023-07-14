@@ -19,6 +19,7 @@
 #include "driver/sfs/object.h"
 #include "driver/sfs/sqlite/sqlite_versioned_objects.h"
 #include "driver/sfs/types.h"
+#include "rgw_common.h"
 #include "rgw_sal_sfs.h"
 
 #define dout_subsys ceph_subsys_rgw
@@ -442,6 +443,10 @@ int SFSBucket::check_bucket_shards(const DoutPrefixProvider* dpp) {
 int SFSBucket::put_info(
     const DoutPrefixProvider* dpp, bool exclusive, ceph::real_time mtime
 ) {
+  if (get_info().flags & BUCKET_VERSIONS_SUSPENDED) {
+    return -ERR_NOT_IMPLEMENTED;
+  }
+
   sfs::get_meta_buckets(get_store().db_conn)
       ->store_bucket(sfs::sqlite::DBOPBucketInfo(get_info(), get_attrs()));
 
