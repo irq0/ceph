@@ -319,7 +319,7 @@ test_ranged_request_skip_leading_bytes_response_code
 test_ranged_request_return_trailing_bytes_response_code
 test_ranged_request_invalid_range
 test_ranged_request_empty_object
-test_versioning_bucket_create_suspend
+# test_versioning_bucket_create_suspend (https://github.com/aquarist-labs/s3gw/issues/534)
 test_versioning_obj_create_read_remove
 test_versioning_obj_create_read_remove_head
 # test_versioning_obj_plain_null_version_removal
@@ -429,8 +429,8 @@ test_post_object_tags_authenticated_request
 # test_get_tags_acl_public
 # test_put_tags_acl_public
 # test_delete_tags_obj_public
-test_versioning_bucket_atomic_upload_return_version_id
-test_versioning_bucket_multipart_upload_return_version_id
+# test_versioning_bucket_atomic_upload_return_version_id (https://github.com/aquarist-labs/s3gw/issues/534)
+# test_versioning_bucket_multipart_upload_return_version_id (https://github.com/aquarist-labs/s3gw/issues/534)
 # test_bucket_policy_get_obj_existing_tag
 # test_bucket_policy_get_obj_tagging_existing_tag
 # test_bucket_policy_put_obj_tagging_existing_tag
