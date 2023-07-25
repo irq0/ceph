@@ -1065,7 +1065,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestUpdateAndDeleteRest) {
       TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
   );
 
-  // insert 3 open versions
+  // insert 2 open versions, 1 committed
   auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
   object.object_state = rgw::sal::sfs::ObjectState::OPEN;
   EXPECT_EQ(1, db_versioned_objects->insert_versioned_object(object));
@@ -1074,6 +1074,7 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestUpdateAndDeleteRest) {
   EXPECT_EQ(2, db_versioned_objects->insert_versioned_object(object));
   object.version_id = "test_version_id_3";
   object.commit_time = ceph::real_clock::now();
+  object.object_state = rgw::sal::sfs::ObjectState::COMMITTED;
   EXPECT_EQ(3, db_versioned_objects->insert_versioned_object(object));
 
   // create a different object
@@ -1095,12 +1096,14 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestUpdateAndDeleteRest) {
   auto object_2 = db_versioned_objects->get_versioned_object(2, false);
   ASSERT_TRUE(object_2.has_value());
   object_2->object_state = rgw::sal::sfs::ObjectState::COMMITTED;
-  db_versioned_objects->store_versioned_object_delete_rest_transact(*object_2);
+  ASSERT_TRUE(db_versioned_objects->store_versioned_object_delete_committed_transact_if_state(
+      *object_2,
+      {rgw::sal::sfs::ObjectState::OPEN}));
 
   // all the rest should be updated (but only for that object)
   auto object_ret = db_versioned_objects->get_versioned_object(1, false);
   ASSERT_TRUE(object_ret.has_value());
-  EXPECT_EQ(rgw::sal::sfs::ObjectState::DELETED, object_ret->object_state);
+  EXPECT_EQ(rgw::sal::sfs::ObjectState::OPEN, object_ret->object_state);
   object_ret = db_versioned_objects->get_versioned_object(3, false);
   ASSERT_TRUE(object_ret.has_value());
   EXPECT_EQ(rgw::sal::sfs::ObjectState::DELETED, object_ret->object_state);
