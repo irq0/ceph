@@ -64,13 +64,12 @@ class RetrySQLite {
         m_retries = retry;
         return result;
       } catch (const std::system_error& ex) {
+        m_failed_error = ex.code();
         if (critical_error(ex.code().value())) {
           // Rethrow, expect a higher layer to shut us down
-          m_failed_error = ex.code();
           throw ex;
         }
         std::this_thread::sleep_for(10ms * retry);
-        m_failed_error = ex.code();
         m_retries = retry;
         if (perfcounter) {
           perfcounter->inc(l_rgw_sfs_sqlite_retry_retried_count, 1);
