@@ -115,6 +115,7 @@ bool SQLiteVersionedObjects::store_versioned_object_if_state(
 ) const {
   auto storage = conn->get_storage();
   auto transaction = storage.transaction_guard();
+  transaction.commit_on_destroy = true;
   storage.update_all(
       set(c(&DBVersionedObject::object_id) = object.object_id,
           c(&DBVersionedObject::checksum) = object.checksum,
@@ -133,9 +134,7 @@ bool SQLiteVersionedObjects::store_versioned_object_if_state(
           in(&DBVersionedObject::object_state, allowed_states)
       )
   );
-  const bool result = storage.changes() > 0;
-  transaction.commit();
-  return result;
+  return storage.changes() > 0;
 }
 
 bool SQLiteVersionedObjects::
