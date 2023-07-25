@@ -158,7 +158,7 @@ TEST_F(
 ) {
   const auto object = bucket->create_version(rgw_obj_key("foo"));
   std::string unused;
-  ASSERT_TRUE(bucket->delete_object(object, rgw_obj_key("foo"), false, unused));
+  ASSERT_TRUE(bucket->delete_object(*object, rgw_obj_key("foo"), false, unused));
   EXPECT_EQ(database_object_state(object), ObjectState::DELETED);
   EXPECT_EQ(database_version_type(object), VersionType::REGULAR);
 }
@@ -169,7 +169,7 @@ TEST_F(
 ) {
   const auto object = bucket->create_version(rgw_obj_key("foo"));
   std::string unused;
-  ASSERT_TRUE(bucket->delete_object(object, rgw_obj_key("foo"), false, unused));
+  ASSERT_TRUE(bucket->delete_object(*object, rgw_obj_key("foo"), false, unused));
   ASSERT_EQ(database_object_state(object), ObjectState::DELETED);
   EXPECT_FALSE(object->metadata_finish(store.get(), false));
   EXPECT_EQ(database_object_state(object), ObjectState::DELETED);
@@ -181,7 +181,7 @@ TEST_F(
   const auto object = bucket->create_version(rgw_obj_key("foo", "bar"));
   std::string unused;
   ASSERT_TRUE(
-      bucket->delete_object(object, rgw_obj_key("foo", "bar"), false, unused)
+      bucket->delete_object(*object, rgw_obj_key("foo", "bar"), false, unused)
   );
   ASSERT_EQ(database_object_state(object), ObjectState::DELETED);
   EXPECT_FALSE(object->metadata_finish(store.get(), true));
@@ -297,14 +297,14 @@ TEST_F(
   ASSERT_EQ(database_object_state(objects[2]), ObjectState::OPEN);
 
   EXPECT_TRUE(bucket->delete_object(
-      objects[1], rgw_obj_key("foo", "version2"), true, unused
+      *objects[1], rgw_obj_key("foo", "version2"), true, unused
   ));
   EXPECT_EQ(database_object_state(objects[0]), ObjectState::COMMITTED);
   EXPECT_EQ(database_object_state(objects[1]), ObjectState::DELETED);
   EXPECT_EQ(database_object_state(objects[2]), ObjectState::OPEN);
 
   EXPECT_TRUE(bucket->delete_object(
-      objects[0], rgw_obj_key("foo", "version1"), true, unused
+      *objects[0], rgw_obj_key("foo", "version1"), true, unused
   ));
   EXPECT_EQ(database_object_state(objects[0]), ObjectState::DELETED);
   EXPECT_EQ(database_object_state(objects[1]), ObjectState::DELETED);
@@ -318,7 +318,7 @@ TEST_F(
   const auto object = bucket->create_version(rgw_obj_key("foo"));
   object->metadata_finish(store.get(), false);
   std::string unused;
-  EXPECT_TRUE(bucket->delete_object(object, rgw_obj_key("foo"), false, unused));
+  EXPECT_TRUE(bucket->delete_object(*object, rgw_obj_key("foo"), false, unused));
   EXPECT_EQ(database_object_state(object), ObjectState::DELETED);
   EXPECT_EQ(database_version_type(object), VersionType::REGULAR);
   EXPECT_EQ(database_number_of_versions(object), 1);
@@ -346,7 +346,7 @@ TEST_P(
   ASSERT_EQ(database_version_type(object), VersionType::REGULAR);
 
   std::string delete_marker_id;
-  ASSERT_TRUE(bucket->delete_object(object, rgw_obj_key("foo"), true, delete_marker_id));
+  ASSERT_TRUE(bucket->delete_object(*object, rgw_obj_key("foo"), true, delete_marker_id));
   const auto versions = database_get_versions_as_id_type_state(object);
   EXPECT_FALSE(delete_marker_id.empty());
   ASSERT_EQ(versions.size(), 2);
@@ -373,9 +373,8 @@ TEST_F(
 
   std::string delete_marker_id;
   EXPECT_TRUE(bucket->delete_object(
-      object, rgw_obj_key("foo", "VERSION"), true, delete_marker_id
+      *object, rgw_obj_key("foo", "VERSION"), true, delete_marker_id
   ));
-  EXPECT_TRUE(object->deleted);
   EXPECT_EQ(database_object_state(object), ObjectState::DELETED);
   EXPECT_EQ(database_version_type(object), VersionType::REGULAR);
   EXPECT_NE(delete_marker_id, object->instance);

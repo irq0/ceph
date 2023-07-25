@@ -289,7 +289,8 @@ SQLiteVersionedObjects::get_last_versioned_object(
 }
 
 std::optional<DBVersionedObject>
-SQLiteVersionedObjects::delete_version_and_get_previous_transact(uint id) {
+SQLiteVersionedObjects::delete_version_and_get_previous_transact(uint id
+) const {
   try {
     auto storage = conn->get_storage();
     auto transaction = storage.transaction_guard();

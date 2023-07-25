@@ -65,7 +65,7 @@ class SQLiteVersionedObjects {
 
   std::optional<DBVersionedObject> delete_version_and_get_previous_transact(
       uint id
-  );
+  ) const;
 
   std::optional<DBVersionedObject> create_new_versioned_object_transact(
       const std::string& bucket_id, const std::string& object_name,

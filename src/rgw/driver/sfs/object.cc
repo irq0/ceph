@@ -168,8 +168,8 @@ int SFSObject::SFSDeleteOp::delete_obj(
   std::string delete_marker_version_id;
   if (source->objref) {
     bucketref->delete_object(
-        source->objref, source->get_key(), source->bucket->versioning_enabled(),
-        delete_marker_version_id
+        *source->objref, source->get_key(),
+        source->bucket->versioning_enabled(), delete_marker_version_id
     );
   } else if (source->bucket->versioning_enabled() && source->get_instance().empty()) {
     // create delete marker
