@@ -141,8 +141,8 @@ bool SQLiteVersionedObjects::
     store_versioned_object_delete_committed_transact_if_state(
         const DBVersionedObject& object, std::vector<ObjectState> allowed_states
     ) const {
-  try {
-    auto storage = conn->get_storage();
+  auto storage = conn->get_storage();
+  RetrySQLite<bool> retry([&]() {
     auto transaction = storage.transaction_guard();
     storage.update_all(
         set(c(&DBVersionedObject::object_id) = object.object_id,
@@ -180,12 +180,10 @@ bool SQLiteVersionedObjects::
         )
     );
     transaction.commit();
-  } catch (const std::system_error& e) {
-    // TODO(https://github.com/aquarist-labs/s3gw/issues/563) error handling
-    // throw exception (will be caught later in the sfs logic)
-    return false;
-  }
-  return true;
+    return true;
+  });
+  const auto result = retry.run();
+  return result.has_value() ? result.value() : false;
 }
 
 void SQLiteVersionedObjects::remove_versioned_object(uint id) const {
