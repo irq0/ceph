@@ -24,6 +24,7 @@
 #include "driver/sfs/sqlite/sqlite_versioned_objects.h"
 #include "driver/sfs/sqlite/versioned_object/versioned_object_definitions.h"
 #include "driver/sfs/version_type.h"
+#include "include/random.h"
 #include "rgw/driver/sfs/sqlite/buckets/bucket_conversions.h"
 #include "rgw/driver/sfs/sqlite/dbconn.h"
 #include "rgw/driver/sfs/sqlite/sqlite_buckets.h"
@@ -37,11 +38,18 @@ using namespace rgw::sal::sfs;
 
 namespace fs = std::filesystem;
 
+struct SFSConcurrencyFixture {
+  CephContext* cct;
+  sqlite::Storage storage;
+  rgw::sal::SFStore* store;
+  Bucket* predef_bucket;
+  Object* predef_object;
+  sqlite::DBVersionedObject* predef_db_object;
+};
+
 class TestSFSConcurrency
     : public ::testing::TestWithParam<std::pair<
-          std::string,
-          std::function<
-              void(CephContext*, BucketRef, sqlite::Storage, rgw::sal::SFStore*)>>> {
+          std::string, std::function<void(const SFSConcurrencyFixture&)>>> {
  protected:
   const std::unique_ptr<CephContext> cct;
   const fs::path database_directory;
@@ -49,6 +57,8 @@ class TestSFSConcurrency
   std::unique_ptr<rgw::sal::SFStore> store;
   sqlite::DBConnRef dbconn;
   BucketRef bucket;
+  ObjectRef predef_object;
+  sqlite::DBVersionedObject predef_db_object;
 
   TestSFSConcurrency()
       : cct(new CephContext(CEPH_ENTITY_TYPE_ANY)),
@@ -83,6 +93,12 @@ class TestSFSConcurrency
     bucket = std::make_shared<Bucket>(
         cct.get(), store.get(), db_binfo.binfo, bucket_owner, db_binfo.battrs
     );
+
+    predef_object = bucket->create_version(rgw_obj_key("predef_object"));
+    predef_object->metadata_finish(store.get(), false);
+    sqlite::SQLiteVersionedObjects svos(dbconn);
+    predef_db_object =
+        svos.get_versioned_object(predef_object->version_id).value();
   }
 
   void TearDown() override { fs::remove_all(database_directory); }
@@ -113,7 +129,14 @@ TEST_P(TestSFSConcurrency, parallel_executions_must_not_throw) {
   for (size_t i = 0; i < parallelism; i++) {
     std::thread t([&] {
       auto fn = GetParam().second;
-      EXPECT_NO_THROW(fn(cct.get(), bucket, storage(), store.get()));
+      EXPECT_NO_THROW(
+          fn({.cct = cct.get(),
+              .storage = storage(),
+              .store = store.get(),
+              .predef_bucket = bucket.get(),
+              .predef_object = predef_object.get(),
+              .predef_db_object = &predef_db_object})
+      );
     });
     threads.push_back(std::move(t));
   }
@@ -128,41 +151,63 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         std::make_pair(
             "create_new_object",
-            [](CephContext* cct, BucketRef bucket, sqlite::Storage,
-               rgw::sal::SFStore*) {
-              std::string name = gen_rand_alphanumeric(cct, 23);
-              bucket->create_version(rgw_obj_key(name, name));
+            [](const SFSConcurrencyFixture& fixture) {
+              std::string name = gen_rand_alphanumeric(fixture.cct, 23);
+              fixture.predef_bucket->create_version(rgw_obj_key(name, name));
             }
         ),
         std::make_pair(
             "create_new_version__unversioned",
-            [](CephContext* cct, BucketRef bucket, sqlite::Storage storage,
-               rgw::sal::SFStore* store) {
-              std::string version = gen_rand_alphanumeric(cct, 23);
-	      ObjectRef obj;
-	      while (!obj) {
-		// create version is ok to return null if it did not
-		// succeed. To test metadata_finish we need to retry..
-		obj = bucket->create_version(rgw_obj_key("object", version));
-	      }
-	      obj->metadata_finish(store, false);
+            [](const SFSConcurrencyFixture& fixture) {
+              std::string version = gen_rand_alphanumeric(fixture.cct, 23);
+              ObjectRef obj;
+              while (!obj) {
+                // create version is ok to return null if it did not
+                // succeed. To test metadata_finish we need to retry..
+                obj = fixture.predef_bucket->create_version(
+                    rgw_obj_key("object", version)
+                );
+              }
+              obj->metadata_finish(fixture.store, false);
             }
 
         ),
         std::make_pair(
             "create_new_version__versioned",
-            [](CephContext* cct, BucketRef bucket, sqlite::Storage storage,
-               rgw::sal::SFStore* store) {
-              std::string version = gen_rand_alphanumeric(cct, 23);
-	      ObjectRef obj;
-	      while (!obj) {
-		// create version is ok to return null if it did not
-		// succeed. To test metadata_finish we need to retry..
-		obj = bucket->create_version(rgw_obj_key("object", version));
-	      }
-	      obj->metadata_finish(store, true);
+            [](const SFSConcurrencyFixture& fixture) {
+              std::string version = gen_rand_alphanumeric(fixture.cct, 23);
+              ObjectRef obj;
+              while (!obj) {
+                // create version is ok to return null if it did not
+                // succeed. To test metadata_finish we need to retry..
+                obj = fixture.predef_bucket->create_version(
+                    rgw_obj_key("object", version)
+                );
+              }
+              obj->metadata_finish(fixture.store, true);
             }
-
+        ),
+        std::make_pair(
+            "unversioned_create_simplified",
+            [](const SFSConcurrencyFixture& fixture) {
+              std::string version = gen_rand_alphanumeric(fixture.cct, 23);
+              sqlite::SQLiteVersionedObjects uut(fixture.store->db_conn);
+              sqlite::DBVersionedObject vo;
+	      while (true) {
+		auto maybe_vo = uut.create_new_versioned_object_transact(
+                         fixture.predef_bucket->get_bucket_id(),
+                         fixture.predef_object->name, version);
+		if (maybe_vo.has_value()) {
+		  vo = maybe_vo.value();
+		  break;
+		}
+	      }
+              vo.size = util::generate_random_number();
+              vo.object_state = ObjectState::COMMITTED;
+              uut.store_versioned_object_delete_committed_transact_if_state(
+                  vo, {ObjectState::OPEN}
+              );
+            }
         )
     ),
     [](const testing::TestParamInfo<TestSFSConcurrency::ParamType>& info) {
