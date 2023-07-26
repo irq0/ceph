@@ -13,8 +13,10 @@
  */
 #pragma once
 
+#include <ranges>
 #include <string>
 
+#include "common/iso_8601.h"
 #include "rgw/driver/sfs/object_state.h"
 #include "rgw/driver/sfs/sqlite/bindings/blob.h"
 #include "rgw/driver/sfs/sqlite/bindings/enum.h"
@@ -22,6 +24,10 @@
 #include "rgw/driver/sfs/version_type.h"
 #include "rgw/rgw_common.h"
 #include "rgw_common.h"
+
+#if FMT_VERSION >= 90000
+#include <fmt/ostream.h>
+#endif
 
 namespace rgw::sal::sfs::sqlite {
 
@@ -34,7 +40,7 @@ struct DBVersionedObject {
   ceph::real_time delete_time;
   ceph::real_time commit_time;
   ceph::real_time mtime;
-  ObjectState object_state;
+  rgw::sal::sfs::ObjectState object_state;
   std::string version_id;
   std::string etag;
   rgw::sal::Attrs attrs;
@@ -115,3 +121,26 @@ inline decltype(DBVersionedObject::object_state) get_object_state(
 }
 
 }  // namespace rgw::sal::sfs::sqlite
+
+inline std::ostream& operator<<(
+    std::ostream& out, const rgw::sal::sfs::sqlite::DBVersionedObject& o
+) {
+  fmt::print(
+      out,
+      "DBVersionedObject("
+      "id:{} oid:{} vid:{} state:{} size:{} del:{} creat:{} "
+      "com:{} mtime:{} etag:{} attr_keys:{})",
+      o.id, o.object_id.to_string(), o.version_id,
+      rgw::sal::sfs::str_object_state(o.object_state), o.size,
+      to_iso_8601(o.delete_time), to_iso_8601(o.create_time),
+      to_iso_8601(o.commit_time), to_iso_8601(o.mtime), o.etag,
+      fmt::join(std::views::keys(o.attrs), ", ")
+  );
+  return out;
+}
+
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<rgw::sal::sfs::sqlite::DBVersionedObject>
+    : fmt::ostream_formatter {};
+#endif

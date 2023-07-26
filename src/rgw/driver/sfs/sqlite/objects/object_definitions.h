@@ -27,3 +27,17 @@ struct DBObject {
 };
 
 }  // namespace rgw::sal::sfs::sqlite
+
+inline std::ostream& operator<<(
+    std::ostream& out, const rgw::sal::sfs::sqlite::DBObject& o
+) {
+  return out << "DBObject("
+             << "uuid:" << o.uuid << " bucket_id:" << o.bucket_id
+             << " name:" << o.name << ")";
+}
+
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<rgw::sal::sfs::sqlite::DBObject>
+    : fmt::ostream_formatter {};
+#endif
