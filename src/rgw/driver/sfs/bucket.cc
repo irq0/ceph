@@ -15,8 +15,12 @@
 
 #include <fstream>
 
+#include "common/Formatter.h"
 #include "driver/sfs/multipart.h"
 #include "driver/sfs/object.h"
+#include "driver/sfs/object_state.h"
+#include "driver/sfs/sqlite/objects/object_definitions.h"
+#include "driver/sfs/sqlite/sqlite_list.h"
 #include "driver/sfs/sqlite/sqlite_versioned_objects.h"
 #include "driver/sfs/types.h"
 #include "rgw_common.h"
@@ -41,6 +45,18 @@ SFSBucket::SFSBucket(SFStore* _store, sfs::BucketRef _bucket)
 
 void SFSBucket::write_meta(const DoutPrefixProvider* dpp) {
   // TODO
+}
+
+void SFSBucket::Meta::dump(ceph::Formatter* f) const {
+  f->open_object_section("info");
+  info.dump(f);
+  f->close_section();  // info
+                       // encode_json("multipart", multipart, f);
+}
+
+void SFSBucket::Meta::decode_json(JSONObj* obj) {
+  JSONDecoder::decode_json("info", info, obj);
+  // JSONDecoder::decode_json("multipart", multipart, obj);
 }
 
 std::unique_ptr<Object> SFSBucket::_get_object(sfs::ObjectRef obj) {

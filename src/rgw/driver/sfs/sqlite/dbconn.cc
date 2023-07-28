@@ -25,14 +25,14 @@ namespace orm = sqlite_orm;
 
 namespace rgw::sal::sfs::sqlite {
 
-std::string get_temporary_db_path(CephContext* ctt) {
+static std::string get_temporary_db_path(CephContext* ctt) {
   auto rgw_sfs_path = ctt->_conf.get_val<std::string>("rgw_sfs_data_path");
   auto tmp_db_name = std::string(SCHEMA_DB_NAME) + "_tmp";
   auto db_path = std::filesystem::path(rgw_sfs_path) / std::string(tmp_db_name);
   return db_path.string();
 }
 
-void DBConn::check_metadata_is_compatible(CephContext* cct) {
+void DBConn::check_metadata_is_compatible() const {
   // create a copy of the actual metadata
   fs::copy(getDBPath(cct), get_temporary_db_path(cct));
   try {
@@ -235,7 +235,7 @@ static void upgrade_metadata(
   }
 }
 
-void DBConn::maybe_upgrade_metadata(CephContext* cct) {
+void DBConn::maybe_upgrade_metadata() {
   int db_version = get_version(cct, storage);
   lsubdout(cct, rgw, 10) << "db user version: " << db_version << dendl;
 

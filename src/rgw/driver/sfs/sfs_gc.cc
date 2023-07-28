@@ -17,8 +17,8 @@
 
 #include "driver/sfs/types.h"
 #include "multipart_types.h"
+#include "rgw/driver/sfs/sqlite/sqlite_multipart.h"
 #include "rgw/driver/sfs/sqlite/sqlite_objects.h"
-#include "sqlite_multipart.h"
 
 namespace rgw::sal::sfs {
 

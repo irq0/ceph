@@ -69,6 +69,7 @@ struct DBOPBucketInfo {
       : binfo(info), battrs(attrs) {}
 
   DBOPBucketInfo(const DBOPBucketInfo& other) = default;
+  DBOPBucketInfo& operator=(const DBOPBucketInfo& other) = default;
 };
 
 }  // namespace rgw::sal::sfs::sqlite

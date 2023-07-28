@@ -18,7 +18,6 @@
 #include <memory>
 #include <string>
 
-#include "common/Formatter.h"
 #include "common/ceph_json.h"
 #include "driver/sfs/object.h"
 #include "driver/sfs/types.h"
@@ -42,18 +41,8 @@ class SFSBucket : public StoreBucket {
    public:
     RGWBucketInfo info;
     std::set<std::string> multipart;
-
-    void dump(ceph::Formatter* f) const {
-      f->open_object_section("info");
-      info.dump(f);
-      f->close_section();  // info
-      // encode_json("multipart", multipart, f);
-    }
-
-    void decode_json(JSONObj* obj) {
-      JSONDecoder::decode_json("info", info, obj);
-      // JSONDecoder::decode_json("multipart", multipart, obj);
-    }
+    void dump(ceph::Formatter* f) const;
+    void decode_json(JSONObj* obj);
   };
 
   SFSBucket(const SFSBucket&) = default;

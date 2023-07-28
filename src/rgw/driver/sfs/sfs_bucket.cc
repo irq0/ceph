@@ -20,7 +20,7 @@ using namespace std;
 namespace rgw::sal {
 
 int SFStore::set_buckets_enabled(
-    const DoutPrefixProvider* dpp, std::vector<rgw_bucket>& buckets,
+    const DoutPrefixProvider* dpp, std::vector<rgw_bucket>& buckets_to_enable,
     bool enabled
 ) {
   ldpp_dout(dpp, 10) << __func__ << ": TODO" << dendl;

@@ -98,9 +98,9 @@ class Object {
   const Meta get_default_meta() const;
   void update_meta(const Meta& update);
 
-  bool get_attr(const std::string& name, bufferlist& dest) const;
-  void set_attr(const std::string& name, bufferlist& value);
-  Attrs::size_type del_attr(const std::string& name);
+  bool get_attr(const std::string& key, bufferlist& dest) const;
+  void set_attr(const std::string& key, bufferlist& value);
+  Attrs::size_type del_attr(const std::string& key);
   Attrs get_attrs() const;
   void update_attrs(const Attrs& update);
 

@@ -291,6 +291,7 @@ static int sqlite_profile_callback(
 }
 
 class DBConn {
+ private:
   Storage storage;
 
  public:
@@ -324,8 +325,8 @@ class DBConn {
     };
     storage.open_forever();
     storage.busy_timeout(5000);
-    maybe_upgrade_metadata(cct);
-    check_metadata_is_compatible(cct);
+    maybe_upgrade_metadata();
+    check_metadata_is_compatible();
     storage.sync_schema();
   }
   virtual ~DBConn() = default;
@@ -333,17 +334,17 @@ class DBConn {
   DBConn(const DBConn&) = delete;
   DBConn& operator=(const DBConn&) = delete;
 
-  inline auto get_storage() { return storage; }
+  inline auto get_storage() const { return storage; }
 
-  std::string getDBPath(CephContext* cct) const {
+  static std::string getDBPath(CephContext* cct) {
     auto rgw_sfs_path = cct->_conf.get_val<std::string>("rgw_sfs_data_path");
     auto db_path =
         std::filesystem::path(rgw_sfs_path) / std::string(SCHEMA_DB_NAME);
     return db_path.string();
   }
 
-  void check_metadata_is_compatible(CephContext* cct);
-  void maybe_upgrade_metadata(CephContext* cct);
+  void check_metadata_is_compatible() const;
+  void maybe_upgrade_metadata();
 };
 
 using DBConnRef = std::shared_ptr<DBConn>;

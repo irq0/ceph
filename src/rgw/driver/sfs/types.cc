@@ -168,8 +168,8 @@ void Object::update_meta(const Meta& update) {
   meta = update;
 }
 
-bool Object::get_attr(const std::string& name, bufferlist& dest) const {
-  auto iter = attrs.find(name);
+bool Object::get_attr(const std::string& key, bufferlist& dest) const {
+  auto iter = attrs.find(key);
   if (iter != attrs.end()) {
     dest = iter->second;
     return true;
@@ -177,12 +177,12 @@ bool Object::get_attr(const std::string& name, bufferlist& dest) const {
   return false;
 }
 
-void Object::set_attr(const std::string& name, bufferlist& value) {
-  attrs[name] = value;
+void Object::set_attr(const std::string& key, bufferlist& value) {
+  attrs[key] = value;
 }
 
-Attrs::size_type Object::del_attr(const std::string& name) {
-  return attrs.erase(name);
+Attrs::size_type Object::del_attr(const std::string& key) {
+  return attrs.erase(key);
 }
 
 Attrs Object::get_attrs() const {
