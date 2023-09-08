@@ -1,8 +1,7 @@
 ---
 name: Build and Push S3GW Image
 on:
-
-  pull_request:
+  pull_request_target:
     branches:
       - "s3gw"
     types: [ labeled ]
@@ -14,7 +13,7 @@ env:
   IMAGE_TAG: pr-${{ github.workflow_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
-  tests:
+  build:
     if: github.event.label.name == 'ci/build-s3gw-image' || github.event_name == 'workflow_dispatch'
     runs-on: self-hosted
     steps:
@@ -30,12 +29,6 @@ jobs:
         with:
           path: s3gw/ceph
           submodules: recursive
-
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.8
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
