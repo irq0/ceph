@@ -16,7 +16,11 @@
 #include <sqlite3.h>
 
 #include <filesystem>
+#include <mutex>
+#include <shared_mutex>
+#include <stdexcept>
 #include <system_error>
+#include <thread>
 
 #include "common/dout.h"
 
@@ -24,6 +28,9 @@
 
 namespace fs = std::filesystem;
 namespace orm = sqlite_orm;
+
+// switch on multi threaded mode
+// int unused = sqlite3_config(SQLITE_THREADSAFE, SQLITE_CONFIG_MULTITHREAD);
 
 namespace rgw::sal::sfs::sqlite {
 
@@ -113,7 +120,8 @@ static int sqlite_profile_callback(
 }
 
 DBConn::DBConn(CephContext* _cct)
-    : storage(std::make_shared<StorageImpl>(_make_storage(getDBPath(_cct)))),
+    : storage(std::make_unique<Storage>(_make_storage(getDBPath(_cct)))),
+      pool_mutex(),
       first_sqlite_conn(nullptr),
       cct(_cct),
       profile_enabled(_cct->_conf.get_val<bool>("rgw_sfs_sqlite_profile")) {
@@ -154,6 +162,27 @@ DBConn::DBConn(CephContext* _cct)
   maybe_upgrade_metadata();
   check_metadata_is_compatible();
   storage->sync_schema();
+}
+
+Storage* DBConn::get_storage() {
+  // return storage.get();
+  try {
+    std::shared_lock lock(pool_mutex);
+    return pool.at(gettid()).get();
+  } catch (const std::out_of_range& ex) {
+    std::unique_lock lock(pool_mutex);
+    auto ins = pool.insert({gettid(), std::make_unique<Storage>(*storage)});
+    Storage* result = ins.first->second.get();
+    result->open_forever();
+    result->busy_timeout(5000);
+    lsubdout(cct, rgw, -1)
+        << fmt::format(
+               "[SQLITE CONNECTION NEW] thread {} -> storageobj {}", gettid(),
+               fmt::ptr(result)
+           )
+        << dendl;
+    return result;
+  }
 }
 
 void DBConn::check_metadata_is_compatible() const {
@@ -359,7 +388,7 @@ static void upgrade_metadata(
 }
 
 void DBConn::maybe_upgrade_metadata() {
-  int db_version = get_version(cct, storage);
+  int db_version = get_version(cct, storage.get());
   lsubdout(cct, rgw, 10) << "db user version: " << db_version << dendl;
 
   if (db_version == 0) {
@@ -367,7 +396,7 @@ void DBConn::maybe_upgrade_metadata() {
     storage->pragma.user_version(SFS_METADATA_VERSION);
   } else if (db_version < SFS_METADATA_VERSION && db_version >= SFS_METADATA_MIN_VERSION) {
     // perform schema update
-    upgrade_metadata(cct, storage, first_sqlite_conn);
+    upgrade_metadata(cct, storage.get(), first_sqlite_conn);
   } else if (db_version < SFS_METADATA_MIN_VERSION) {
     throw sqlite_sync_exception(
         "Existing metadata too far behind! Unable to upgrade schema!"

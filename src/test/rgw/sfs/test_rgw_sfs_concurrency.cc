@@ -11,6 +11,7 @@
 #include <deque>
 #include <filesystem>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <random>
 #include <stdexcept>
@@ -51,11 +52,12 @@ PerfHistogramCommon::axis_config_d perfcounter_exec_time_config{
 
 struct SFSConcurrencyFixture {
   CephContext* cct;
-  sqlite::StorageRef storage;
+  sqlite::Storage* storage;
   rgw::sal::SFStore* store;
   Bucket* predef_bucket;
   Object* predef_object;
   sqlite::DBVersionedObject* predef_db_object;
+  std::vector<rgw_obj_key>* predef_objs;
 };
 
 class TestSFSConcurrency
@@ -69,6 +71,8 @@ class TestSFSConcurrency
   BucketRef bucket;
   ObjectRef predef_object;
   sqlite::DBVersionedObject predef_db_object;
+
+  std::vector<rgw_obj_key> predef_objs;
 
   TestSFSConcurrency()
       : cct(new CephContext(CEPH_ENTITY_TYPE_ANY)),
@@ -120,6 +124,17 @@ class TestSFSConcurrency
     cct->get_perfcounters_collection()->add(perfcounter_exec_time_hist);
     perfcounter_exec_time_sum = exec_sum.create_perf_counters();
     cct->get_perfcounters_collection()->add(perfcounter_exec_time_sum);
+
+    for (size_t i = 0; i < 100000; i++) {
+      std::string object = gen_rand_alphanumeric(cct.get(), 23);
+      std::string version = gen_rand_alphanumeric(cct.get(), 23);
+      ObjectRef obj;
+      while (!obj) {
+        obj = bucket->create_version(rgw_obj_key(object, version));
+      }
+      predef_objs.push_back(rgw_obj_key(object, version));
+      obj->metadata_finish(store.get(), false);
+    }
   }
 
   void TearDown() override {
@@ -189,7 +204,7 @@ class TestSFSConcurrency
     );
   }
 
-  sqlite::StorageRef storage() { return store->db_conn->get_storage(); }
+  sqlite::Storage* storage() { return store->db_conn->get_storage(); }
 };
 
 TEST_P(TestSFSConcurrency, parallel_executions_must_not_throw) {
@@ -205,7 +220,8 @@ TEST_P(TestSFSConcurrency, parallel_executions_must_not_throw) {
               .store = store.get(),
               .predef_bucket = bucket.get(),
               .predef_object = predef_object.get(),
-              .predef_db_object = &predef_db_object})
+              .predef_db_object = &predef_db_object,
+              .predef_objs = &predef_objs})
       );
     });
     threads.push_back(std::move(t));
@@ -217,16 +233,17 @@ TEST_P(TestSFSConcurrency, parallel_executions_must_not_throw) {
 }
 
 TEST_P(TestSFSConcurrency, performance_single_thread) {
-  for (size_t i = 0; i < 5000; i++) {
+  const ceph::mono_time start = mono_clock::now();
+  for (size_t i = 0; i < 10000; i++) {
     auto fn = GetParam().second;
-    ceph::mono_time start = mono_clock::now();
     fn({.cct = cct.get(),
         .storage = storage(),
         .store = store.get(),
         .predef_bucket = bucket.get(),
         .predef_object = predef_object.get(),
-        .predef_db_object = &predef_db_object});
-    ceph::mono_time finish = mono_clock::now();
+        .predef_db_object = &predef_db_object,
+        .predef_objs = &predef_objs});
+    const ceph::mono_time finish = mono_clock::now();
     perfcounter_exec_time_hist->hinc(
         1000,
         std::chrono::duration_cast<std::chrono::microseconds>(finish - start)
@@ -241,21 +258,22 @@ TEST_P(TestSFSConcurrency, performance_single_thread) {
 
 TEST_P(TestSFSConcurrency, performance_multi_thread) {
   const static size_t parallelism = std::thread::hardware_concurrency();
-  const static size_t ops_per_thread = 5000 / parallelism;
+  const static size_t ops_per_thread = 1000000 / parallelism;
   std::vector<std::thread> threads;
 
   for (size_t i = 0; i < parallelism; i++) {
     std::thread t([&] {
       for (size_t i = 0; i < ops_per_thread; i++) {
+        const ceph::mono_time start = mono_clock::now();
         auto fn = GetParam().second;
-        ceph::mono_time start = mono_clock::now();
         fn({.cct = cct.get(),
             .storage = storage(),
             .store = store.get(),
             .predef_bucket = bucket.get(),
             .predef_object = predef_object.get(),
-            .predef_db_object = &predef_db_object});
-        ceph::mono_time finish = mono_clock::now();
+            .predef_db_object = &predef_db_object,
+            .predef_objs = &predef_objs});
+        const ceph::mono_time finish = mono_clock::now();
         perfcounter_exec_time_hist->hinc(
             1000,
             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -284,6 +302,14 @@ INSTANTIATE_TEST_SUITE_P(
             [](const SFSConcurrencyFixture& fixture) {
               std::string name = gen_rand_alphanumeric(fixture.cct, 23);
               fixture.predef_bucket->create_version(rgw_obj_key(name, name));
+            }
+        ),
+        std::make_pair(
+            "get_random_object",
+            [](const SFSConcurrencyFixture& fixture) {
+              int r = std::rand() % fixture.predef_objs->size();
+              const auto& key = fixture.predef_objs->at(r);
+              auto obj = fixture.predef_bucket->get(key);
             }
         ),
         std::make_pair(
