@@ -912,53 +912,6 @@ TEST_F(TestSFSSQLiteVersionedObjects, TestFilterDeleted) {
   ASSERT_EQ(5, last_version->id);
 }
 
-TEST_F(TestSFSSQLiteVersionedObjects, TestDeleteLastAndGetPrevious) {
-  auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
-  ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());
-  ceph_context->_log->start();
-
-  EXPECT_FALSE(fs::exists(getDBFullPath()));
-  DBConnRef conn = std::make_shared<DBConn>(ceph_context.get());
-
-  auto db_versioned_objects = std::make_shared<SQLiteVersionedObjects>(conn);
-
-  // Create the object, we need it because of foreign key constrains
-  createObject(
-      TEST_USERNAME, TEST_BUCKET, TEST_OBJECT_ID, ceph_context.get(), conn
-  );
-
-  // create 3 versions (last one is a delete marker)
-  auto object = createTestVersionedObject(1, TEST_OBJECT_ID, "1");
-  object.object_state = rgw::sal::sfs::ObjectState::COMMITTED;
-  EXPECT_EQ(1, db_versioned_objects->insert_versioned_object(object));
-  object.version_id = "test_version_id_2";
-  EXPECT_EQ(2, db_versioned_objects->insert_versioned_object(object));
-  object.version_id = "test_version_id_3";
-  object.version_type = rgw::sal::sfs::VersionType::DELETE_MARKER;
-  EXPECT_EQ(3, db_versioned_objects->insert_versioned_object(object));
-
-  auto last_version_now =
-      db_versioned_objects->delete_version_and_get_previous_transact(
-          object.object_id, 3
-      );
-  ASSERT_TRUE(last_version_now.has_value());
-  ASSERT_EQ(2, last_version_now->id);
-  ASSERT_EQ("test_version_id_2", last_version_now->version_id);
-
-  auto delete_version_doesnt_exist =
-      db_versioned_objects->delete_version_and_get_previous_transact(
-          object.object_id, 1999
-      );
-  ASSERT_FALSE(delete_version_doesnt_exist.has_value());
-
-  uuid_d object_id;
-  object_id.parse(TEST_OBJECT_ID.c_str());
-  last_version_now = db_versioned_objects->get_last_versioned_object(object_id);
-  ASSERT_TRUE(last_version_now.has_value());
-  ASSERT_EQ(2, last_version_now->id);
-  ASSERT_EQ("test_version_id_2", last_version_now->version_id);
-}
-
 TEST_F(TestSFSSQLiteVersionedObjects, TestGetByBucketAndObjectName) {
   auto ceph_context = std::make_shared<CephContext>(CEPH_ENTITY_TYPE_CLIENT);
   ceph_context->_conf.set_val("rgw_sfs_data_path", getTestDir());

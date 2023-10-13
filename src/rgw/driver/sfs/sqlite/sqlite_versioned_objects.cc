@@ -294,41 +294,10 @@ SQLiteVersionedObjects::get_last_versioned_object(
   return ret_value;
 }
 
-std::optional<DBVersionedObject>
-SQLiteVersionedObjects::delete_version_and_get_previous_transact(
-    const uuid_d& object_id, uint id
+void SQLiteVersionedObjects::delete_version(uint version_id
 ) const {
-  try {
-    auto storage = conn->get_storage();
-    auto transaction = storage->transaction_guard();
-    std::optional<DBVersionedObject> ret_value = std::nullopt;
-    storage->remove<DBVersionedObject>(id);
-    if (storage->changes()) {
-      // get the last version of the object now
-      auto last_version_select = storage->get_all<DBVersionedObject>(
-          where(
-              is_equal(&DBVersionedObject::object_id, object_id) and
-              is_not_equal(
-                  &DBVersionedObject::object_state, ObjectState::DELETED
-              )
-          ),
-          multi_order_by(
-              order_by(&DBVersionedObject::commit_time).desc(),
-              order_by(&DBVersionedObject::id).desc()
-          ),
-          limit(1)
-      );
-      if (!last_version_select.empty()) {
-        ret_value = last_version_select[0];
-      }
-      transaction.commit();
-    }
-    return ret_value;
-  } catch (const std::system_error& e) {
-    // throw exception (will be caught later in the sfs logic)
-    // TODO revisit this when error handling is defined
-    throw(e);
-  }
+  auto storage = conn->get_storage();
+  storage->remove<DBVersionedObject>(version_id);
 }
 
 uint SQLiteVersionedObjects::add_delete_marker_transact(
