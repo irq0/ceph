@@ -85,7 +85,7 @@ class TestSFSWALCheckpoint : public ::testing::Test {
     for (size_t i = 0; i < num_threads; ++i) {
       std::thread t([&, i]() {
         for (size_t j = 0; j < num_objects; ++j) {
-          ObjectRef obj;
+	  std::unique_ptr<Object> obj;
           while (!obj) {
             obj = bucket->create_version(rgw_obj_key(
                 "object-" + std::to_string(i) + "-" + std::to_string(j)

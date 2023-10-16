@@ -114,8 +114,6 @@ class Object {
   void delete_object_data(SFStore* store) const;
 };
 
-using ObjectRef = std::shared_ptr<Object>;
-
 class Bucket {
   CephContext* cct;
   rgw::sal::SFStore* store;
@@ -194,10 +192,10 @@ class Bucket {
   ceph::real_time get_mtime() const { return mtime; }
 
   /// Create object version for key
-  ObjectRef create_version(const rgw_obj_key& key) const;
+  std::unique_ptr<Object> create_version(const rgw_obj_key& key) const;
 
   /// Get existing object by key. Throws if it doesn't exist.
-  ObjectRef get(const rgw_obj_key& key) const;
+  std::unique_ptr<Object> get(const rgw_obj_key& key) const;
 
   /// S3 delete object operation: delete version or create tombstone.
   /// If a delete marker was added, it returns the new version id generated for

@@ -36,14 +36,54 @@ class SFStore;
  * bits that are relevant for the SAL layer's expected path.
  *
  * For reference, check 'rgw_op.cc', RGWCompleteMultipart::execute().
+ *
+ * Note that during MP uploads, before completing them, the object is
+ * actually a promise of a future object. To make this promise
+ * accessible to certain queries (e.g get_attr) initialize the
+ * underlying objref from MP data rather than object / versioned
+ * object data.
  */
 struct SFSMultipartMetaObject : public rgw::sal::SFSObject {
-  SFSMultipartMetaObject(SFSMultipartMetaObject&) = default;
+  SFSMultipartMetaObject(SFSMultipartMetaObject&) = delete;
   SFSMultipartMetaObject(
       rgw::sal::SFStore* _st, const rgw_obj_key& _k, rgw::sal::Bucket* _b,
-      BucketRef _bucket
+      BucketRef _bucket, const rgw::sal::Attrs& attrs
   )
-      : rgw::sal::SFSObject(_st, _k, _b, _bucket, false) {}
+      : rgw::sal::SFSObject(_st, _k, _b, _bucket, false) {
+    // Note: objref points to a object that does not actually exists.
+    objref.reset(sfs::Object::create_from_obj_key(_k));
+    objref->update_attrs(attrs);
+  }
+
+  struct SFSMetaObjReadOp : public ReadOp {
+   private:
+    const sfs::Object& obj;
+
+   public:
+    SFSMetaObjReadOp() = delete;
+    SFSMetaObjReadOp(const sfs::Object& _obj) : obj(_obj) {}
+    virtual int prepare(optional_yield, const DoutPrefixProvider*) override {
+      return 0;
+    }
+    virtual int
+    read(int64_t, int64_t, bufferlist&, optional_yield, const DoutPrefixProvider*)
+        override {
+      return -ENOTSUP;
+    }
+    virtual int iterate(
+        const DoutPrefixProvider*, int64_t, int64_t, RGWGetDataCB*,
+        optional_yield
+    ) override {
+      return -ENOTSUP;
+    }
+    virtual int get_attr(
+        const DoutPrefixProvider*, const char* name, bufferlist& dest,
+        optional_yield
+    ) override {
+      return obj.get_attr(name, dest);
+    }
+    const std::string get_cls_name() { return "mp_meta_obj_read"; }
+  };
 
   struct SFSMetaObjDeleteOp : public DeleteOp {
     SFSMetaObjDeleteOp() = default;
@@ -55,9 +95,7 @@ struct SFSMultipartMetaObject : public rgw::sal::SFSObject {
     const std::string get_cls_name() { return "mp_meta_obj_delete"; }
   };
 
-  virtual std::unique_ptr<Object> clone() override {
-    return std::unique_ptr<Object>(new SFSMultipartMetaObject{*this});
-  }
+  virtual std::unique_ptr<Object> clone() override { return nullptr; }
   SFSMultipartMetaObject& operator=(const SFSMultipartMetaObject&) = delete;
 
   virtual std::unique_ptr<DeleteOp> get_delete_op() override {
@@ -69,6 +107,10 @@ struct SFSMultipartMetaObject : public rgw::sal::SFSObject {
       bool /*prevent_versioning*/
   ) override {
     return 0;
+  }
+
+  virtual std::unique_ptr<ReadOp> get_read_op() override {
+    return std::make_unique<SFSMetaObjReadOp>(*objref);
   }
 };
 

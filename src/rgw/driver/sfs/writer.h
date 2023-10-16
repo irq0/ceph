@@ -30,7 +30,7 @@ class SFSAtomicWriter : public StoreWriter {
   rgw::sal::SFStore* store;
   SFSObject obj;
   sfs::BucketRef bucketref;
-  sfs::ObjectRef objref;
+  std::unique_ptr<sfs::Object> objref;
   const rgw_user& owner;
   const rgw_placement_rule* placement_rule;
   uint64_t olh_epoch;

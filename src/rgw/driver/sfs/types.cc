@@ -242,14 +242,14 @@ void Object::delete_object_data(SFStore* store) const {
   std::filesystem::remove(folder_path, delete_folder_error);
 }
 
-ObjectRef Bucket::create_version(const rgw_obj_key& key) const {
+std::unique_ptr<Object> Bucket::create_version(const rgw_obj_key& key) const {
   // even if a specific version was not asked we generate one
   // non-versioned bucket objects will also have a version_id
   auto version_id = key.instance;
   if (version_id.empty()) {
     version_id = generate_new_version_id(store->ceph_context());
   }
-  ObjectRef result;
+  std::unique_ptr<Object> result;
   sqlite::SQLiteVersionedObjects objs_versions(store->db_conn);
   // create objects in a transaction.
   // That way threads trying to create the same object in parallel will be
@@ -263,7 +263,7 @@ ObjectRef Bucket::create_version(const rgw_obj_key& key) const {
   return result;
 }
 
-ObjectRef Bucket::get(const rgw_obj_key& key) const {
+std::unique_ptr<Object> Bucket::get(const rgw_obj_key& key) const {
   auto maybe_result = Object::try_fetch_from_database(
       store, key.name, info.bucket.bucket_id, key.instance,
       get_info().versioning_enabled()
@@ -273,7 +273,7 @@ ObjectRef Bucket::get(const rgw_obj_key& key) const {
     throw UnknownObjectException();
   }
 
-  return std::shared_ptr<Object>(maybe_result);
+  return std::unique_ptr<Object>(maybe_result);
 }
 
 bool Bucket::delete_object(
@@ -310,7 +310,7 @@ bool Bucket::delete_object(
 std::string Bucket::create_non_existing_object_delete_marker(
     const rgw_obj_key& key
 ) const {
-  auto obj = std::shared_ptr<Object>(
+  auto obj = std::unique_ptr<Object>(
       Object::create_commit_delete_marker(key, store, info.bucket.bucket_id)
   );
   // create the delete marker
@@ -350,6 +350,11 @@ bool Bucket::_delete_object_non_versioned(
 ) const {
   auto version_to_delete =
       db_versioned_objs.get_last_versioned_object(obj.path.get_uuid());
+  if (!version_to_delete.has_value()) {
+    // if there is no latest version to delete, assume that we are
+    // already deleted and do nothing
+    return true;
+  }
   return _delete_object_version(db_versioned_objs, *version_to_delete);
 }
 

@@ -30,18 +30,21 @@ class SFStore;
 
 class SFSObject : public StoreObject {
  private:
-  SFStore* store;
   RGWAccessControlPolicy acls;
-  sfs::BucketRef bucketref;
-  sfs::ObjectRef objref;
 
  protected:
-  SFSObject(SFSObject&) = default;
+  SFStore* store;
+  sfs::BucketRef bucketref;
+  std::unique_ptr<sfs::Object> objref;
+
+  SFSObject(SFSObject&) = delete;
 
   void _refresh_meta_from_object(
       const sfs::Object& obj_to_refresh,
       bool update_version_id_from_metadata = false
   );
+
+  const sfs::Object& get_object_ref() const { return *objref; }
 
  public:
   /**
@@ -49,13 +52,13 @@ class SFSObject : public StoreObject {
    */
   struct SFSReadOp : public ReadOp {
    private:
-    SFSObject* source;
-    sfs::ObjectRef objref;
+    const SFSObject& source;
+    const sfs::Object& objref;
     std::filesystem::path objdata;
     int handle_conditionals(const DoutPrefixProvider* dpp) const;
 
    public:
-    SFSReadOp(SFSObject* _source);
+    SFSReadOp(const SFSObject& _source);
 
     virtual int prepare(optional_yield y, const DoutPrefixProvider* dpp)
         override;
@@ -109,7 +112,9 @@ class SFSObject : public StoreObject {
   }
 
   virtual std::unique_ptr<Object> clone() override {
-    return std::unique_ptr<Object>(new SFSObject{*this});
+    return std::unique_ptr<Object>(
+        new SFSObject(store, get_key(), get_bucket(), bucketref, true)
+    );
   }
 
   virtual int delete_object(
@@ -184,7 +189,8 @@ class SFSObject : public StoreObject {
    * Obtain a Read Operation.
    */
   virtual std::unique_ptr<ReadOp> get_read_op() override {
-    return std::make_unique<SFSObject::SFSReadOp>(this);
+    this->refresh_meta(true);
+    return std::make_unique<SFSObject::SFSReadOp>(*this);
   }
   /**
    * Obtain a Delete Operation.
@@ -228,10 +234,6 @@ class SFSObject : public StoreObject {
   ) override;
 
   bool get_attr(const std::string& name, bufferlist& dest);
-
-  sfs::ObjectRef get_object_ref() { return objref; }
-
-  void set_object_ref(sfs::ObjectRef objref) { this->objref = objref; }
 
   // Refresh metadata from db.
   // Also retrieves version_id when specified.

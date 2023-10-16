@@ -57,18 +57,12 @@ SFSMultipartUploadV2::SFSMultipartUploadV2(
 
 std::unique_ptr<rgw::sal::Object> SFSMultipartUploadV2::get_meta_obj() {
   rgw_obj_key key(meta_str, string(), RGW_OBJ_NS_MULTIPART);
-  auto mmo =
-      std::make_unique<SFSMultipartMetaObject>(store, key, bucket, bucketref);
-
   sfs::sqlite::SQLiteMultipart mpdb(store->db_conn);
   auto mp = mpdb.get_multipart(upload_id);
   ceph_assert(mp.has_value());
-  mmo->set_attrs(mp->attrs);
-  // TODO(jecluis): this needs to be fixed once we get rid of the objref
-  mmo->set_object_ref(
-      std::shared_ptr<sfs::Object>(sfs::Object::create_from_obj_key(key))
+  return std::make_unique<SFSMultipartMetaObject>(
+      store, key, bucket, bucketref, mp->attrs
   );
-  return mmo;
 }
 
 int SFSMultipartUploadV2::init(
@@ -431,7 +425,7 @@ int SFSMultipartUploadV2::complete(
   // new object, or a new version, and move the file to its location as if we
   // were writing directly to it.
 
-  ObjectRef objref;
+  std::unique_ptr<Object> objref;
   try {
     objref = bucketref->create_version(target_obj->get_key());
   } catch (const std::system_error& e) {

@@ -29,19 +29,8 @@ using namespace std;
 
 namespace rgw::sal {
 
-SFSObject::SFSReadOp::SFSReadOp(SFSObject* _source) : source(_source) {
-  /*
-    This initialization code was originally into prepare() but that
-    was not sufficient to cover all cases.
-    There are pieces of SAL code that are calling get_*() methods
-    but they don't call prepare().
-    In those cases the SFSReadOp is not properly initialized and those
-    calls are going to fail.
-  */
-  // read op needs to retrieve also the version_id from the db
-  source->refresh_meta(true);
-  objref = source->get_object_ref();
-}
+SFSObject::SFSReadOp::SFSReadOp(const SFSObject& _source)
+    : source(_source), objref(_source.get_object_ref()) {}
 
 // Handle conditional GET params. If-Match, If-None-Match,
 // If-Modified-Since, If-UnModified-Since. Return 0 if we are neutral.
@@ -52,8 +41,8 @@ int SFSObject::SFSReadOp::handle_conditionals(const DoutPrefixProvider* dpp
       !params.unmod_ptr) {
     return 0;
   }
-  const std::string etag = objref->get_meta().etag;
-  const auto mtime = objref->get_meta().mtime;
+  const std::string etag = objref.get_meta().etag;
+  const auto mtime = objref.get_meta().mtime;
   int result = 0;
 
   if (params.if_match) {
@@ -114,13 +103,13 @@ int SFSObject::SFSReadOp::handle_conditionals(const DoutPrefixProvider* dpp
 int SFSObject::SFSReadOp::prepare(
     optional_yield /*y*/, const DoutPrefixProvider* dpp
 ) {
-  if (!objref || objref->deleted) {
+  if (objref.deleted) {
     // at this point, we don't have an objectref because
     // the object does not exist.
     return -ENOENT;
   }
 
-  objdata = source->store->get_data_path() / objref->get_storage_path();
+  objdata = source.store->get_data_path() / objref.get_storage_path();
   if (!std::filesystem::exists(objdata)) {
     lsfs_verb(dpp) << "object data not found at " << objdata << dendl;
     return -ENOENT;
@@ -130,15 +119,15 @@ int SFSObject::SFSReadOp::prepare(
       << fmt::format(
              "bucket:{} obj:{} size:{} versionid:{} "
              "conditionals:(ifmatch:{} ifnomatch:{} ifmod:{} ifunmod:{})",
-             source->bucket->get_name(), source->get_name(),
-             source->get_obj_size(), source->get_instance(),
+             source.bucket->get_name(), source.get_name(),
+             source.get_obj_size(), source.get_instance(),
              fmt::ptr(params.if_match), fmt::ptr(params.if_nomatch),
              fmt::ptr(params.mod_ptr), fmt::ptr(params.unmod_ptr)
          )
       << dendl;
 
   if (params.lastmod) {
-    *params.lastmod = source->get_mtime();
+    *params.lastmod = source.get_mtime();
   }
   return handle_conditionals(dpp);
 }
@@ -147,10 +136,10 @@ int SFSObject::SFSReadOp::get_attr(
     const DoutPrefixProvider* /*dpp*/, const char* name, bufferlist& dest,
     optional_yield /*y*/
 ) {
-  if (!objref || objref->deleted) {
+  if (objref.deleted) {
     return -ENOENT;
   }
-  if (!objref->get_attr(name, dest)) {
+  if (!objref.get_attr(name, dest)) {
     return -ENODATA;
   }
   return 0;
@@ -163,9 +152,9 @@ int SFSObject::SFSReadOp::read(
 ) {
   // TODO bounds check, etc.
   const auto len = end + 1 - ofs;
-  lsfs_debug(dpp) << "bucket: " << source->bucket->get_name()
-                  << ", obj: " << source->get_name()
-                  << ", size: " << source->get_obj_size() << ", offset: " << ofs
+  lsfs_debug(dpp) << "bucket: " << source.bucket->get_name()
+                  << ", obj: " << source.get_name()
+                  << ", size: " << source.get_obj_size() << ", offset: " << ofs
                   << ", end: " << end << ", len: " << len << dendl;
 
   ceph_assert(std::filesystem::exists(objdata));
@@ -187,9 +176,9 @@ int SFSObject::SFSReadOp::iterate(
 ) {
   // TODO bounds check, etc.
   const auto len = end + 1 - ofs;
-  lsfs_debug(dpp) << "bucket: " << source->bucket->get_name()
-                  << ", obj: " << source->get_name()
-                  << ", size: " << source->get_obj_size() << ", offset: " << ofs
+  lsfs_debug(dpp) << "bucket: " << source.bucket->get_name()
+                  << ", obj: " << source.get_name()
+                  << ", size: " << source.get_obj_size() << ", offset: " << ofs
                   << ", end: " << end << ", len: " << len << dendl;
 
   ceph_assert(std::filesystem::exists(objdata));
@@ -243,7 +232,7 @@ int SFSObject::SFSDeleteOp::delete_obj(
 
   auto version_id = source->get_instance();
   std::string delete_marker_version_id;
-  if (source->objref) {
+  if (source->state.exists) {
     bucketref->delete_object(
         *source->objref, source->get_key(),
         source->bucket->versioning_enabled(), delete_marker_version_id
@@ -335,7 +324,7 @@ int SFSObject::copy_object(
     return -ERR_INTERNAL_ERROR;
   }
 
-  const sfs::ObjectRef dstref =
+  const std::unique_ptr<sfs::Object> dstref =
       dst_bucket_ref->create_version(dst_object->get_key());
   if (!dstref) {
     ::close(src_fd);
@@ -643,7 +632,12 @@ void SFSObject::refresh_meta(bool update_version_id_from_metadata) {
   try {
     objref = bucketref->get(rgw_obj_key(get_name(), get_instance()));
   } catch (sfs::UnknownObjectException& e) {
-    // object probably not created yet?
+    objref = std::unique_ptr<sfs::Object>(sfs::Object::create_from_obj_key(
+        rgw_obj_key(get_name(), get_instance())
+    ));
+    objref->deleted = true;
+    state.exists = false;
+    // object probably not created yet - return a deleted placeholder
     return;
   }
   _refresh_meta_from_object(*objref, update_version_id_from_metadata);

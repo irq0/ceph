@@ -52,8 +52,6 @@ class SFSBucket : public StoreBucket {
 
   void write_meta(const DoutPrefixProvider* dpp);
 
-  std::unique_ptr<Object> _get_object(sfs::ObjectRef obj);
-
   /// Verify params passed to list()
   int verify_list_params(
       const DoutPrefixProvider* dpp, const ListParams& params, int max

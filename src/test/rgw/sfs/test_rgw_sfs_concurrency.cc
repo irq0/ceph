@@ -67,7 +67,7 @@ class TestSFSConcurrency
 
   std::unique_ptr<rgw::sal::SFStore> store;
   BucketRef bucket;
-  ObjectRef predef_object;
+  std::unique_ptr<Object> predef_object;
   sqlite::DBVersionedObject predef_db_object;
 
   TestSFSConcurrency()
@@ -291,7 +291,7 @@ INSTANTIATE_TEST_SUITE_P(
             "create_new_version__unversioned",
             [](const SFSConcurrencyFixture& fixture) {
               std::string version = gen_rand_alphanumeric(fixture.cct, 23);
-              ObjectRef obj;
+	      std::unique_ptr<Object> obj;
               while (!obj) {
                 // create version is ok to return null if it did not
                 // succeed. To test metadata_finish we need to retry..
@@ -307,7 +307,7 @@ INSTANTIATE_TEST_SUITE_P(
             "create_new_version__versioned",
             [](const SFSConcurrencyFixture& fixture) {
               std::string version = gen_rand_alphanumeric(fixture.cct, 23);
-              ObjectRef obj;
+	      std::unique_ptr<Object> obj;
               while (!obj) {
                 // create version is ok to return null if it did not
                 // succeed. To test metadata_finish we need to retry..
