@@ -646,21 +646,19 @@ void SFSObject::refresh_meta(bool update_version_id_from_metadata) {
     // object probably not created yet?
     return;
   }
-  _refresh_meta_from_object(objref, update_version_id_from_metadata);
+  _refresh_meta_from_object(*objref, update_version_id_from_metadata);
 }
 
 void SFSObject::_refresh_meta_from_object(
-    sfs::ObjectRef obj_to_refresh, bool update_version_id_from_metadata
+    const sfs::Object& obj_to_refresh, bool update_version_id_from_metadata
 ) {
-  ceph_assert(obj_to_refresh);
-  // fill values from objref
-  set_obj_size(obj_to_refresh->get_meta().size);
-  set_attrs(obj_to_refresh->get_attrs());
-  state.accounted_size = obj_to_refresh->get_meta().size;
-  state.mtime = obj_to_refresh->get_meta().mtime;
+  set_obj_size(obj_to_refresh.get_meta().size);
+  set_attrs(obj_to_refresh.get_attrs());
+  state.accounted_size = obj_to_refresh.get_meta().size;
+  state.mtime = obj_to_refresh.get_meta().mtime;
   state.exists = true;
   if (update_version_id_from_metadata) {
-    set_instance(obj_to_refresh->instance);
+    set_instance(obj_to_refresh.instance);
   }
 }
 

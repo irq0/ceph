@@ -39,7 +39,7 @@ class SFSObject : public StoreObject {
   SFSObject(SFSObject&) = default;
 
   void _refresh_meta_from_object(
-      sfs::ObjectRef obj_to_refresh,
+      const sfs::Object& obj_to_refresh,
       bool update_version_id_from_metadata = false
   );
 
