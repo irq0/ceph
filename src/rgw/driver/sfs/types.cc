@@ -42,27 +42,12 @@ std::string generate_new_version_id(CephContext* ceph_context) {
 Object::Object(const rgw_obj_key& _key, const uuid_d& _uuid)
     : name(_key.name), instance(_key.instance), path(_uuid), deleted(false) {}
 
-Object* Object::create_for_immediate_deletion(const sqlite::DBObject& object) {
-  Object* result = new Object(object.name, object.uuid);
-  result->deleted = true;
-  return result;
-}
-
 void Object::delete_version_data(
     SFStore* store, const uuid_d& uuid, uint version_id
 ) {
   Object* result = new Object(rgw_obj_key(), uuid);
   result->version_id = version_id;
   result->delete_object_data(store);
-}
-
-Object* Object::create_for_query(
-    const std::string& name, const uuid_d& uuid, bool deleted, uint version_id
-) {
-  Object* result = new Object(name, uuid);
-  result->deleted = deleted;
-  result->version_id = version_id;
-  return result;
 }
 
 Object* Object::create_for_testing(const std::string& name) {
@@ -89,30 +74,6 @@ Object* Object::create_from_db_version(
       .mtime = version.mtime,
       .delete_at = version.delete_time};
   result->attrs = version.attrs;
-  return result;
-}
-
-Object* Object::create_from_db_version(
-    const std::string& object_name, const sqlite::DBObjectsListItem& version
-) {
-  Object* result = new Object(
-      rgw_obj_key(object_name, sqlite::get_version_id(version)),
-      sqlite::get_uuid(version)
-  );
-  result->deleted =
-      (sqlite::get_version_type(version) == VersionType::DELETE_MARKER);
-  result->version_id = sqlite::get_id(version);
-  result->meta = {
-      .size = sqlite::get_size(version),
-      .etag = sqlite::get_etag(version),
-      .mtime = sqlite::get_mtime(version),
-      .delete_at = sqlite::get_delete_time(version)};
-  result->attrs = sqlite::get_attrs(version);
-  return result;
-}
-
-Object* Object::create_for_multipart(const std::string& name) {
-  Object* result = new Object(name, UUIDPath::create().get_uuid());
   return result;
 }
 
@@ -313,23 +274,6 @@ ObjectRef Bucket::get(const rgw_obj_key& key) const {
   }
 
   return std::shared_ptr<Object>(maybe_result);
-}
-
-std::vector<ObjectRef> Bucket::get_all() const {
-  std::vector<ObjectRef> result;
-  sqlite::SQLiteVersionedObjects db_versioned_objs(store->db_conn);
-  // get the list of objects and its last version (filters deleted versions)
-  // if an object has all versions deleted it is also filtered
-  auto objects =
-      db_versioned_objs.list_last_versioned_objects(info.bucket.bucket_id);
-  for (const auto& db_obj : objects) {
-    if (sqlite::get_object_state(db_obj) == ObjectState::COMMITTED) {
-      result.push_back(std::shared_ptr<Object>(
-          Object::create_from_db_version(sqlite::get_name(db_obj), db_obj)
-      ));
-    }
-  }
-  return result;
 }
 
 bool Bucket::delete_object(

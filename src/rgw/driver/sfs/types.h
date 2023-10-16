@@ -69,28 +69,15 @@ class Object {
         path(UUIDPath::create()),
         deleted(false) {}
 
-  static Object* _get_object(
-      SFStore* store, const std::string& bucket_id, const rgw_obj_key& key
-  );
-
  public:
-  static Object* create_for_immediate_deletion(const sqlite::DBObject& object);
   static void delete_version_data(
       SFStore* store, const uuid_d& uuid, uint version_id
-  );
-  static Object* create_for_query(
-      const std::string& name, const uuid_d& uuid, bool deleted, uint version_id
   );
   static Object* create_for_testing(const std::string& name);
   static Object* create_from_obj_key(const rgw_obj_key& key);
   static Object* create_from_db_version(
       const std::string& object_name, const sqlite::DBVersionedObject& version
   );
-  static Object* create_from_db_version(
-      const std::string& object_name, const sqlite::DBObjectsListItem& version
-  );
-  static Object* create_for_multipart(const std::string& name);
-
   static Object* create_commit_delete_marker(
       const rgw_obj_key& key, SFStore* store, const std::string& bucket_id
   );
@@ -211,8 +198,6 @@ class Bucket {
 
   /// Get existing object by key. Throws if it doesn't exist.
   ObjectRef get(const rgw_obj_key& key) const;
-  /// Get copy of all objects that are committed and not deleted
-  std::vector<ObjectRef> get_all() const;
 
   /// S3 delete object operation: delete version or create tombstone.
   /// If a delete marker was added, it returns the new version id generated for

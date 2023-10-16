@@ -388,26 +388,12 @@ TEST_F(
   EXPECT_EQ(database_number_of_versions(object), 1);
 }
 
-TEST_F(TestSFSObjectStateMachine, non_committed_are_invisible_to_get_all) {
-  const auto object = bucket->create_version(rgw_obj_key("foo", "bar"));
-  const auto all = bucket->get_all();
-  ASSERT_EQ(all.size(), 0);
-}
-
 TEST_F(TestSFSObjectStateMachine, metadata_finish_makes_visible_to_get) {
   auto object = bucket->create_version(rgw_obj_key("foo", "bar"));
   object->metadata_finish(store.get(), false);
   auto obj_gotten = bucket->get(rgw_obj_key("foo", "bar"));
   EXPECT_EQ(object->name, obj_gotten->name);
   EXPECT_EQ(object->instance, obj_gotten->instance);
-}
-
-TEST_F(TestSFSObjectStateMachine, metadata_finish_makes_visible_to_get_all) {
-  auto object = bucket->create_version(rgw_obj_key("foo", "bar"));
-  object->metadata_finish(store.get(), false);
-  const auto all = bucket->get_all();
-  EXPECT_EQ(all.size(), 1);
-  EXPECT_EQ(all.front()->name, "foo");
 }
 
 TEST_F(TestSFSObjectStateMachine, flush_attrs_does_not_commit) {
