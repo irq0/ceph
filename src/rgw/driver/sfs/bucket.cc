@@ -71,11 +71,6 @@ void SFSBucket::Meta::decode_json(JSONObj* obj) {
   JSONDecoder::decode_json("info", info, obj);
 }
 
-std::unique_ptr<Object> SFSBucket::_get_object(sfs::ObjectRef obj) {
-  rgw_obj_key key(obj->name, obj->instance);
-  return make_unique<SFSObject>(this->store, key, this, bucket);
-}
-
 std::unique_ptr<Object> SFSBucket::get_object(const rgw_obj_key& key) {
   ldout(store->ceph_context(), SFS_LOG_DEBUG)
       << "bucket::" << __func__ << ": key : " << key << dendl;
@@ -88,7 +83,7 @@ std::unique_ptr<Object> SFSBucket::get_object(const rgw_obj_key& key) {
     // specific version" operation.
     // Return the object with the same key as it was requested.
     objref->instance = key.instance;
-    return _get_object(objref);
+    return make_unique<SFSObject>(this->store, key, this, bucket);
   } catch (const sfs::UnknownObjectException& _) {
     ldout(store->ceph_context(), SFS_LOG_VERBOSE)
         << "unable to find key " << key << " in bucket " << bucket->get_name()
