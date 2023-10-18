@@ -13,6 +13,8 @@
 
 #include <limits>
 
+#include "SQLiteCpp/Database.h"
+#include "SQLiteCpp/Statement.h"
 #include "rgw/driver/sfs/sqlite/conversion_utils.h"
 #include "rgw/driver/sfs/sqlite/objects/object_definitions.h"
 #include "rgw/driver/sfs/sqlite/versioned_object/versioned_object_definitions.h"
@@ -91,7 +93,7 @@ static uint16_t to_dentry_flag(VersionType vt, bool latest) {
   return result;
 }
 
-bool SQLiteList::versions(
+bool SQLiteList::versions_orm(
     const std::string& bucket_id, const std::string& prefix,
     const std::string& start_after_object_name, size_t max,
     std::vector<rgw_bucket_dir_entry>& out, bool* out_more_available
@@ -101,7 +103,7 @@ bool SQLiteList::versions(
   // more available logic: request one more than max. if we get that
   // much set out_more_available, but return only up to max
   ceph_assert(max < std::numeric_limits<size_t>::max());
-  const size_t query_limit = max + 1;
+  const uint32_t query_limit = max + 1;
 
   auto storage = conn->get_storage();
   auto rows = storage.select(
@@ -173,6 +175,92 @@ bool SQLiteList::versions(
     *out_more_available = rows.size() == query_limit;
   }
   return true;
+
+}
+bool SQLiteList::versions_sqlitecpp(
+    const std::string& bucket_id, const std::string& prefix,
+    const std::string& start_after_object_name, size_t max,
+    std::vector<rgw_bucket_dir_entry>& out, bool* out_more_available
+) const {
+  ceph_assert(!bucket_id.empty());
+
+  // more available logic: request one more than max. if we get that
+  // much set out_more_available, but return only up to max
+  ceph_assert(max < std::numeric_limits<size_t>::max());
+  const uint32_t query_limit = max + 1;
+
+  SQLite::Database db = conn->get_sqlitecpp();
+  SQLite::Statement query{
+    db, R"sql(
+      SELECT
+         o.name, vo.version_id, vo.mtime, vo.etag, vo.size, vo.version_type,
+         (vo.id = ( SELECT id FROM versioned_objects
+           WHERE object_id = o.uuid
+           AND object_state = ?
+           ORDER BY commit_time desc, id desc
+           LIMIT 1
+         )) AS is_latest
+      FROM objects as o
+      INNER JOIN versioned_objects as vo
+      ON (o.uuid = vo.object_id)
+      WHERE vo.object_state = ?
+      AND o.bucket_id = ?
+      AND o.name > ?
+      AND o.name LIKE ? ESCAPE '\'
+      ORDER BY o.name ASC,
+        vo.commit_time DESC,
+        vo.id DESC
+      LIMIT ?)sql"};
+
+  query.bind(1, static_cast<int>(ObjectState::COMMITTED));
+  query.bind(2, static_cast<int>(ObjectState::COMMITTED));
+  query.bind(3, bucket_id);
+  query.bind(4, start_after_object_name);
+  query.bind(6, query_limit);
+  std::string like_expr;
+  like_expr.reserve(prefix.length() + 10);
+  for (const char c : prefix) {
+    switch (c) {
+      case '%':
+      case '_':
+        like_expr.push_back('\\');
+      default:
+        like_expr.push_back(c);
+    }
+  }
+  like_expr.push_back('%');
+  query.bind(5, like_expr);
+
+  out.reserve(max);
+  while (query.executeStep() && out.size() < max) {
+    rgw_bucket_dir_entry e;
+    e.key.name = query.getColumn(0).getString();
+    e.key.instance = query.getColumn(1).getString();
+    e.meta.mtime =
+        ceph::real_time(std::chrono::nanoseconds(query.getColumn(2).getInt64())
+        );
+    e.meta.etag = query.getColumn(3).getString();
+    e.meta.size = query.getColumn(4).getInt64();
+    e.meta.accounted_size = e.meta.size;
+    e.flags = to_dentry_flag(
+        static_cast<VersionType>(query.getColumn(5).getInt()),
+        query.getColumn(6).getInt()
+    );
+    out.emplace_back(e);
+  }
+  if (out_more_available) {
+    *out_more_available = !query.isDone();
+  }
+  return true;
+}
+
+bool SQLiteList::versions(
+    const std::string& bucket_id, const std::string& prefix,
+    const std::string& start_after_object_name, size_t max,
+    std::vector<rgw_bucket_dir_entry>& out, bool* out_more_available
+) const {
+  return
+      SQLiteList::versions_sqlitecpp(bucket_id, prefix, start_after_object_name, max, out, out_more_available);
 }
 
 void SQLiteList::roll_up_common_prefixes(

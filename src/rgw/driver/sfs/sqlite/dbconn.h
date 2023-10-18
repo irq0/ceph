@@ -31,6 +31,7 @@
 #include "sqlite_orm.h"
 #include "users/users_definitions.h"
 #include "versioned_object/versioned_object_definitions.h"
+#include "SQLiteCpp/SQLiteCpp.h"
 
 namespace rgw::sal::sfs::sqlite {
 
@@ -271,6 +272,8 @@ class DBConn {
   DBConn& operator=(const DBConn&) = delete;
 
   inline auto get_storage() const { return storage; }
+
+  auto get_sqlitecpp() const { return SQLite::Database(get_storage().filename()); }
 
   static std::string getDBPath(CephContext* cct) {
     auto rgw_sfs_path = cct->_conf.get_val<std::string>("rgw_sfs_data_path");

@@ -18,6 +18,7 @@ endif()
 
 if(WITH_RADOSGW_SFS)
   include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/src/rgw/driver/sfs/sqlite/sqlite_orm/include")
+  include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/src/rgw/driver/sfs/SQLiteCpp/include")
 endif()
 
 if(WITH_JAEGER)

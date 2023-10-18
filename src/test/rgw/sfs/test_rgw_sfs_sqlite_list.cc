@@ -47,6 +47,8 @@ class TestSFSList : public ::testing::Test {
         database_directory(create_database_directory()) {
     cct->_conf.set_val("rgw_sfs_data_path", database_directory);
     cct->_conf.set_val("rgw_sfs_sqlite_profile", "1");
+    cct->_conf.set_val("rgw_sfs_sqlite_profile_slowlog_time", "0");
+    cct->_log->set_stderr_level(5, 5);
     cct->_log->start();
     rgw_perf_start(cct.get());
   }

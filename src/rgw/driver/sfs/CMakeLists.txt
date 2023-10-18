@@ -13,6 +13,11 @@ find_package(SQLite3 REQUIRED)
 set(SQLITE_COMPILE_FLAGS "-DSQLITE_THREADSAFE=1")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SQLITE_COMPILE_FLAGS}")
 
+set(SQLITECPP_RUN_CPPCHECK OFF CACHE BOOL "" FORCE)
+set(SQLITECPP_RUN_CPPLINT OFF CACHE BOOL "" FORCE)
+set(SQLITECPP_USE_STATIC_RUNTIME OFF CACHE BOOL "" FORCE)
+add_subdirectory(SQLiteCpp)
+
 set(sfs_srcs
   sqlite/sqlite_users.cc
   sqlite/sqlite_buckets.cc
@@ -56,6 +61,7 @@ target_compile_options(sfs PRIVATE
 # Mark ceph includes system to not see "our" warnings there
 target_include_directories(sfs
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/fmt/include"
+  SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/rgw/driver/sfs/SQLiteCpp/include"
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/rgw"
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src"
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/include")
@@ -65,5 +71,5 @@ if(WITH_JAEGER)
   list(APPEND link_targets jaeger_base)
 endif()
 
-set(CMAKE_LINK_LIBRARIES ${CMAKE_LINK_LIBRARIES} ${link_targets} rgw_common sqlite3 pthread)
+set(CMAKE_LINK_LIBRARIES ${CMAKE_LINK_LIBRARIES} ${link_targets} rgw_common sqlite3 pthread SQLiteCpp)
 target_link_libraries(sfs PRIVATE ${CMAKE_LINK_LIBRARIES})

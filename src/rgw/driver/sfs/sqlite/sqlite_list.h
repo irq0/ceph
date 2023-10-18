@@ -42,6 +42,16 @@ class SQLiteList {
       const std::string& start_after_object_name, size_t max,
       std::vector<rgw_bucket_dir_entry>& out, bool* out_more_available = nullptr
   ) const;
+  bool versions_orm(
+      const std::string& bucket_id, const std::string& prefix,
+      const std::string& start_after_object_name, size_t max,
+      std::vector<rgw_bucket_dir_entry>& out, bool* out_more_available = nullptr
+  ) const;
+  bool versions_sqlitecpp(
+      const std::string& bucket_id, const std::string& prefix,
+      const std::string& start_after_object_name, size_t max,
+      std::vector<rgw_bucket_dir_entry>& out, bool* out_more_available = nullptr
+  ) const;
 
   // roll_up_common_prefixes performs S3 common prefix compression to
   // objects and common_prefixes.

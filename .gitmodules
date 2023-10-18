@@ -75,3 +75,6 @@
 [submodule "src/rgw/driver/sfs/sqlite/sqlite_orm"]
 	path = src/rgw/driver/sfs/sqlite/sqlite_orm
 	url = https://github.com/fnc12/sqlite_orm.git
+[submodule "src/rgw/driver/sfs/SQLiteCpp"]
+	path = src/rgw/driver/sfs/SQLiteCpp
+	url = https://github.com/SRombauts/SQLiteCpp.git
