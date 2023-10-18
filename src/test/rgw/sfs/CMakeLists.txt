@@ -21,3 +21,4 @@ add_s3gw_test(unittest_rgw_sfs_object_state_machine test_rgw_sfs_object_state_ma
 add_s3gw_test(unittest_rgw_sfs_retry test_rgw_sfs_retry.cc)
 add_s3gw_test(unittest_rgw_sfs_concurrency test_rgw_sfs_concurrency.cc)
 add_s3gw_test(unittest_rgw_sfs_wal_checkpoint test_rgw_sfs_wal_checkpoint.cc)
+add_s3gw_test(unittest_rgw_sfs_integration test_rgw_sfs_integration.cc)
