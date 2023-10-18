@@ -177,7 +177,7 @@ int SFSObject::SFSReadOp::read(
                        << ". Returning EIO." << dendl;
     return -EIO;
   }
-  return len;
+  return 0;
 }
 
 // async read
@@ -219,7 +219,7 @@ int SFSObject::SFSReadOp::iterate(
 
     ofs += size;
   }
-  return len;
+  return 0;
 }
 
 SFSObject::SFSDeleteOp::SFSDeleteOp(
