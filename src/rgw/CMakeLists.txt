@@ -324,6 +324,7 @@ endif()
 
 if(WITH_RADOSGW_SFS)
   target_include_directories(rgw_common PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw/store/sfs")
+  target_include_directories(rgw_common PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw/store/sfs/sqlite/sqlite_modern_cpp/hdr")
   target_link_libraries(rgw_common PRIVATE global sfs)
 endif()
 

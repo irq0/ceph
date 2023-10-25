@@ -62,6 +62,7 @@ target_compile_options(sfs PRIVATE
 target_include_directories(sfs
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/fmt/include"
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/rgw/driver/sfs/SQLiteCpp/include"
+  SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/rgw/driver/sfs/sqlite/sqlite_modern_cpp/hdr"
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/rgw"
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src"
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/include")
