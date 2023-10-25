@@ -78,3 +78,6 @@
 [submodule "src/rgw/driver/sfs/SQLiteCpp"]
 	path = src/rgw/driver/sfs/SQLiteCpp
 	url = https://github.com/SRombauts/SQLiteCpp.git
+[submodule "src/rgw/driver/sfs/sqlite_modern_cpp"]
+	path = src/rgw/driver/sfs/sqlite/sqlite_modern_cpp
+	url = https://github.com/SqliteModernCpp/sqlite_modern_cpp.git
