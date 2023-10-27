@@ -13352,6 +13352,7 @@ size_t Client::_vxattrcb_client_id(Inode *in, char *val, size_t size)
 {                                                              \
   name: CEPH_XATTR_NAME(_type, _name),                         \
   getxattr_cb: &Client::_vxattrcb_ ## _type ## _ ## _name,     \
+  setxattr_cb: nullptr,                                        \
   readonly: true,                                              \
   exists_cb: NULL,                                             \
   flags: _flags,                                               \
@@ -13360,6 +13361,7 @@ size_t Client::_vxattrcb_client_id(Inode *in, char *val, size_t size)
 {								\
   name: CEPH_XATTR_NAME2(_type, _name, _field),			\
   getxattr_cb: &Client::_vxattrcb_ ## _name ## _ ## _field,	\
+  setxattr_cb: nullptr,                                         \
   readonly: false,						\
   exists_cb: &Client::_vxattrcb_layout_exists,			\
   flags: 0,                                                     \
@@ -13368,6 +13370,7 @@ size_t Client::_vxattrcb_client_id(Inode *in, char *val, size_t size)
 {								\
   name: CEPH_XATTR_NAME(_type, _name),			        \
   getxattr_cb: &Client::_vxattrcb_ ## _type ## _ ## _name,	\
+  setxattr_cb: nullptr,                                         \
   readonly: false,						\
   exists_cb: &Client::_vxattrcb_quota_exists,			\
   flags: 0,                                                     \
@@ -13377,6 +13380,7 @@ const Client::VXattr Client::_dir_vxattrs[] = {
   {
     name: "ceph.dir.layout",
     getxattr_cb: &Client::_vxattrcb_layout,
+    setxattr_cb: nullptr,
     readonly: false,
     exists_cb: &Client::_vxattrcb_layout_exists,
     flags: 0,
@@ -13400,6 +13404,7 @@ const Client::VXattr Client::_dir_vxattrs[] = {
   {
     name: "ceph.quota",
     getxattr_cb: &Client::_vxattrcb_quota,
+    setxattr_cb: nullptr,
     readonly: false,
     exists_cb: &Client::_vxattrcb_quota_exists,
     flags: 0,
@@ -13411,6 +13416,7 @@ const Client::VXattr Client::_dir_vxattrs[] = {
   {
     name: "ceph.dir.pin",
     getxattr_cb: &Client::_vxattrcb_dir_pin,
+    setxattr_cb: nullptr,
     readonly: false,
     exists_cb: &Client::_vxattrcb_dir_pin_exists,
     flags: 0,
@@ -13418,6 +13424,7 @@ const Client::VXattr Client::_dir_vxattrs[] = {
   {
     name: "ceph.snap.btime",
     getxattr_cb: &Client::_vxattrcb_snap_btime,
+    setxattr_cb: nullptr,
     readonly: true,
     exists_cb: &Client::_vxattrcb_snap_btime_exists,
     flags: 0,
@@ -13425,6 +13432,7 @@ const Client::VXattr Client::_dir_vxattrs[] = {
   {
     name: "ceph.mirror.info",
     getxattr_cb: &Client::_vxattrcb_mirror_info,
+    setxattr_cb: nullptr,
     readonly: false,
     exists_cb: &Client::_vxattrcb_mirror_info_exists,
     flags: 0,
@@ -13436,6 +13444,7 @@ const Client::VXattr Client::_file_vxattrs[] = {
   {
     name: "ceph.file.layout",
     getxattr_cb: &Client::_vxattrcb_layout,
+    setxattr_cb: nullptr,
     readonly: false,
     exists_cb: &Client::_vxattrcb_layout_exists,
     flags: 0,
@@ -13448,6 +13457,7 @@ const Client::VXattr Client::_file_vxattrs[] = {
   {
     name: "ceph.snap.btime",
     getxattr_cb: &Client::_vxattrcb_snap_btime,
+    setxattr_cb: nullptr,
     readonly: true,
     exists_cb: &Client::_vxattrcb_snap_btime_exists,
     flags: 0,
@@ -13459,6 +13469,7 @@ const Client::VXattr Client::_common_vxattrs[] = {
   {
     name: "ceph.cluster_fsid",
     getxattr_cb: &Client::_vxattrcb_cluster_fsid,
+    setxattr_cb: nullptr,
     readonly: true,
     exists_cb: nullptr,
     flags: 0,
@@ -13466,6 +13477,7 @@ const Client::VXattr Client::_common_vxattrs[] = {
   {
     name: "ceph.client_id",
     getxattr_cb: &Client::_vxattrcb_client_id,
+    setxattr_cb: nullptr,
     readonly: true,
     exists_cb: nullptr,
     flags: 0,
