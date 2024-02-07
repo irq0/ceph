@@ -1582,6 +1582,7 @@ static int bucket_stats(rgw::sal::Driver* driver,
     }
   }
 
+  formatter->dump_int("read_tracker", bucket_info.objv_tracker.read_version.ver);
   // TODO: bucket CORS
   // TODO: bucket LC
   formatter->close_section();
