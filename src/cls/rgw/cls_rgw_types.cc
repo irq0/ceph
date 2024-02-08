@@ -314,6 +314,13 @@ static void dump_bi_entry(bufferlist bl, BIIndexType index_type, Formatter *form
         encode_json("entry", entry, formatter);
       }
       break;
+    case BIIndexType::ReshardDeleted:
+      {
+        rgw_bucket_deleted_entry entry;
+        decode(entry, iter);
+        encode_json("entry", entry, formatter);
+      }
+      break;
     default:
       break;
   }
@@ -329,6 +336,8 @@ void rgw_cls_bi_entry::decode_json(JSONObj *obj, cls_rgw_obj_key *effective_key)
     type = BIIndexType::Instance;
   } else if (s == "olh") {
     type = BIIndexType::OLH;
+  } else if (s == "resharddeleted") {
+    type = BIIndexType::ReshardDeleted;
   } else {
     type = BIIndexType::Invalid;
   }
@@ -357,6 +366,17 @@ void rgw_cls_bi_entry::decode_json(JSONObj *obj, cls_rgw_obj_key *effective_key)
         }
       }
       break;
+      case BIIndexType::ReshardDeleted:
+      {
+        rgw_bucket_deleted_entry entry;
+        JSONDecoder::decode_json("entry", entry, obj);
+        encode(entry, data);
+
+        if (effective_key) {
+          *effective_key = entry.key;
+        }
+      }
+      break;
     default:
       break;
   }
@@ -375,6 +395,9 @@ void rgw_cls_bi_entry::dump(Formatter *f) const
   case BIIndexType::OLH:
     type_str = "olh";
     break;
+  case BIIndexType::ReshardDeleted:
+    type_str = "resharddeleted";
+    break;
   default:
     type_str = "invalid";
   }
@@ -392,7 +415,13 @@ bool rgw_cls_bi_entry::get_info(cls_rgw_obj_key *key,
   if (type == BIIndexType::OLH) {
     rgw_bucket_olh_entry entry;
     decode(entry, iter);
-    *key = entry.key;
+    *key = std::move(entry.key);
+    return false;
+  }
+  if (type == BIIndexType::ReshardDeleted) {
+    rgw_bucket_deleted_entry entry;
+    decode(entry, iter);
+    *key = std::move(entry.key);
     return false;
   }
 
@@ -467,6 +496,25 @@ void rgw_bucket_olh_entry::generate_test_instances(list<rgw_bucket_olh_entry*>& 
   o.push_back(new rgw_bucket_olh_entry);
 }
 
+void rgw_bucket_deleted_entry::dump(Formatter *f) const
+{
+  encode_json("key", key, f);
+}
+
+void rgw_bucket_deleted_entry::decode_json(JSONObj *obj)
+{
+  JSONDecoder::decode_json("key", key, obj);
+}
+
+void rgw_bucket_deleted_entry::generate_test_instances(list<rgw_bucket_deleted_entry*>& o)
+{
+  rgw_bucket_deleted_entry *entry = new rgw_bucket_deleted_entry;
+  entry->key.name = "key.name";
+  entry->key.instance = "key.instance";
+  o.push_back(entry);
+  o.push_back(new rgw_bucket_deleted_entry);
+}
+
 void rgw_bucket_olh_log_entry::generate_test_instances(list<rgw_bucket_olh_log_entry*>& o)
 {
   rgw_bucket_olh_log_entry *entry = new rgw_bucket_olh_log_entry;
@@ -521,6 +569,7 @@ void rgw_bucket_olh_log_entry::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("key", key, obj);
   JSONDecoder::decode_json("delete_marker", delete_marker, obj);
 }
+
 void rgw_bi_log_entry::decode_json(JSONObj *obj)
 {
   JSONDecoder::decode_json("op_id", id, obj);
