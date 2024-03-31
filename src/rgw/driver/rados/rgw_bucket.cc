@@ -378,7 +378,7 @@ static int check_bad_index_multipart(rgw::sal::RadosStore* const rados_store,
   do {
     entries_read.clear();
     ret = store->bi_list(bs, "", marker, -1,
-			 &entries_read, &is_truncated, y);
+			 &entries_read, &is_truncated, false, y);
     if (ret < 0) {
       ldpp_dout(dpp, -1) << "ERROR bi_list(): " << cpp_strerror(-ret) <<
 	dendl;
@@ -555,7 +555,7 @@ int RGWBucket::check_bad_index_multipart(rgw::sal::RadosStore* const rados_store
   return any_error;
 }
 
-int RGWBucket::check_object_index(const DoutPrefixProvider *dpp, 
+int RGWBucket::check_object_index(const DoutPrefixProvider *dpp,
                                   RGWBucketAdminOpState& op_state,
                                   RGWFormatterFlusher& flusher,
                                   optional_yield y,
@@ -618,7 +618,7 @@ static int check_index_olh(rgw::sal::RadosStore* const rados_store,
                            const DoutPrefixProvider *dpp,
                            RGWBucketAdminOpState& op_state,
                            RGWFormatterFlusher& flusher,
-                           const int shard, 
+                           const int shard,
                            uint64_t* const count_out,
                            optional_yield y)
 {
@@ -635,11 +635,11 @@ static int check_index_olh(rgw::sal::RadosStore* const rados_store,
     ldpp_dout(dpp, -1) << "ERROR bs.init(bucket=" << bucket << "): " << cpp_strerror(-ret) << dendl;
     return ret;
   }
-  
+
   *count_out = 0;
   do {
     entries.clear();
-    ret = store->bi_list(bs, "", marker, -1, &entries, &is_truncated, y);
+    ret = store->bi_list(bs, "", marker, -1, &entries, &is_truncated, false, y);
     if (ret < 0) {
       ldpp_dout(dpp, -1) << "ERROR bi_list(): " << cpp_strerror(-ret) << dendl;
       break;
@@ -721,7 +721,7 @@ int RGWBucket::check_index_olh(rgw::sal::RadosStore* const rados_store,
     ldpp_dout(dpp, 0) << "WARNING: this command is only applicable to versioned buckets" << dendl;
     return 0;
   }
-  
+
   Formatter* formatter = flusher.get_formatter();
   if (op_state.dump_keys) {
     formatter->open_array_section("");
@@ -737,10 +737,10 @@ int RGWBucket::check_index_olh(rgw::sal::RadosStore* const rados_store,
   const int max_shards = rgw::num_shards(index_layout.normal);
   std::string verb = op_state.will_fix_index() ? "removed" : "found";
   uint64_t count_out = 0;
-  
+
   boost::asio::io_context context;
   int next_shard = 0;
-  
+
   const int max_aio = std::max(1, op_state.get_max_aio());
 
   for (int i=0; i<max_aio; i++) {
@@ -755,7 +755,7 @@ int RGWBucket::check_index_olh(rgw::sal::RadosStore* const rados_store,
         uint64_t shard_count;
         int r = ::check_index_olh(rados_store, &*bucket, dpp, op_state, flusher, shard, &shard_count, y);
         if (r < 0) {
-          ldpp_dout(dpp, -1) << "NOTICE: error processing shard " << shard << 
+          ldpp_dout(dpp, -1) << "NOTICE: error processing shard " << shard <<
             " check_index_olh(): " << r << dendl;
         }
         count_out += shard_count;
@@ -842,7 +842,7 @@ static int check_index_unlinked(rgw::sal::RadosStore* const rados_store,
                                 const DoutPrefixProvider *dpp,
                                 RGWBucketAdminOpState& op_state,
                                 RGWFormatterFlusher& flusher,
-                                const int shard, 
+                                const int shard,
                                 uint64_t* const count_out,
                                 optional_yield y)
 {
@@ -862,11 +862,11 @@ static int check_index_unlinked(rgw::sal::RadosStore* const rados_store,
 
   ceph::real_clock::time_point now = ceph::real_clock::now();
   ceph::real_clock::time_point not_after = now - op_state.min_age;
-  
+
   *count_out = 0;
   do {
     entries.clear();
-    ret = store->bi_list(bs, "", marker, -1, &entries, &is_truncated, y);
+    ret = store->bi_list(bs, "", marker, -1, &entries, &is_truncated, false, y);
     if (ret < 0) {
       ldpp_dout(dpp, -1) << "ERROR bi_list(): " << cpp_strerror(-ret) << dendl;
       break;
@@ -941,7 +941,7 @@ int RGWBucket::check_index_unlinked(rgw::sal::RadosStore* const rados_store,
     ldpp_dout(dpp, 0) << "WARNING: this command is only applicable to versioned buckets" << dendl;
     return 0;
   }
-  
+
   Formatter* formatter = flusher.get_formatter();
   if (op_state.dump_keys) {
     formatter->open_array_section("");
@@ -950,7 +950,7 @@ int RGWBucket::check_index_unlinked(rgw::sal::RadosStore* const rados_store,
   const int max_shards = rgw::num_shards(bucket_info.layout.current_index);
   std::string verb = op_state.will_fix_index() ? "removed" : "found";
   uint64_t count_out = 0;
-  
+
   int max_aio = std::max(1, op_state.get_max_aio());
   int next_shard = 0;
   boost::asio::io_context context;
@@ -965,7 +965,7 @@ int RGWBucket::check_index_unlinked(rgw::sal::RadosStore* const rados_store,
         uint64_t shard_count;
         int r = ::check_index_unlinked(rados_store, &*bucket, dpp, op_state, flusher, shard, &shard_count, yield);
         if (r < 0) {
-          ldpp_dout(dpp, -1) << "ERROR: error processing shard " << shard << 
+          ldpp_dout(dpp, -1) << "ERROR: error processing shard " << shard <<
             " check_index_unlinked(): " << r << dendl;
         }
         count_out += shard_count;
@@ -1433,7 +1433,7 @@ int RGWBucketAdminOp::check_index(rgw::sal::Driver* driver,
   }
 
   dump_index_check(existing_stats, calculated_stats, formatter);
-  
+
   formatter->close_section();
   flusher.flush();
 
@@ -1442,7 +1442,7 @@ int RGWBucketAdminOp::check_index(rgw::sal::Driver* driver,
 
 int RGWBucketAdminOp::remove_bucket(rgw::sal::Driver* driver, const rgw::SiteConfig& site,
                                     RGWBucketAdminOpState& op_state,
-				    optional_yield y, const DoutPrefixProvider *dpp, 
+				    optional_yield y, const DoutPrefixProvider *dpp,
                                     bool bypass_gc, bool keep_index_consistent, bool forwarded_request)
 {
   std::unique_ptr<rgw::sal::Bucket> bucket;
@@ -1576,7 +1576,7 @@ static int bucket_stats(rgw::sal::Driver* driver,
     bufferlist::const_iterator piter{&iter->second};
     try {
       tagset.decode(piter);
-      tagset.dump(formatter); 
+      tagset.dump(formatter);
     } catch (buffer::error& err) {
       cerr << "ERROR: caught buffer:error, couldn't decode TagSet" << std::endl;
     }
@@ -2578,7 +2578,7 @@ static void get_md5_digest(const RGWBucketEntryPoint *be, string& md5_digest) {
    md5_digest = md5;
 }
 
-#define ARCHIVE_META_ATTR RGW_ATTR_PREFIX "zone.archive.info" 
+#define ARCHIVE_META_ATTR RGW_ATTR_PREFIX "zone.archive.info"
 
 struct archive_meta_info {
   rgw_bucket orig_bucket;
@@ -3755,4 +3755,3 @@ void RGWBucketEntryPoint::decode_json(JSONObj *obj) {
     JSONDecoder::decode_json("old_bucket_info", old_bucket_info, obj);
   }
 }
-
