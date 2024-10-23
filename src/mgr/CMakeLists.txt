@@ -41,6 +41,12 @@ if(WITH_MGR)
   if(WITH_LIBCEPHSQLITE)
     target_link_libraries(ceph-mgr cephsqlite SQLite3::SQLite3)
   endif()
+
+  add_subdirectory(${CMAKE_SOURCE_DIR}/src/wasmtime/crates/c-api ${CMAKE_CURRENT_BINARY_DIR}/wasmtime)
+  target_include_directories(ceph-mgr PUBLIC ${CMAKE_SOURCE_DIR}/wasmtime/include)
+  target_include_directories(ceph-mgr PUBLIC ${CMAKE_SOURCE_DIR}/wasmtime/crates/c-api/include)
+  target_include_directories(ceph-mgr PUBLIC ${CMAKE_SOURCE_DIR}/src/wasmtime-cpp/include)
+
   target_include_directories(ceph-mgr PRIVATE
     $<TARGET_PROPERTY:RocksDB::RocksDB,INTERFACE_INCLUDE_DIRECTORIES>)
   target_link_libraries(ceph-mgr
@@ -48,6 +54,7 @@ if(WITH_MGR)
     global-static ceph-common
     Boost::python${MGR_PYTHON_VERSION_MAJOR}${MGR_PYTHON_VERSION_MINOR}
     Python3::Python
+    wasmtime
     ${ALLOC_LIBS}
     ${CMAKE_DL_LIBS}
     ${GSSAPI_LIBRARIES})

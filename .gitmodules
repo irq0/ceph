@@ -82,3 +82,9 @@
 	path = src/nvmeof/gateway
 	url = https://github.com/ceph/ceph-nvmeof.git
 	fetchRecurseSubmodules = false
+[submodule "src/wasmtime"]
+	path = src/wasmtime
+	url = https://github.com/bytecodealliance/wasmtime.git
+[submodule "src/wasmtime-cpp"]
+	path = src/wasmtime-cpp
+	url = https://github.com/bytecodealliance/wasmtime-cpp.git
