@@ -21,6 +21,8 @@
 #include "global/global_context.h"
 #include "global/signal_handler.h"
 
+#include <wasmtime.hh>
+
 #ifdef WITH_LIBCEPHSQLITE
 #  include <sqlite3.h>
 #  include "include/libcephsqlite.h"

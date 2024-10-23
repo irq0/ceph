@@ -17,6 +17,7 @@
 #include "common/errno.h"
 #include "common/signal.h"
 #include "include/compat.h"
+#include <wasmtime.hh>
 
 #include "include/stringify.h"
 #include "global/global_context.h"
@@ -124,6 +125,23 @@ int MgrStandby::init()
   cct->_conf.add_observer(this);
 
   std::lock_guard l(lock);
+
+  wasmtime::Engine engine;
+  wasmtime::Store store(engine);
+  auto module = wasmtime::Module::compile(engine, R"(
+(module
+  (func $hello (import "" "hello"))
+  (func (export "run") (call $hello))
+)
+)").unwrap();
+  auto host_func =
+      wasmtime::Func::wrap(store, []() {
+	derr << "hello wasm callback" << dendl;
+      });
+  auto instance = wasmtime::Instance::create(store, module, {host_func}).unwrap();
+
+  auto run = std::get<wasmtime::Func>(*instance.get(store, "run"));
+  run.call(store, {}).unwrap();
 
   // Start finisher
   finisher.start();
