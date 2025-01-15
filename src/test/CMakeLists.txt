@@ -1022,3 +1022,11 @@ add_executable(test_nvmeof_mon_encoding
 target_link_libraries(test_nvmeof_mon_encoding
   mon ceph-common global-static
   )
+
+# micro benchmarks
+find_package(benchmark REQUIRED)
+add_executable(bench_lrus
+  bench_lrus.cc
+  )
+# add_ceph_unittest(unittest_lru)
+target_link_libraries(bench_lrus ceph-common global-static benchmark::benchmark)
