@@ -1146,6 +1146,10 @@ class KMSContext : public SSEContext {
     secrets_cache(cct).purge(id);
   }
 
+  void clear_cache() {
+    secrets_cache(cct).clear();
+  }
+
   bool cache_enabled() {
     return cct->_conf->rgw_crypt_s3_kms_cache_enabled;
   }
