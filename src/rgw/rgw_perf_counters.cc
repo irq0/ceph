@@ -60,6 +60,7 @@ void add_rgw_frontend_counters(PerfCountersBuilder *pcb) {
   pcb->add_u64_counter(l_rgw_lua_script_fail, "lua_script_fail", "Failed executions of Lua scripts");
   pcb->add_u64(l_rgw_lua_current_vms, "lua_current_vms", "Number of Lua VMs currently being executed");
 
+  pcb->add_time_avg(l_rgw_kms_fetch_lat, "kms_fetch_lat", "SSE-KMS secret fetch latency");
   pcb->add_u64_counter(l_rgw_kms_cache_hit, "kms_cache_hit", "SSE-KMS secret cache hits");
   pcb->add_u64_counter(l_rgw_kms_cache_miss, "kms_cache_miss", "SSE-KMS secret cache misses");
   pcb->add_u64(l_rgw_kms_cache_size, "kms_cache_size", "SSE-KMS secret cache entries");

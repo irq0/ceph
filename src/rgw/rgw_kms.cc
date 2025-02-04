@@ -7,6 +7,7 @@
 
 #include <sys/stat.h>
 #include "common/ceph_crypto.h"
+#include "common/perf_counters.h"
 #include "common/shared_cache.hpp"
 #include "include/str_map.h"
 #include "common/safe_io.h"
@@ -1249,6 +1250,7 @@ int reconstitute_actual_key_from_kms(const DoutPrefixProvider *dpp,
   }
 
   const int ret = [&]() {
+    common::PerfGuard latency(perfcounter, l_rgw_kms_fetch_lat);
     if (RGW_SSE_KMS_BACKEND_BARBICAN == kms_backend) {
       return get_actual_key_from_barbican(dpp, key_id, y, actual_key);
     }
