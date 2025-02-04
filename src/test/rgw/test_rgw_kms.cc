@@ -332,6 +332,11 @@ class TestSSEKMSWithTestingKMS : public ::testing::Test {
     perfcounter->reset();
   }
 
+  void SetUp() override {
+    KMSContext kctx { cct.get() };
+    kctx.clear_cache();
+  }
+
   void TearDown() override {
     const auto lat = perfcounter->get_tavg_ns(l_rgw_kms_fetch_lat);
     lderr(cct.get())
