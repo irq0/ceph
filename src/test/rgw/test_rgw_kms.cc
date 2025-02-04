@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "common/ceph_context.h"
+#include "rgw/rgw_perf_counters.h"
 #include "rgw_common.h"
 #define FORTEST_VIRTUAL virtual
 #include "rgw_kms.cc"
@@ -328,6 +329,20 @@ class TestSSEKMSWithTestingKMS : public ::testing::Test {
         "rgw_crypt_s3_kms_encryption_keys",
         "foo=IyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyM=");
     rgw_perf_start(cct.get());
+    perfcounter->reset();
+  }
+
+  void TearDown() override {
+    const auto lat = perfcounter->get_tavg_ns(l_rgw_kms_fetch_lat);
+    lderr(cct.get())
+	<< "SSE-KMS Metrics: \n"
+	<< fmt::format("fetch lat: sum:{} count:{} avg_us:{}\n",
+		       lat.second, lat.first, (static_cast<double>(lat.second)/static_cast<double>(lat.first))/1000.0)
+	<< fmt::format("hit:{} miss:{} size:{}",
+		       perfcounter->get(l_rgw_kms_cache_hit),
+		       perfcounter->get(l_rgw_kms_cache_miss),
+		       perfcounter->get(l_rgw_kms_cache_size))
+      << dendl;
   }
 };
 
