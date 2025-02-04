@@ -393,3 +393,34 @@ TEST_F(
   ASSERT_EQ(perfcounter->get(l_rgw_kms_cache_size), 1);
 }
 
+TEST_F(
+    TestSSEKMSWithTestingKMS,
+    test_thundering_herd) {
+  cct->_conf.set_val("rgw_crypt_s3_kms_cache_enabled", "true");
+  cct->_conf.set_val("rgw_crypt_s3_kms_testing_delay", "1000");
+
+  auto do_reconstitue = [&]() {
+    std::string actual_key;
+    const int ret =
+	reconstitute_actual_key_from_kms(&no_dpp, attrs, null_yield, actual_key);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(actual_key, "********************************");
+  };
+
+  const auto num_threads =
+      std::max(std::thread::hardware_concurrency()*100,
+	       100U);
+  std::vector<std::thread> threads;
+  for (size_t i=0; i<num_threads; ++i) {
+    threads.emplace_back(do_reconstitue);
+  }
+  for (auto& th : threads) {
+    th.join();
+  }
+
+  // TODO refine checks. how to make this robust on machiens with limited paralellism ? 
+  ASSERT_GT(perfcounter->get(l_rgw_kms_cache_hit), 1);
+  ASSERT_LE(perfcounter->get(l_rgw_kms_cache_miss), 1);
+  ASSERT_EQ(perfcounter->get(l_rgw_kms_cache_size), 1);
+}
+
