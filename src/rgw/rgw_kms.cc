@@ -19,7 +19,9 @@
 #include <rapidjson/allocators.h>
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
+#include <chrono>
 #include <optional>
+#include <thread>
 #include "rapidjson/error/error.h"
 #include "rapidjson/error/en.h"
 #include "rgw_perf_counters.h"
@@ -1267,6 +1269,8 @@ int reconstitute_actual_key_from_kms(const DoutPrefixProvider *dpp,
     if (RGW_SSE_KMS_BACKEND_TESTING == kms_backend) {
       std::string key_selector =
           get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYSEL);
+      std::this_thread::sleep_for(std::chrono::milliseconds(
+          dpp->get_cct()->_conf->rgw_crypt_s3_kms_testing_delay));
       return get_actual_key_from_conf(dpp, key_id, key_selector, actual_key);
     }
     ldpp_dout(dpp, 0) << "ERROR: Invalid rgw_crypt_s3_kms_backend: "
