@@ -55,6 +55,7 @@
 #include "rgw_process.h"
 #include "rgw_frontend.h"
 #include "rgw_http_client_curl.h"
+#include "rgw_kms.h"
 #include "rgw_kmip_client.h"
 #include "rgw_kmip_client_impl.h"
 #include "rgw_perf_counters.h"
@@ -584,6 +585,8 @@ void rgw::AppMain::shutdown(std::function<void(void)> finalize_async_signals)
     reloader.reset(); // stop the realm reloader
     static_cast<rgw::sal::RadosLuaManager*>(env.lua.manager.get())->unwatch_reload(dpp);
   }
+
+  rgw_kms_cleanup(g_ceph_context);
 
   for (auto& fe : fes) {
     fe->stop();
