@@ -451,7 +451,7 @@ class WebCacheConcurrencyTest : public WebCacheTest {
   void TearDown() override {
     if (_uut->perf() != nullptr) {
       JSONFormatter f(true);
-      _uut->perf()->dump_formatted(&f, false, select_labeled_t::labeled);
+      _uut->perf()->dump_formatted(&f, false, true);
       f.flush(std::cout);
       _uut->perf()->reset();
     }
@@ -568,7 +568,7 @@ class WebCacheRandomizedTest : public WebCacheTest {
   void TearDown() override {
     if (_uut->perf() != nullptr) {
       JSONFormatter f(true);
-      _uut->perf()->dump_formatted(&f, false, select_labeled_t::labeled);
+      _uut->perf()->dump_formatted(&f, false, true);
       f.flush(std::cout);
       _uut->perf()->reset();
     }
