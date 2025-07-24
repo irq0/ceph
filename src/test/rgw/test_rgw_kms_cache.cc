@@ -218,7 +218,7 @@ class TestSSEKMSWithTestingKMS : public ::testing::Test {
 
   void TearDown() override {
     JSONFormatter f(true);
-    cache_perf->dump_formatted(&f, false, select_labeled_t::labeled);
+    cache_perf->dump_formatted(&f, false, true);
     f.flush(std::cout);
     cct->get_perfcounters_collection()->with_counters(
         [&](const PerfCountersCollectionImpl::CounterMap& by_path) {
