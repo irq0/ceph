@@ -73,7 +73,7 @@ void KMSCache::make_ttl_reaper_async(
   auto context = make_strand(executor);
   boost::asio::spawn(
       context,
-      [cct, &cache, ttl](const boost::asio::yield_context& yield) {
+      [cct, &cache, ttl](const boost::asio::yield_context &yield) {
         ldout(cct, 10) << "KMS Cache: Starting async TTL reaper, running every "
                        << ttl << dendl;
         boost::asio::steady_timer timer(yield.get_executor());
@@ -92,7 +92,8 @@ void KMSCache::make_ttl_reaper_async(
       },
       boost::asio::bind_cancellation_slot(
           cancel_signal.slot(),
-          boost::asio::bind_executor(context, boost::asio::detached)));
+          boost::asio::bind_executor(context,
+                                     [](const auto &) { /* do nothing */ })));
 }
 
 KMSCache::KMSCache(
