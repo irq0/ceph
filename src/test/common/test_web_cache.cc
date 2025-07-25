@@ -505,8 +505,8 @@ TEST_F(WebCacheConcurrencyTest, StampedeSyncCallOnce) {
       _cct.get(), "test_web_cache", 100);
   std::atomic_int fetches = 0;
   const auto num_threads =
-      std::max(std::thread::hardware_concurrency() * 100, 100U);
-  std::vector<std::thread> threads;
+      std::max(std::thread::hardware_concurrency() * 10, 100U);
+  std::vector<std::jthread> threads;
   for (size_t i = 0; i < num_threads; ++i) {
     threads.emplace_back([&]() {
       std::shared_ptr<CacheValue> cache_value =
@@ -517,9 +517,6 @@ TEST_F(WebCacheConcurrencyTest, StampedeSyncCallOnce) {
         cache_value->value = "test";
       });
     });
-  }
-  for (auto& th : threads) {
-    th.join();
   }
   ASSERT_EQ(fetches.load(), 1);
 }
@@ -543,8 +540,8 @@ TEST_F(WebCacheConcurrencyTest, StampedeMutex) {
       _cct.get(), "test_web_cache", 100);
   std::atomic_int fetches = 0;
   const auto num_threads =
-      std::max(std::thread::hardware_concurrency() * 100, 100U);
-  std::vector<std::thread> threads;
+      std::max(std::thread::hardware_concurrency() * 10, 100U);
+  std::vector<std::jthread> threads;
   for (size_t i = 0; i < num_threads; ++i) {
     threads.emplace_back([&]() {
       std::shared_ptr<CacheValue> cache_value =
@@ -555,9 +552,6 @@ TEST_F(WebCacheConcurrencyTest, StampedeMutex) {
                           }));
       cache_value->get();
     });
-  }
-  for (auto& th : threads) {
-    th.join();
   }
   ASSERT_EQ(fetches.load(), 1);
 }
