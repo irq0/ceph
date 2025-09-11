@@ -408,7 +408,8 @@ void rgw_cls_bi_entry::dump(Formatter *f) const
 
 bool rgw_cls_bi_entry::get_info(cls_rgw_obj_key *key,
                                 RGWObjCategory *category,
-                                rgw_bucket_category_stats *accounted_stats)
+                                rgw_bucket_category_stats *accounted_stats,
+                                string *storage_class) const
 {
   using ceph::decode;
   auto iter = data.cbegin();
@@ -428,6 +429,7 @@ bool rgw_cls_bi_entry::get_info(cls_rgw_obj_key *key,
   rgw_bucket_dir_entry entry;
   decode(entry, iter);
   *key = entry.key;
+  *storage_class = entry.meta.storage_class;
   *category = entry.meta.category;
   accounted_stats->num_entries++;
   accounted_stats->total_size += entry.meta.accounted_size;
@@ -929,7 +931,7 @@ void cls_rgw_lc_entry::generate_test_instances(list<cls_rgw_lc_entry*>& o)
   o.push_back(new cls_rgw_lc_entry);
 }
 
-void cls_rgw_lc_obj_head::dump(Formatter *f) const 
+void cls_rgw_lc_obj_head::dump(Formatter *f) const
 {
   encode_json("start_date", start_date, f);
   encode_json("marker", marker, f);
