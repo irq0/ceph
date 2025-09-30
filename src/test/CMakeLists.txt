@@ -226,7 +226,7 @@ if(${WITH_RADOSGW})
     ${CMAKE_DL_LIBS} ${UNITTEST_LIBS})
 
   # ceph_test_cls_rgw_admin_account_quota_set
-  set(test_cls_rgw_admin_account_quota_set_srcs 
+  set(test_cls_rgw_admin_account_quota_set_srcs
     test_rgw_admin_account_quota_set.cc
     test_rgw_admin_helper.cc
   )
@@ -1089,3 +1089,22 @@ target_link_libraries(test_nvmeof_gw_utils
   mon ceph-common global-static
   )
 
+find_package(benchmark QUIET)
+if (benchmark_FOUND)
+  add_executable(bench_rgw_lua
+  bench_rgw_lua.cc
+  )
+
+
+  target_link_libraries(bench_rgw_lua rgw librados ceph-common benchmark::benchmark
+  ${UNITTEST_LIBS}
+  ${EXTRALIBS}
+  ${LUA_LIBRARIES}
+  ${ALLOC_LIBS}
+)
+target_include_directories(bench_rgw_lua
+  SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/rgw"
+  SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/rgw/driver/rados")
+else()
+  message(STATUS "Google Benchmark not found. Skipping micro benchmark tests")
+endif()
