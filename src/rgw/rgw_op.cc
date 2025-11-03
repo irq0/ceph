@@ -70,6 +70,8 @@
 #include "rgw_bucket_sync.h"
 #include "rgw_bucket_logging.h"
 #include "rgw_restore.h"
+#include "rgw_kmip_sse_s3.h"
+
 
 #include "services/svc_zone.h"
 #include "services/svc_quota.h"
@@ -9596,6 +9598,11 @@ void RGWPutBucketEncryption::execute(optional_yield y)
     op_ret = -ERR_MALFORMED_XML;
     return;
   }
+  
+  if (bucket_encryption_conf.is_sse_s3()) {
+    // TODO: check if KMIP is kms_backend
+    // add kek creation logic
+  }
 
   op_ret = rgw_forward_request_to_master(this, *s->penv.site, s->owner.id,
                                          &data, nullptr, s->info, s->err, y);
@@ -9658,6 +9665,8 @@ void RGWDeleteBucketEncryption::execute(optional_yield y)
     ldpp_dout(this, 0) << "forward_request_to_master returned ret=" << op_ret << dendl;
     return;
   }
+
+  //TODO: add kek manager destroyer logic here
 
   op_ret = retry_raced_bucket_write(this, s->bucket.get(), [this, y] {
     rgw::sal::Attrs& attrs = s->bucket->get_attrs();

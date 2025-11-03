@@ -398,6 +398,7 @@ set(rgw_a_srcs
   rgw_frontend.cc
   rgw_http_client_curl.cc
   rgw_kmip_client_impl.cc
+  rgw_kmip_sse_s3.cc 
   rgw_lib.cc
   rgw_loadgen.cc
   rgw_loadgen_process.cc
