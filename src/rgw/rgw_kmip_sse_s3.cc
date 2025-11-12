@@ -1,0 +1,383 @@
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+// vim: ts=8 sw=2 smarttab ft=cpp
+
+#include "rgw_kmip_sse_s3.h"
+#include "rgw_kmip_client_impl.h"
+
+extern "C" {
+#include "kmip.h"
+#include "kmip_bio.h"
+}
+
+#include <openssl/rand.h>
+
+#define dout_subsys ceph_subsys_rgw
+
+// Global singleton
+static RGWKmipSSES3* g_kmip_sse_s3_backend = nullptr;
+static ceph::mutex g_kmip_sse_s3_lock = ceph::make_mutex("kmip_sse_s3");
+
+RGWKmipSSES3::RGWKmipSSES3(CephContext* cct) 
+  : cct(cct) {
+}
+
+RGWKmipSSES3::~RGWKmipSSES3() {
+  if (kmip_manager) {
+    kmip_manager->stop();
+  }
+}
+
+int RGWKmipSSES3::initialize() {
+  kmip_manager = new RGWKMIPManagerImpl(cct);
+  if (!kmip_manager) {
+    ldout(cct, 0) << "ERROR: Failed to create KMIP manager" << dendl;
+    return -ENOMEM;
+  }
+  
+  int ret = kmip_manager->start();
+  if (ret < 0) {
+    ldout(cct, 0) << "ERROR: Failed to start KMIP manager: " 
+                  << cpp_strerror(ret) << dendl;
+    delete kmip_manager;
+    kmip_manager = nullptr;
+    return ret;
+  }
+  
+  ldout(cct, 10) << "KMIP SSE-S3 backend initialized" << dendl;
+  return 0;
+}
+
+int RGWKmipSSES3::create_bucket_key(const DoutPrefixProvider* dpp,
+                                     const std::string& bucket_name,
+                                     std::string& kek_id_out) {
+  ldpp_dout(dpp, 20) << "Creating KEK for bucket: " << bucket_name << dendl;
+  
+  struct CreateAndActivateKey : public RGWKMIPTransceiver {
+  std::string kek_id;
+  const DoutPrefixProvider* dpp;
+  
+  int execute(KMIP* ctx, BIO* bio) override {
+    char* key_id = nullptr;
+    int key_id_size = 0;
+    
+    // Build TemplateAttribute for 256-bit AES key
+    TemplateAttribute template_attr = {0};
+    template_attr.names = nullptr;
+    template_attr.count = 0;
+    
+    // We need to populate attributes properly
+    // For a basic symmetric key creation, we need:
+    // 1. Cryptographic Algorithm (AES)
+    // 2. Cryptographic Length (256 bits)
+    // 3. Cryptographic Usage Mask (Encrypt, Decrypt)
+    
+    Attribute attrs[3] = {0};
+    int attr_count = 0;
+    
+    // Attribute 1: Cryptographic Algorithm = AES
+    attrs[0].type = KMIP_ATTR_CRYPTOGRAPHIC_ALGORITHM;
+    attrs[0].value = ctx->calloc_func(ctx->state, 1, sizeof(int32));
+    if (!attrs[0].value) {
+      ldpp_dout(dpp, 0) << "KMIP: Failed to allocate algorithm" << dendl;
+      return -ENOMEM;
+    }
+    *(int32*)attrs[0].value = KMIP_CRYPTOALG_AES;
+    
+    // Attribute 2: Cryptographic Length = 256 bits
+    attrs[1].type = KMIP_ATTR_CRYPTOGRAPHIC_LENGTH;
+    attrs[1].value = ctx->calloc_func(ctx->state, 1, sizeof(int32));
+    if (!attrs[1].value) {
+      ctx->free_func(ctx->state, attrs[0].value);
+      ldpp_dout(dpp, 0) << "KMIP: Failed to allocate length" << dendl;
+      return -ENOMEM;
+    }
+    *(int32*)attrs[1].value = 256;
+    
+    // Attribute 3: Cryptographic Usage Mask (Encrypt + Decrypt)
+    attrs[2].type = KMIP_ATTR_CRYPTOGRAPHIC_USAGE_MASK;
+    attrs[2].value = ctx->calloc_func(ctx->state, 1, sizeof(int32));
+    if (!attrs[2].value) {
+      ctx->free_func(ctx->state, attrs[0].value);
+      ctx->free_func(ctx->state, attrs[1].value);
+      ldpp_dout(dpp, 0) << "KMIP: Failed to allocate usage mask" << dendl;
+      return -ENOMEM;
+    }
+    *(int32*)attrs[2].value = KMIP_CRYPTOMASK_ENCRYPT | KMIP_CRYPTOMASK_DECRYPT;
+    
+    attr_count = 3;
+    
+    // Set up template attributes
+    template_attr.attributes = attrs;
+    template_attr.attribute_count = attr_count;
+    
+    // Create key with template
+    int ret = kmip_bio_create_symmetric_key_with_context(
+      ctx, bio,
+      &template_attr,
+      &key_id,
+      &key_id_size
+    );
+    
+    // Cleanup attributes
+    for (int i = 0; i < attr_count; i++) {
+      if (attrs[i].value) {
+        ctx->free_func(ctx->state, attrs[i].value);
+      }
+    }
+    
+    if (ret != KMIP_OK || !key_id) {
+      ldpp_dout(dpp, 0) << "KMIP create failed: " << ret << dendl;
+      return -EIO;
+    }
+    
+    kek_id = std::string(key_id, key_id_size);
+    
+    // Activate key
+    ret = kmip_bio_activate_with_context(ctx, bio, key_id);
+    
+    // Cleanup key_id
+    kmip_free_buffer(ctx, key_id, key_id_size);
+    
+    if (ret != KMIP_OK) {
+      ldpp_dout(dpp, 0) << "KMIP activate failed: " << ret << dendl;
+      return -EIO;
+    }
+    return 0;
+    }
+  };
+
+  CreateAndActivateKey op;
+  op.dpp = dpp;
+  
+  int ret = kmip_manager->add_request(&op);
+  if (ret < 0) {
+    ldpp_dout(dpp, 0) << "Failed to queue request" << dendl;
+    return ret;
+  }
+  
+  ret = op.wait();
+  if (ret < 0) {
+    ldpp_dout(dpp, 0) << "Create KEK failed" << dendl;
+    return ret;
+  }
+  
+  kek_id_out = op.kek_id;
+  ldpp_dout(dpp, 10) << "Created KEK: " << kek_id_out << dendl;
+  return 0;
+}
+
+int RGWKmipSSES3::destroy_bucket_key(const DoutPrefixProvider* dpp,
+                                      const std::string& kek_id) {
+  ldpp_dout(dpp, 10) << "Destroying KEK: " << kek_id << dendl;
+  
+  struct DestroyKey : public RGWKMIPTransceiver {
+    std::string kek_id;
+    
+    int execute(KMIP* ctx, BIO* bio) override {
+      int ret = kmip_bio_destroy_with_context(ctx, bio, kek_id.c_str());
+      return (ret == KMIP_OK) ? 0 : -EIO;
+    }
+  };
+  
+  DestroyKey op;
+  op.kek_id = kek_id;
+  
+  int ret = kmip_manager->add_request(&op);
+  if (ret < 0) return ret;
+  
+  ret = op.wait();
+  if (ret < 0) {
+    ldpp_dout(dpp, 0) << "Destroy KEK failed" << dendl;
+  }
+  return ret;
+}
+
+int RGWKmipSSES3::generate_and_wrap_dek(const DoutPrefixProvider* dpp,
+                                         const std::string& kek_id,
+                                         const std::string& encryption_context,
+                                         bufferlist& plaintext_dek_out,
+                                         bufferlist& wrapped_dek_out) {
+  // Generate random DEK
+  unsigned char dek[32];
+  if (RAND_bytes(dek, 32) != 1) {
+    ldpp_dout(dpp, 0) << "Failed to generate DEK" << dendl;
+    return -EIO;
+  }
+  
+  plaintext_dek_out.append((char*)dek, 32);
+  ldpp_dout(dpp, 20) << "Wrapping DEK with KEK: " << kek_id << dendl;
+  
+  // Wrap DEK with KMIP
+  struct WrapDEK : public RGWKMIPTransceiver {
+    std::string kek_id;
+    const unsigned char* dek_ptr;
+    bufferlist wrapped_dek;
+    const DoutPrefixProvider* dpp;
+    
+    int execute(KMIP* ctx, BIO* bio) override {
+        // Set up cryptographic parameters
+        CryptographicParameters params = {0};
+        kmip_init_cryptographic_parameters(&params);
+        params.cryptographic_algorithm = KMIP_CRYPTOALG_AES;
+        params.block_cipher_mode = KMIP_BLOCK_CBC;
+        params.padding_method = KMIP_PAD_PKCS5;
+        params.random_iv = KMIP_TRUE;  // Server generates IV
+
+        uint8* ciphertext = nullptr;
+        int ciphertext_size = 0;
+        uint8* iv = nullptr;
+        int iv_size = 0;
+        
+      int kmip_bio_encrypt_with_context(
+        ctx, bio,
+        const_cast<char*>(kek_id.c_str()),  // key_id
+        kek_id.length(),                     // key_id_size
+        const_cast<uint8*>(dek_ptr),        // plaintext
+        32,                                  // plaintext_size (256-bit DEK)
+        &params,                             // crypto params
+        &ciphertext,                         // ciphertext out
+        &ciphertext_size,                    // ciphertext size out
+        &iv,                                 // IV out
+        &iv_size                             // IV size out
+        );
+      
+      if (ret != KMIP_OK) {
+        ldpp_dout(dpp, 0) << "KMIP encrypt failed" << dendl;
+        return -EIO;
+      }
+      
+      // Package: [IV_SIZE(4 bytes)][IV][CIPHERTEXT]
+      uint32_t iv_sz = iv_size;
+      wrapped_dek.append((char*)&iv_sz, sizeof(iv_sz));
+      wrapped_dek.append((char*)iv, iv_size);
+      wrapped_dek.append((char*)ciphertext, ciphertext_size);
+      
+      kmip_free_buffer(ctx, ciphertext, ciphertext_size);
+      kmip_free_buffer(ctx, iv, iv_size);
+      return 0;
+    }
+  };
+  
+  WrapDEK op;
+  op.kek_id = kek_id;
+  op.dek_ptr = dek;
+  op.dpp = dpp;
+  
+  int ret = kmip_manager->add_request(&op);
+  
+  // Always zero sensitive data
+  explicit_bzero(dek, 32);
+  
+  if (ret < 0) return ret;
+  
+  ret = op.wait();
+  if (ret < 0) {
+    ldpp_dout(dpp, 0) << "Wrap DEK failed" << dendl;
+    return ret;
+  }
+  
+  wrapped_dek_out = std::move(op.wrapped_dek);
+  ldpp_dout(dpp, 20) << "Successfully wrapped DEK" << dendl;
+  return 0;
+}
+
+int RGWKmipSSES3::unwrap_dek(const DoutPrefixProvider* dpp,
+                              const std::string& kek_id,
+                              const bufferlist& wrapped_dek,
+                              const std::string& encryption_context,
+                              bufferlist& plaintext_dek_out) {
+  ldpp_dout(dpp, 20) << "Unwrapping DEK with KEK: " << kek_id << dendl;
+  
+  struct UnwrapDEK : public RGWKMIPTransceiver {
+    std::string kek_id;
+    bufferlist wrapped_dek;
+    bufferlist plaintext_dek;
+    const DoutPrefixProvider* dpp;
+    
+    int execute(KMIP* ctx, BIO* bio) override {
+      // 1. Unpack wrapped DEK: [IV_SIZE][IV][CIPHERTEXT]
+      const char* data = wrapped_dek.c_str();
+      uint32_t iv_size;
+      memcpy(&iv_size, data, sizeof(iv_size));
+      
+      const uint8* iv = (uint8*)(data + sizeof(iv_size));
+      const uint8* ciphertext = iv + iv_size;
+      size_t ct_size = wrapped_dek.length() - sizeof(iv_size) - iv_size;
+      
+      // Set up cryptographic parameters
+      CryptographicParameters params = {0};
+      kmip_init_cryptographic_parameters(&params);
+      params.cryptographic_algorithm = KMIP_CRYPTOALG_AES;
+      params.block_cipher_mode = KMIP_BLOCK_CBC;
+      params.padding_method = KMIP_PAD_PKCS5;
+      params.random_iv = KMIP_TRUE;
+        
+      uint8* plaintext = nullptr;
+      int32 plaintext_size = 0;
+      
+      // Decrypt with KMIP
+      int ret = kmip_bio_decrypt_with_context(
+      ctx, bio,
+      const_cast<char*>(kek_id.c_str()),     // key_id
+      kek_id.length(),                        // key_id_size
+      const_cast<uint8*>(ciphertext),        // ciphertext
+      ct_size,                                // ciphertext_size
+      const_cast<uint8*>(iv),                // IV
+      iv_size,                                // IV_size
+      &params,                                // crypto params
+      &plaintext,                             // plaintext out
+      &plaintext_size                         // plaintext size out
+    );
+      
+      if (ret != KMIP_OK) {
+        ldpp_dout(dpp, 0) << "KMIP decrypt failed" << dendl;
+        return -EIO;
+      }
+      
+      plaintext_dek.append((char*)plaintext, plaintext_size);
+      kmip_free_buffer(ctx, plaintext, plaintext_size);
+      return 0;
+    }
+  };
+  
+  UnwrapDEK op;
+  op.kek_id = kek_id;
+  op.wrapped_dek = wrapped_dek;
+  op.dpp = dpp;
+  
+  int ret = kmip_manager->add_request(&op);
+  if (ret < 0) return ret;
+  
+  ret = op.wait();
+  if (ret < 0) {
+    ldpp_dout(dpp, 0) << "Unwrap DEK failed" << dendl;
+    return ret;
+  }
+  
+  plaintext_dek_out = std::move(op.plaintext_dek);
+  ldpp_dout(dpp, 20) << "Successfully unwrapped DEK" << dendl;
+  return 0;
+}
+
+RGWKmipSSES3* get_kmip_sse_s3_backend(CephContext* cct) {
+  std::unique_lock l{g_kmip_sse_s3_lock};
+  
+  if (!g_kmip_sse_s3_backend) {
+    g_kmip_sse_s3_backend = new RGWKmipSSES3(cct);
+    int ret = g_kmip_sse_s3_backend->initialize();
+    if (ret < 0) {
+      ldout(cct, 0) << "Failed to initialize KMIP SSE-S3 backend" << dendl;
+      delete g_kmip_sse_s3_backend;
+      g_kmip_sse_s3_backend = nullptr;
+    }
+  }
+  return g_kmip_sse_s3_backend;
+}
+
+void cleanup_kmip_sse_s3_backend() {
+  std::unique_lock l{g_kmip_sse_s3_lock};
+  if (g_kmip_sse_s3_backend) {
+    delete g_kmip_sse_s3_backend;
+    g_kmip_sse_s3_backend = nullptr;
+  }
+}
