@@ -443,7 +443,7 @@ target_include_directories(rgw_a
   PUBLIC "${CMAKE_SOURCE_DIR}/src/dmclock/support/src"
   PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw"
   PUBLIC "${CMAKE_SOURCE_DIR}/src/rgw/driver/rados"
-  PRIVATE "${CMAKE_SOURCE_DIR}/src/libkmip")
+  PRIVATE "${CMAKE_SOURCE_DIR}/src/libkmip/include")
 
 if(WITH_RADOSGW_AMQP_ENDPOINT)
   find_package(RabbitMQ REQUIRED)

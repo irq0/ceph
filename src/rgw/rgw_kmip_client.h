@@ -14,7 +14,9 @@ public:
     GET,
     GET_ATTRIBUTES,
     GET_ATTRIBUTE_LIST,
-    DESTROY
+    DESTROY,
+    ENCRYPT,
+    DECRYPT 
   };
   CephContext *cct;
   kmip_operation operation;
