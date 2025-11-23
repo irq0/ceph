@@ -9599,10 +9599,10 @@ void RGWPutBucketEncryption::execute(optional_yield y)
     return;
   }
   
-  if (bucket_encryption_conf.is_sse_s3()) {
-    // TODO: check if KMIP is kms_backend
-    // add kek creation logic
-  }
+ // if (bucket_encryption_conf.is_sse_s3()) {
+ //   // TODO: check if KMIP is kms_backend
+ //   // add kek creation logic
+ // }
 
   op_ret = rgw_forward_request_to_master(this, *s->penv.site, s->owner.id,
                                          &data, nullptr, s->info, s->err, y);
