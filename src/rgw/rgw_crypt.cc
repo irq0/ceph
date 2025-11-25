@@ -934,7 +934,7 @@ int create_sse_s3_bucket_key(req_state* s, std::string& key_id, optional_yield y
   }
   int ret = backend->create_bucket_key(s, s->bucket->get_name(), key_id);
   if (ret < 0) {
-    ldpp_dout(s, 0) << "KMIP create_bucket_key failed: " << cpp_strerror(ret) << dendl;
+    ldpp_dout(s, 0) << "KMIP create_bucket_key failed: " << dendl;
   }
   return ret;
 }
@@ -1060,6 +1060,7 @@ int rgw_s3_prepare_encrypt(req_state* s, optional_yield y,
   int res = 0;
   CryptAttributes crypt_attributes { s };
   crypt_http_responses.clear();
+  std::string actualkey;
 
   int ret = make_actual_key_from_sse_s3(s, attrs, y, actualkey);
   if (ret<0) return ret;
@@ -1334,6 +1335,7 @@ int rgw_s3_prepare_decrypt(req_state* s, optional_yield y,
                            std::map<std::string, std::string>& crypt_http_responses)
 {
   int res = 0;
+  std::string actualkey;
   std::string stored_mode = get_str_attribute(attrs, RGW_ATTR_CRYPT_MODE);
   ldpp_dout(s, 15) << "Encryption mode: " << stored_mode << dendl;
   int ret = reconstitute_actual_key_from_sse_s3(s, attrs, y, actualkey);

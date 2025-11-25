@@ -9599,7 +9599,7 @@ void RGWPutBucketEncryption::execute(optional_yield y)
     return;
   }
   
-    if (bucket_encryption_conf.is_sse_s3()) {
+  //  if (bucket_encryption_conf.is_sse_s3()) {
     // Check if KMIP is configured as KMS backend
     std::string kms_backend = s->cct->_conf->rgw_crypt_s3_kms_backend;
     
@@ -9610,7 +9610,7 @@ void RGWPutBucketEncryption::execute(optional_yield y)
         ldpp_dout(this, 0) << "ERROR: KMIP backend not available" << dendl;
         op_ret = -EIO;
         return;
-      }
+   //   }
       
       // Create KEK for this bucket
       std::string kek_id;
