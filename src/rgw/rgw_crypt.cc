@@ -1062,8 +1062,8 @@ int rgw_s3_prepare_encrypt(req_state* s, optional_yield y,
   crypt_http_responses.clear();
   std::string actualkey;
 
-  int ret = make_actual_key_from_sse_s3(s, attrs, y, actualkey);
-  if (ret<0) return ret;
+  // int ret = make_actual_key_from_sse_s3(s, attrs, y, actualkey);
+  // if (ret<0) return ret;
 
   {
     std::string_view req_sse_ca =
@@ -1239,7 +1239,7 @@ int rgw_s3_prepare_encrypt(req_state* s, optional_yield y,
         return -EINVAL;
       }
 
-      if (s->cct->_conf->rgw_crypt_sse_s3_backend != "vault") {
+      if (s->cct->_conf->rgw_crypt_sse_s3_backend != "vault" && s->cct->_conf->rgw_crypt_sse_s3_backend != "kmip") {
         s->err.message = "Request specifies Server Side Encryption "
             "but server configuration does not support this.";
         return -EINVAL;
@@ -1257,6 +1257,8 @@ int rgw_s3_prepare_encrypt(req_state* s, optional_yield y,
       if (res != 0) {
         return res;
       }
+
+      ldpp_dout(s, 5) << "XXX get sse s3 bucket key: " << key_id << dendl;
 
       set_attr(attrs, RGW_ATTR_CRYPT_CONTEXT, cooked_context);
       set_attr(attrs, RGW_ATTR_CRYPT_MODE, "AES256");
