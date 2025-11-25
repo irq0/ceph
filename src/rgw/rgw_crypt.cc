@@ -218,89 +218,6 @@ get_tenant_or_id(req_state *s)
     return s->user->get_id().id;
 }
 
-// Helper: get string attribute
-static std::string get_str_attribute(const std::map<std::string, bufferlist> &attrs, const std::string &key)
-{
-  auto it = attrs.find(key);
-  if (it == attrs.end())
-    return "";
-  return std::string(it->second.c_str(), it->second.length());
-}
-
-// Create bucket KEK
-int create_sse_s3_bucket_key(req_state* s, std::string& key_id, optional_yield y)
-{
-  auto backend = get_kmip_sse_s3_backend(s->cct);
-  if (!backend) {
-    ldpp_dout(s,0) << "KMIP backend unavailable" << dendl;
-    return -EIO;
-  }
-  int ret = backend->create_bucket_key(s, s->bucket->get_name(), key_id);
-  if (ret<0) ldpp_dout(s,0) << "create_bucket_key failed: " << ret << dendl;
-  return ret;
-}
-
-// Remove KEK
-int remove_sse_s3_bucket_key(req_state* s, const std::string& key_id, optional_yield y)
-{
-  auto backend = get_kmip_sse_s3_backend(s->cct);
-  if (!backend) {
-    ldpp_dout(s,0) << "KMIP backend unavailable" << dendl;
-    return -EIO;
-  }
-  return backend->destroy_bucket_key(s, key_id);
-}
-
-// Generate and wrap DEK
-int make_actual_key_from_sse_s3(req_state* s,
-                                std::map<std::string,bufferlist>& attrs,
-                                optional_yield y,
-                                std::string& actualkey)
-{
-  auto backend = get_kmip_sse_s3_backend(s->cct);
-  if (!backend) {
-    ldpp_dout(s,0) << "KMIP backend unavailable" << dendl;
-    return -EIO;
-  }
-
-  std::string kek_id = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYID);
-  if (kek_id.empty()) return -EINVAL;
-  std::string context = get_str_attribute(attrs, RGW_ATTR_CRYPT_CONTEXT);
-
-  bufferlist plaintext_dek, wrapped_dek;
-  int ret = backend->generate_and_wrap_dek(s, kek_id, context, plaintext_dek, wrapped_dek);
-  if (ret<0) { ldpp_dout(s,0) << "generate_and_wrap_dek failed" << dendl; return ret; }
-  if (plaintext_dek.length() != 32) { ldpp_dout(s,0) << "DEK size error" << dendl; return -EIO; }
-
-  attrs[RGW_ATTR_CRYPT_WRAPPED_DEK].clear();
-  attrs[RGW_ATTR_CRYPT_WRAPPED_DEK].append(wrapped_dek);
-  actualkey.assign(plaintext_dek.c_str(), plaintext_dek.length());
-  return 0;
-}
-
-// Reconstitute DEK
-int reconstitute_actual_key_from_sse_s3(req_state* s,
-                                       std::map<std::string,bufferlist>& attrs,
-                                       optional_yield y,
-                                       std::string& actualkey)
-{
-  auto backend = get_kmip_sse_s3_backend(s->cct);
-  if (!backend) {
-    ldpp_dout(s,0) << "KMIP backend unavailable" << dendl;
-    return -EIO;
-  }
-  std::string kek_id = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYID);
-  if (kek_id.empty()) return -EINVAL;
-  auto it = attrs.find(RGW_ATTR_CRYPT_WRAPPED_DEK);
-  if (it == attrs.end()) return -EINVAL;
-  bufferlist plaintext_dek;
-  int ret = backend->unwrap_dek(s, kek_id, it->second, get_str_attribute(attrs, RGW_ATTR_CRYPT_CONTEXT), plaintext_dek);
-  if (ret<0) { ldpp_dout(s,0) << "unwrap_dek failed" << dendl; return ret; }
-  if (plaintext_dek.length() != 32) { ldpp_dout(s,0) << "DEK size error" << dendl; return -EIO; }
-  actualkey.assign(plaintext_dek.c_str(), plaintext_dek.length());
-  return 0;
-}
-
 int
 make_canonical_context(req_state *s,
     std::string_view &context,
@@ -1008,14 +925,6 @@ struct CryptAttributes {
   }
 };
 
-// Helper to get string attribute from attrs
-static std::string get_str_attribute(const std::map<std::string, bufferlist> &attrs, const std::string &key) {
-  auto it = attrs.find(key);
-  if (it == attrs.end())
-    return "";
-  return std::string(it->second.c_str(), it->second.length());
-}
-
 // Create SSE-S3 bucket key using KMIP backend
 int create_sse_s3_bucket_key(req_state* s, std::string& key_id, optional_yield y) {
   auto backend = get_kmip_sse_s3_backend(s->cct);
@@ -1039,84 +948,6 @@ int remove_sse_s3_bucket_key(req_state* s, const std::string& key_id, optional_y
   }
   return backend->destroy_bucket_key(s, key_id);
 }
-
-// Generate and wrap DEK to produce actual key for PUT
-int make_actual_key_from_sse_s3(req_state* s,
-                                std::map<std::string, bufferlist>& attrs,
-                                optional_yield y,
-                                std::string& actualkey) 
-{
-  auto backend = get_kmip_sse_s3_backend(s->cct);
-  if (!backend) {
-    ldpp_dout(s, 0) << "KMIP SSE-S3 backend unavailable" << dendl;
-    return -EIO;
-  }
-  std::string kek_id = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYID);
-  if (kek_id.empty()) {
-    ldpp_dout(s, 0) << "Missing KEK id" << dendl;
-    return -EINVAL;
-  }
-
-  std::string context = get_str_attribute(attrs, RGW_ATTR_CRYPT_CONTEXT);
-
-  bufferlist plaintext_dek, wrapped_dek;
-  int ret = backend->generate_and_wrap_dek(s, kek_id, context, plaintext_dek, wrapped_dek);
-  if (ret < 0) {
-    ldpp_dout(s, 0) << "generate_and_wrap_dek failed" << dendl;
-    return ret;
-  }
-
-  if (plaintext_dek.length() != 32) {
-    ldpp_dout(s, 0) << "DEK length unexpected" << dendl;
-    return -EIO;
-  }
-
-  attrs[RGW_ATTR_CRYPT_WRAPPED_DEK].clear();
-  attrs[RGW_ATTR_CRYPT_WRAPPED_DEK].append(wrapped_dek);
-
-  actualkey.assign(plaintext_dek.c_str(), plaintext_dek.length());
-  return 0;
-}
-
-// Unwrap DEK to get actual key for GET
-int reconstitute_actual_key_from_sse_s3(req_state* s,
-                                       std::map<std::string, bufferlist>& attrs,
-                                       optional_yield y,
-                                       std::string& actualkey) 
-{
-  auto backend = get_kmip_sse_s3_backend(s->cct);
-  if (!backend) {
-    ldpp_dout(s, 0) << "KMIP SSE-S3 backend unavailable" << dendl;
-    return -EIO;
-  }
-  std::string kek_id = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYID);
-  if (kek_id.empty()) {
-    ldpp_dout(s, 0) << "Missing KEK id" << dendl;
-    return -EINVAL;
-  }
-
-  auto it = attrs.find(RGW_ATTR_CRYPT_WRAPPED_DEK);
-  if (it == attrs.end()) {
-    ldpp_dout(s, 0) << "Missing wrapped DEK attribute" << dendl;
-    return -EINVAL;
-  }
-
-  bufferlist plaintext_dek;
-  int ret = backend->unwrap_dek(s, kek_id, it->second, get_str_attribute(attrs, RGW_ATTR_CRYPT_CONTEXT), plaintext_dek);
-  if (ret < 0) {
-    ldpp_dout(s, 0) << "unwrap_dek failed" << dendl;
-    return ret;
-  }
-
-  if (plaintext_dek.length() != 32) {
-    ldpp_dout(s, 0) << "DEK length unexpected" << dendl;
-    return -EIO;
-  }
-
-  actualkey.assign(plaintext_dek.c_str(), plaintext_dek.length());
-  return 0;
-}
-
 
 std::string fetch_bucket_key_id(req_state *s)
 {

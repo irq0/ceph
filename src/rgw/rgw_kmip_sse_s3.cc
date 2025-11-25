@@ -100,7 +100,6 @@ int RGWKmipSSES3::create_bucket_key(const DoutPrefixProvider* dpp,
     }
     *(int32*)attrs[1].value = 256;
     
-    // Attribute 3: Cryptographic Usage Mask (Encrypt + Decrypt)
     attrs[2].type = KMIP_ATTR_CRYPTOGRAPHIC_USAGE_MASK;
     attrs[2].value = ctx->calloc_func(ctx->state, 1, sizeof(int32));
     if (!attrs[2].value) {
