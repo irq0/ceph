@@ -297,7 +297,10 @@ int RGWKmipSSES3::generate_and_wrap_dek(const DoutPrefixProvider* dpp,
   
   wrapped_dek_out = std::move(op.wrapped_dek);
   ldpp_dout(dpp, 20) << "Successfully wrapped DEK" << dendl;
+  explicit_bzero(dek, 32);
+  
   return 0;
+
 }
 
 int RGWKmipSSES3::unwrap_dek(const DoutPrefixProvider* dpp,

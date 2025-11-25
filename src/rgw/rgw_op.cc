@@ -9599,10 +9599,36 @@ void RGWPutBucketEncryption::execute(optional_yield y)
     return;
   }
   
- // if (bucket_encryption_conf.is_sse_s3()) {
- //   // TODO: check if KMIP is kms_backend
- //   // add kek creation logic
- // }
+    if (bucket_encryption_conf.is_sse_s3()) {
+    // Check if KMIP is configured as KMS backend
+    std::string kms_backend = s->cct->_conf->rgw_crypt_s3_kms_backend;
+    
+    if (kms_backend == "kmip") {
+      // Get KMIP backend singleton
+      RGWKmipSSES3* kmip_backend = get_kmip_sse_s3_backend(s->cct);
+      if (!kmip_backend) {
+        ldpp_dout(this, 0) << "ERROR: KMIP backend not available" << dendl;
+        op_ret = -EIO;
+        return;
+      }
+      
+      // Create KEK for this bucket
+      std::string kek_id;
+      op_ret = kmip_backend->create_bucket_key(this, s->bucket->get_name(), kek_id);
+      if (op_ret < 0) {
+        ldpp_dout(this, 0) << "ERROR: Failed to create bucket KEK" << dendl;
+        return;
+      }
+      
+      // Store KEK ID in bucket metadata
+      rgw::sal::Attrs& attrs = s->bucket->get_attrs();
+      bufferlist kek_id_bl;
+      kek_id_bl.append(kek_id);
+      attrs[RGW_ATTR_BUCKET_ENCRYPTION_KEY_ID] = kek_id_bl;
+      
+      ldpp_dout(this, 10) << "Created and stored KEK ID: " << kek_id << dendl;
+    }
+  }
 
   op_ret = rgw_forward_request_to_master(this, *s->penv.site, s->owner.id,
                                          &data, nullptr, s->info, s->err, y);
@@ -9666,7 +9692,23 @@ void RGWDeleteBucketEncryption::execute(optional_yield y)
     return;
   }
 
-  //TODO: add kek manager destroyer logic here
+  // Retrieve KEK ID before deleting metadata
+  rgw::sal::Attrs& attrs = s->bucket->get_attrs();
+  auto iter = attrs.find(RGW_ATTR_BUCKET_ENCRYPTION_KEY_ID);
+  
+  if (iter != attrs.end()) {
+    std::string kek_id = iter->second.to_str();
+    
+    // Destroy KEK in KMIP server
+    RGWKmipSSES3* kmip_backend = get_kmip_sse_s3_backend(s->cct);
+    if (kmip_backend) {
+      int ret = kmip_backend->destroy_bucket_key(this, kek_id);
+      if (ret < 0) {
+        ldpp_dout(this, 1) << "WARNING: Failed to destroy KEK, continuing..." << dendl;
+        // For prototype: don't fail the operation
+      }
+    }
+  }
 
   op_ret = retry_raced_bucket_write(this, s->bucket.get(), [this, y] {
     rgw::sal::Attrs& attrs = s->bucket->get_attrs();
