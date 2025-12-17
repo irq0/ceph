@@ -5,7 +5,9 @@
  * Server-side encryption integrations with Key Management Systems (SSE-KMS)
  */
 
+#include <openssl/evp.h>
 #include <sys/stat.h>
+#include "auth/Crypto.h"
 #include "include/str_map.h"
 #include "common/safe_io.h"
 #include "rgw/rgw_crypt.h"
@@ -21,6 +23,7 @@
 #include <rapidjson/writer.h>
 #include "rapidjson/error/error.h"
 #include "rapidjson/error/en.h"
+#include <algorithm>
 #include <regex>
 
 #define dout_context g_ceph_context
@@ -927,6 +930,106 @@ static int get_actual_key_from_conf(const DoutPrefixProvider* dpp,
   return res;
 }
 
+// Get KEK from testing KMS (configuration keyid (bucket) + keysel).
+// Unwrapp stored DEK (DATAKEY attr) for SSE S3.
+static int reconstitute_actual_key_form_conf(
+    const DoutPrefixProvider* dpp, map<string, bufferlist>& attrs,
+    std::string& actual_key) {
+  std::string key_selector = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYSEL);
+  const std::string key_id = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYID);
+  std::this_thread::sleep_for(
+      std::chrono::milliseconds(
+          dpp->get_cct()->_conf->rgw_crypt_s3_kms_testing_delay));
+  ldpp_dout(dpp, -1) << "XXX recons key: " << key_id << "attrs: " << attrs
+                     << dendl;
+
+  // get kek from attrs, unwrap stored dek, return plain dek
+  std::string kek;
+  int ret = get_actual_key_from_conf(dpp, key_id, key_selector, kek);
+  ceph_assert(ret == 0);
+  bufferptr kek_buf(kek.c_str(), kek.size());
+
+  std::array<unsigned char, AES_256_KEYSIZE> dek{0};
+  const std::string wrapped_dek =
+      get_str_attribute(attrs, RGW_ATTR_CRYPT_DATAKEY);
+  const unsigned char* wrapped_dek_p =
+      reinterpret_cast<const unsigned char*>(wrapped_dek.c_str());
+
+  using pctx_t =
+      std::unique_ptr<EVP_CIPHER_CTX, decltype(&::EVP_CIPHER_CTX_free)>;
+  pctx_t pctx{EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free};
+  ceph_assert(pctx);
+
+  // unwrap
+  ret = EVP_CipherInit_ex(
+      pctx.get(), EVP_aes_256_ecb(), nullptr,
+      reinterpret_cast<const unsigned char*>(kek.c_str()), nullptr, false);
+  ceph_assert(ret == 1);
+  EVP_CIPHER_CTX_set_padding(pctx.get(), 0);
+  int written = 0;
+  EVP_CipherUpdate(
+      pctx.get(), dek.data(), &written, wrapped_dek_p, wrapped_dek.length());
+  int final = 0;
+  EVP_CipherFinal_ex(pctx.get(), dek.data() + written, &final);
+  ceph_assert(final == 0);
+  actual_key = std::string(reinterpret_cast<char*>(dek.data()), dek.size());
+  return 0;
+}
+
+// Get KEK from testing KMS (configuration keyid (bucket) + keysel).
+// Derive DEK for SSE S3. Store wrapped in DATAKEY attr.
+static int make_data_key_form_conf(
+    const DoutPrefixProvider* dpp, map<string, bufferlist>& attrs,
+    std::string& actual_key) {
+  std::string key_selector = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYSEL);
+  const std::string key_id = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYID);
+
+  std::this_thread::sleep_for(
+      std::chrono::milliseconds(
+          dpp->get_cct()->_conf->rgw_crypt_s3_kms_testing_delay));
+
+  // get kek from attrs, make dek, wrap, store wrapped in attrs, return plain dek
+  std::string kek;
+  int ret = get_actual_key_from_conf(dpp, key_id, key_selector, kek);
+  ceph_assert(ret == 0);
+  bufferptr kek_buf(kek.c_str(), kek.size());
+
+  std::array<char, AES_256_KEYSIZE> dek{0};
+  std::array<unsigned char, AES_256_KEYSIZE> deku{0};
+  dpp->get_cct()->random()->get_bytes(dek.data(), dek.size());
+  std::transform(dek.begin(), dek.end(), deku.begin(), [](char c) {
+    return static_cast<unsigned char>(c);
+  });
+  std::array<unsigned char, AES_256_KEYSIZE> wrapped_dek{0};
+
+  using pctx_t =
+      std::unique_ptr<EVP_CIPHER_CTX, decltype(&::EVP_CIPHER_CTX_free)>;
+  pctx_t pctx{EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free};
+  ceph_assert(pctx);
+
+  // wrap dek
+  ret = EVP_CipherInit_ex(
+      pctx.get(), EVP_aes_256_ecb(), nullptr,
+      reinterpret_cast<const unsigned char*>(kek.c_str()), nullptr, true);
+
+  ceph_assert(ret == 1);
+  EVP_CIPHER_CTX_set_padding(pctx.get(), 0);
+  int written = 0;
+  ret = EVP_CipherUpdate(
+      pctx.get(), wrapped_dek.data(), &written, deku.data(), deku.size());
+  ceph_assert(ret == 1);
+  int final = 0;
+  ret = EVP_CipherFinal_ex(pctx.get(), wrapped_dek.data() + written, &final);
+  ceph_assert(ret == 1);
+  ceph_assert(final == 0);
+
+  std::string_view wrapped(
+      reinterpret_cast<const char*>(wrapped_dek.data()), wrapped_dek.size());
+  set_attr(attrs, RGW_ATTR_CRYPT_DATAKEY, wrapped);
+  actual_key = std::string(dek.data(), dek.size());
+  return 0;
+}
+
 static int request_key_from_barbican(const DoutPrefixProvider *dpp,
                                      std::string_view key_id,
                                      const std::string& barbican_token,
@@ -1258,6 +1361,7 @@ int make_actual_key_from_kms(const DoutPrefixProvider *dpp,
 
 int reconstitute_actual_key_from_sse_s3(const DoutPrefixProvider *dpp,
                                         map<string, bufferlist>& attrs,
+                                        rgw::kms::KMSCache* kms_cache,
                                         optional_yield y,
                                         std::string& actual_key)
 {
@@ -1268,28 +1372,49 @@ int reconstitute_actual_key_from_sse_s3(const DoutPrefixProvider *dpp,
   ldpp_dout(dpp, 20) << "Getting SSE-S3  encryption key for key " << key_id << dendl;
   ldpp_dout(dpp, 20) << "SSE-KMS backend is " << kms_backend << dendl;
 
-  if (RGW_SSE_KMS_BACKEND_VAULT == kms_backend) {
-    return reconstitute_actual_key_from_vault(dpp, kctx, attrs, y, actual_key);
-  }
-
-  ldpp_dout(dpp, 0) << "ERROR: Invalid rgw_crypt_sse_s3_backend: " << kms_backend << dendl;
-  return -EINVAL;
-}
-
-int make_actual_key_from_sse_s3(const DoutPrefixProvider *dpp,
-                                map<string, bufferlist>& attrs,
-                                optional_yield y,
-                                std::string& actual_key)
-{
-  SseS3Context kctx { dpp->get_cct() };
-  const std::string kms_backend { kctx.backend() };
-  if (RGW_SSE_KMS_BACKEND_VAULT != kms_backend) {
-    ldpp_dout(dpp, 0) << "ERROR: Unsupported rgw_crypt_sse_s3_backend: " << kms_backend << dendl;
+  const auto fetch = [&dpp, &attrs, &y, &kms_backend,
+                      &kctx](std::string& out_secret) -> int {
+    if (RGW_SSE_KMS_BACKEND_VAULT == kms_backend) {
+      return reconstitute_actual_key_from_vault(
+          dpp, kctx, attrs, y, out_secret);
+    }
+    if (RGW_SSE_KMS_BACKEND_TESTING == kms_backend) {
+      return reconstitute_actual_key_form_conf(dpp, attrs, out_secret);
+    }
+    ldpp_dout(dpp, 0) << "ERROR: Invalid rgw_crypt_sse_s3_backend: "
+                      << kms_backend << dendl;
     return -EINVAL;
-  }
-  return make_actual_key_from_vault(dpp, kctx, attrs, y, actual_key);
+  };
+  const std::string cache_prefix = string_cat_reserve("s3_", kms_backend);
+  return maybe_cache_kms_fetch(
+      dpp, cache_prefix, key_id, kms_cache, fetch, actual_key, y);
 }
 
+int make_actual_key_from_sse_s3(const DoutPrefixProvider* dpp,
+                                map<string, bufferlist>& attrs,
+                                rgw::kms::KMSCache* kms_cache,
+                                optional_yield y,
+                                std::string& actual_key) {
+  SseS3Context kctx{dpp->get_cct()};
+  const std::string kms_backend{kctx.backend()};
+  const std::string key_id = get_str_attribute(attrs, RGW_ATTR_CRYPT_KEYID);
+
+  const auto fetch = [&dpp, &attrs, &y, &kms_backend,
+                      &kctx](std::string& out_secret) -> int {
+    if (RGW_SSE_KMS_BACKEND_VAULT == kms_backend) {
+      return make_actual_key_from_vault(dpp, kctx, attrs, y, out_secret);
+    }
+    if (RGW_SSE_KMS_BACKEND_TESTING == kms_backend) {
+      return make_data_key_form_conf(dpp, attrs, out_secret);
+    }
+    ldpp_dout(dpp, 0) << "ERROR: Unsupported rgw_crypt_sse_s3_backend: "
+                      << kms_backend << dendl;
+    return -EINVAL;
+  };
+  const std::string cache_prefix = string_cat_reserve("s3_", kms_backend);
+  return maybe_cache_kms_fetch(
+      dpp, cache_prefix, key_id, kms_cache, fetch, actual_key, y);
+}
 
 int create_sse_s3_bucket_key(const DoutPrefixProvider *dpp,
                              const std::string& bucket_key,
@@ -1299,6 +1424,10 @@ int create_sse_s3_bucket_key(const DoutPrefixProvider *dpp,
   SseS3Context kctx { cct };
 
   const std::string kms_backend { kctx.backend() };
+
+  if (RGW_SSE_KMS_BACKEND_TESTING == kms_backend) {
+    return 0;
+  }
   if (RGW_SSE_KMS_BACKEND_VAULT != kms_backend) {
     ldpp_dout(dpp, 0) << "ERROR: Unsupported rgw_crypt_sse_s3_backend: " << kms_backend << dendl;
     return -EINVAL;
@@ -1326,6 +1455,9 @@ int remove_sse_s3_bucket_key(const DoutPrefixProvider *dpp,
   CephContext* cct = dpp->get_cct();
   SseS3Context kctx { cct };
   std::string secret_engine_str = kctx.secret_engine();
+  if (RGW_SSE_KMS_BACKEND_TESTING == kctx.backend()) {
+    return 0;
+  }
   EngineParmMap secret_engine_parms;
   auto secret_engine { config_to_engine_and_parms(
     cct, "rgw_crypt_sse_s3_vault_secret_engine",

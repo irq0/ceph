@@ -3251,6 +3251,7 @@ options:
   - rgw
   enum_values:
   - vault
+  - testing
   with_legacy: true
 
 - name: rgw_crypt_sse_s3_vault_secret_engine
