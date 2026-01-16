@@ -4,10 +4,12 @@
 #include <string.h>
 
 #include <optional>
+#include <sstream>
 #include <vector>
 
 #include <boost/algorithm/string/predicate.hpp>
 
+#include "common/JSONFormatter.h"
 #include "common/ceph_json.h"
 #include "common/split.h"
 #include "rgw_common.h"
@@ -135,7 +137,7 @@ static auto parse_grant(const DoutPrefixProvider* dpp,
                         const uint32_t perm)
   -> std::optional<ACLGrant>
 {
-  ldpp_dout(dpp, 20) << "trying to add grant for ACL uid=" << uid << dendl;
+  ldpp_dout(dpp, 0) << "trying to add grant for ACL uid=" << uid << dendl;
 
   /* Let's check whether the item has a separator potentially indicating
    * a special meaning (like an HTTP referral-based grant). */
@@ -145,6 +147,11 @@ static auto parse_grant(const DoutPrefixProvider* dpp,
     // TODO(irq0) we should do something better here. way to ambigous. prefixes? list of allowed role names
     if (!uid.empty() && uid[0] != '.') {
       if (auto role_grant = role_to_grant(uid, perm); role_grant) {
+        JSONFormatter f;
+        role_grant->dump(&f);
+        std::ostringstream os;
+        f.flush(os);
+        ldpp_dout(dpp, 0) << "XXX " << uid  << " -> " << os.str() << dendl;
         return role_grant;
       }
     }

@@ -90,6 +90,7 @@ void RGWAccessControlList::register_grant(const ACLGrant& grant)
   } else if (const auto* role = grant.get_role(); role) {
     // SWIFT/Keystone role ACLs
     if (!role->role.empty()) {
+      ldout(g_ceph_context, 0) << "XXX new role in map: " << role << dendl;
       acl_keystone_role_map[role->role] |= perm.get_permissions();
     }
   }
@@ -171,7 +172,7 @@ uint32_t RGWAccessControlPolicy::get_perm(const DoutPrefixProvider* dpp,
                                           const char * const http_referer,
                                           bool ignore_public_acls) const
 {
-  ldpp_dout(dpp, 20) << "-- Getting permissions begin with perm_mask=" << perm_mask
+  ldpp_dout(dpp, 0) << "-- Getting permissions begin with perm_mask=" << perm_mask
                  << dendl;
 
   uint32_t perm = acl.get_perm(dpp, auth_identity, perm_mask);
@@ -199,7 +200,7 @@ uint32_t RGWAccessControlPolicy::get_perm(const DoutPrefixProvider* dpp,
     perm = acl.get_referer_perm(dpp, perm, http_referer, perm_mask);
   }
 
-  ldpp_dout(dpp, 5) << "-- Getting permissions done for identity=" << auth_identity
+  ldpp_dout(dpp, 0) << "-- Getting permissions done for identity=" << auth_identity
                 << ", owner=" << owner.id
                 << ", perm=" << perm << dendl;
 
