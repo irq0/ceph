@@ -4,6 +4,7 @@
 #pragma once
 
 #include <functional>
+#include <vector>
 #include <optional>
 #include <ostream>
 #include <type_traits>
@@ -79,6 +80,11 @@ public:
   }
 
   virtual void to_str(std::ostream& out) const = 0;
+
+  // Optional Keystone role support.
+  virtual std::optional<std::vector<std::string>> get_keystone_roles() const {
+    return std::nullopt;
+  }
 
   /* Verify whether a given identity corresponds to an identity in the
      provided set */
@@ -598,6 +604,7 @@ public:
     const std::string access_key_id;
     const std::string subuser;
     const std::string keystone_user;
+    const std::optional<std::vector<std::string>> keystone_roles;
 
   public:
     enum class acct_privilege_t {
@@ -616,7 +623,8 @@ public:
              const std::string access_key_id,
              const std::string subuser,
              const std::string keystone_user,
-             const uint32_t acct_type=TYPE_NONE)
+             const uint32_t acct_type=TYPE_NONE,
+             std::optional<std::vector<std::string>> keystone_roles = std::nullopt)
     : acct_user(acct_user),
       acct_name(acct_name),
       perm_mask(perm_mask),
@@ -624,7 +632,8 @@ public:
       acct_type(acct_type),
       access_key_id(access_key_id),
       subuser(subuser),
-      keystone_user(keystone_user) {
+      keystone_user(keystone_user),
+      keystone_roles(std::move(keystone_roles)) {
     }
   };
 
@@ -686,6 +695,10 @@ public:
   void modify_request_state(const DoutPrefixProvider* dpp, req_state* s) const override;
   void write_ops_log_entry(rgw_log_entry& entry) const override;
   uint32_t get_identity_type() const override { return info.acct_type; }
+
+  std::optional<std::vector<std::string>> get_keystone_roles() const override {
+    return info.keystone_roles;
+  }
 
   std::optional<rgw::ARN> get_caller_identity() const override;
 

@@ -19,6 +19,7 @@
 #include "rgw_auth_keystone.h"
 #include "rgw_rest_s3.h"
 #include "rgw_auth_s3.h"
+#include "rgw_auth.h"
 
 #include "common/ceph_crypto.h"
 #include "common/Cond.h"
@@ -146,7 +147,11 @@ TokenEngine::get_creds_info(const TokenEngine::token_envelope_t& token
 
   /* Check whether the user has an admin status. */
   acct_privilege_t level = acct_privilege_t::IS_PLAIN_ACCT;
+  std::vector<std::string> role_names;
+  role_names.reserve(token.roles.size());
   for (const auto& role : token.roles) {
+    ldout(g_ceph_context, 0) << "XXX: get creds roles: " << role.id << " - " << role.name << dendl;
+    role_names.push_back(role.name);
     if (role.is_admin && !role.is_reader) {
       level = acct_privilege_t::IS_ADMIN_ACCT;
       break;
@@ -165,7 +170,8 @@ TokenEngine::get_creds_info(const TokenEngine::token_envelope_t& token
     rgw::auth::RemoteApplier::AuthInfo::NO_ACCESS_KEY,
     rgw::auth::RemoteApplier::AuthInfo::NO_SUBUSER,
     token.get_user_name(),
-    TYPE_KEYSTONE
+    TYPE_KEYSTONE,
+    std::move(role_names)
 };
 }
 

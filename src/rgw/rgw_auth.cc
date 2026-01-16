@@ -880,6 +880,7 @@ void rgw::auth::RemoteApplier::to_str(std::ostream& out) const
   out << "rgw::auth::RemoteApplier(acct_user=" << owner_acct_user
       << ", acct_name=" << info.acct_name
       << ", perm_mask=" << info.perm_mask
+      << ", keystone_roles=" << info.keystone_roles
       << ", is_admin=" << info.is_admin << ")";
 }
 
