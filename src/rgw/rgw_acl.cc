@@ -86,6 +86,9 @@ void RGWAccessControlList::register_grant(const ACLGrant& grant)
      if (referer->url_spec == RGW_REFERER_WILDCARD) {
        acl_group_map[ACL_GROUP_ALL_USERS] |= perm.get_permissions();
      }
+  } else if (const auto* role = grant.get_role(); role) {
+    // TODO(irq0) do we need to keep the role in some map?
+    (void)role;
   }
 }
 
@@ -96,6 +99,8 @@ void RGWAccessControlList::add_grant(const ACLGrant& grant)
     id = to_string(user->id);
   } else if (const auto* email = grant.get_email(); email) {
     id = email->address;
+  } else if (const auto* role = grant.get_role(); role) {
+    id = role->role;
   } // other types share the empty key in the grant multimap
   grant_map.emplace(id, grant);
   register_grant(grant);
@@ -296,6 +301,9 @@ void ACLGrant::dump(Formatter *f) const
     void operator()(const ACLGranteeUnknown&) {}
     void operator()(const ACLGranteeReferer& r) {
       encode_json("url_spec", r.url_spec, f);
+    }
+    void operator()(const ACLGranteeKeystoneRole& role) {
+      encode_json("role", role.role, f);
     }
   };
   std::visit(dump_visitor{f}, grantee);

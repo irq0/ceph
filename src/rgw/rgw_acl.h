@@ -46,6 +46,12 @@ struct ACLGranteeReferer {
   friend auto operator<=>(const ACLGranteeReferer&,
                           const ACLGranteeReferer&) = default;
 };
+struct ACLGranteeKeystoneRole {
+  std::string role;
+
+  friend auto operator<=>(const ACLGranteeKeystoneRole&,
+                          const ACLGranteeKeystoneRole&) = default;
+};
 
 class ACLGrant
 {
@@ -56,7 +62,8 @@ protected:
     ACLGranteeEmailUser,
     ACLGranteeGroup,
     ACLGranteeUnknown,
-    ACLGranteeReferer>;
+    ACLGranteeReferer,
+    ACLGranteeKeystoneRole>;
 
   ACLGrantee grantee;
   ACLPermission permission;
@@ -83,9 +90,13 @@ public:
   const ACLGranteeReferer* get_referer() const {
     return std::get_if<ACLGranteeReferer>(&grantee);
   }
+  // return the keystone role grantee, or nullptr
+  const ACLGranteeKeystoneRole* get_role() const {
+    return std::get_if<ACLGranteeKeystoneRole>(&grantee);
+  }
 
   void encode(bufferlist& bl) const {
-    ENCODE_START(5, 3, bl);
+    ENCODE_START(6, 3, bl);
     ACLGranteeType type = get_type();
     encode(type, bl);
 
@@ -123,10 +134,15 @@ public:
     } else {
       encode(std::string{}, bl); // encode empty referer
     }
+    if (const ACLGranteeKeystoneRole* role = get_role(); role) {
+      encode(role->role, bl);
+    } else {
+      encode(std::string{}, bl);  // encode empty role
+    }
     ENCODE_FINISH(bl);
   }
   void decode(bufferlist::const_iterator& bl) {
-    DECODE_START_LEGACY_COMPAT_LEN(5, 3, 3, bl);
+    DECODE_START_LEGACY_COMPAT_LEN(6, 3, 3, bl);
     ACLGranteeType type;
     decode(type, bl);
 
@@ -154,6 +170,11 @@ public:
       decode(referer.url_spec, bl);
     }
 
+    ACLGranteeKeystoneRole role;
+    if (struct_v >= 6) {
+      decode(role.role, bl);
+    }
+
     // construct the grantee type
     switch (type) {
       case ACL_TYPE_CANON_USER:
@@ -167,6 +188,9 @@ public:
         break;
       case ACL_TYPE_REFERER:
         grantee = std::move(referer);
+        break;
+      case ACL_TYPE_KEYSTONE_ROLE:
+        grantee = std::move(role);
         break;
       case ACL_TYPE_UNKNOWN:
       default:
@@ -190,6 +214,10 @@ public:
   }
   void set_referer(const std::string& url_spec, uint32_t perm) {
     grantee = ACLGranteeReferer{url_spec};
+    permission.set_permissions(perm);
+  }
+  void set_role(const std::string& role_name, uint64_t perm) {
+    grantee = ACLGranteeKeystoneRole{role_name};
     permission.set_permissions(perm);
   }
 

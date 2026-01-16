@@ -114,6 +114,19 @@ static ACLGrant user_to_grant(const DoutPrefixProvider *dpp,
   return grant;
 }
 
+static std::optional<ACLGrant> role_to_grant(std::string role_name,
+                                             const uint32_t perm)
+{
+  // Swift role ACLs: "A user with the specified role name on the project ..."
+  boost::algorithm::trim(role_name);
+  if (role_name.empty()) {
+    return std::nullopt;
+  }
+  ACLGrant grant;
+  grant.set_role(role_name, perm);
+  return grant;
+}
+
 // parse a container acl grant in 'V1' format
 // https://docs.openstack.org/swift/latest/overview_acl.html#container-acls
 static auto parse_grant(const DoutPrefixProvider* dpp,
@@ -128,7 +141,13 @@ static auto parse_grant(const DoutPrefixProvider* dpp,
    * a special meaning (like an HTTP referral-based grant). */
   const size_t pos = uid.find(':');
   if (std::string::npos == pos) {
-    /* No, it don't have -- we've got just a regular user identifier. */
+    // No ":" either means regular user identifier OR a SWIFT/Keystone role name
+    // TODO(irq0) we should do something better here. way to ambigous. prefixes? list of allowed role names
+    if (!uid.empty() && uid[0] != '.') {
+      if (auto role_grant = role_to_grant(uid, perm); role_grant) {
+        return role_grant;
+      }
+    }
     return user_to_grant(dpp, driver, uid, perm);
   }
 
@@ -255,6 +274,11 @@ void format_container_acls(const RGWAccessControlPolicy& policy,
         continue;
       }
       id = (perm != 0) ? ".r:" + url_spec : ".r:-" + url_spec;
+    } else if (const auto role = grant.get_role(); role) {
+      if (role->role.empty()) {
+        continue;
+      }
+      id = role->role;
     }
     if (perm & SWIFT_PERM_READ) {
       if (!read.empty()) {

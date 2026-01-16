@@ -144,11 +144,12 @@ WRITE_CLASS_ENCODER(RGWUserCaps)
 
 enum ACLGranteeTypeEnum {
 /* numbers are encoded, should not change */
-  ACL_TYPE_CANON_USER = 0,
-  ACL_TYPE_EMAIL_USER = 1,
-  ACL_TYPE_GROUP      = 2,
-  ACL_TYPE_UNKNOWN    = 3,
-  ACL_TYPE_REFERER    = 4,
+  ACL_TYPE_CANON_USER    = 0,
+  ACL_TYPE_EMAIL_USER    = 1,
+  ACL_TYPE_GROUP         = 2,
+  ACL_TYPE_UNKNOWN       = 3,
+  ACL_TYPE_REFERER       = 4,
+  ACL_TYPE_KEYSTONE_ROLE = 5,
 };
 
 enum ACLGroupTypeEnum {
