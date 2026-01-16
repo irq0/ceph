@@ -313,6 +313,7 @@ protected:
   /* FIXME: in the feature we should consider switching to uint32_t also
    * in data structures. */
   std::map<std::string, int> acl_user_map;
+  std::map<std::string, int> acl_keystone_role_map;
   std::map<uint32_t, int> acl_group_map;
   std::list<ACLReferer> referer_list;
   ACLGrantMap grant_map;
@@ -327,17 +328,18 @@ public:
                             std::string http_referer,
                             uint32_t perm_mask) const;
   void encode(bufferlist& bl) const {
-    ENCODE_START(4, 3, bl);
+    ENCODE_START(5, 3, bl);
     bool maps_initialized = true;
     encode(maps_initialized, bl);
     encode(acl_user_map, bl);
     encode(grant_map, bl);
     encode(acl_group_map, bl);
     encode(referer_list, bl);
+    encode(acl_keystone_role_map, bl);
     ENCODE_FINISH(bl);
   }
   void decode(bufferlist::const_iterator& bl) {
-    DECODE_START_LEGACY_COMPAT_LEN(4, 3, 3, bl);
+    DECODE_START_LEGACY_COMPAT_LEN(5, 3, 3, bl);
     bool maps_initialized;
     decode(maps_initialized, bl);
     decode(acl_user_map, bl);
@@ -352,6 +354,9 @@ public:
     }
     if (struct_v >= 4) {
       decode(referer_list, bl);
+    }
+    if (struct_v >= 5) {
+      decode(acl_keystone_role_map, bl);
     }
     DECODE_FINISH(bl);
   }

@@ -51,6 +51,7 @@ bool operator==(const RGWAccessControlList& lhs,
                 const RGWAccessControlList& rhs) {
   return lhs.acl_user_map == rhs.acl_user_map
       && lhs.acl_group_map == rhs.acl_group_map
+      && lhs.acl_keystone_role_map == rhs.acl_keystone_role_map
       && lhs.referer_list == rhs.referer_list
       && lhs.grant_map == rhs.grant_map;
 }
@@ -87,8 +88,10 @@ void RGWAccessControlList::register_grant(const ACLGrant& grant)
        acl_group_map[ACL_GROUP_ALL_USERS] |= perm.get_permissions();
      }
   } else if (const auto* role = grant.get_role(); role) {
-    // TODO(irq0) do we need to keep the role in some map?
-    (void)role;
+    // SWIFT/Keystone role ACLs
+    if (!role->role.empty()) {
+      acl_keystone_role_map[role->role] |= perm.get_permissions();
+    }
   }
 }
 
@@ -395,6 +398,16 @@ void RGWAccessControlList::dump(Formatter *f) const
     f->open_object_section("entry");
     f->dump_unsigned("group", acl_group_iter->first);
     f->dump_int("acl", acl_group_iter->second);
+    f->close_section();
+  }
+  f->close_section();
+  
+  map<std::string, int>::const_iterator acl_role_iter = acl_keystone_role_map.begin();
+  f->open_array_section("acl_keystone_role_map");
+  for (; acl_role_iter != acl_keystone_role_map.end(); ++acl_role_iter) {
+    f->open_object_section("entry");
+    f->dump_string("role", acl_role_iter->first);
+    f->dump_int("acl", acl_role_iter->second);
     f->close_section();
   }
   f->close_section();
