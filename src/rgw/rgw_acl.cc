@@ -123,8 +123,11 @@ uint32_t RGWAccessControlList::get_perm(const DoutPrefixProvider* dpp,
 {
   ldpp_dout(dpp, 5) << "Searching permissions for identity=" << auth_identity
                 << " mask=" << perm_mask << dendl;
+  uint32_t perm = perm_mask & auth_identity.get_perms_from_aclspec(dpp, acl_user_map);
 
-  return perm_mask & auth_identity.get_perms_from_aclspec(dpp, acl_user_map);
+  // TODO(irq0) disabiguate users from roles when passed via aclspec? - e.g flag or type?
+  perm |= perm_mask & auth_identity.get_perms_from_aclspec(dpp, acl_keystone_role_map);
+  return perm_mask & perm;
 }
 
 uint32_t RGWAccessControlList::get_group_perm(const DoutPrefixProvider *dpp, 
