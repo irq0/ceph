@@ -9,6 +9,7 @@
 
 #include "rgw_b64.h"
 
+#include "common/dout_fmt.h"
 #include "common/errno.h"
 #include "common/ceph_json.h"
 #include "include/types.h"
@@ -181,6 +182,9 @@ make_spec_item(const std::string& tenant, const std::string& id)
   return tenant + ":" + id;
 }
 
+// XXX this is the place to evaluate ACLs and roles!
+// -> it is localized to auth types (e.g keystone + token)
+// -> it hooks into the existing ACL / default auth logic
 TokenEngine::acl_strategy_t
 TokenEngine::get_acl_strategy(const TokenEngine::token_envelope_t& token) const
 {
@@ -206,6 +210,7 @@ TokenEngine::get_acl_strategy(const TokenEngine::token_envelope_t& token) const
 
   /* Lambda will obtain a copy of (not a reference to!) allowed_items. */
   return [allowed_items, token_roles=token.roles](const rgw::auth::Identity::aclspec_t& aclspec) {
+    ldout_fmt(g_ceph_context, -1, "XXXX keystone token engine acl strategy: allowed_items={} aclspec={}", allowed_items, aclspec);
     uint32_t perm = 0;
 
     for (const auto& allowed_item : allowed_items) {
@@ -217,6 +222,7 @@ TokenEngine::get_acl_strategy(const TokenEngine::token_envelope_t& token) const
     }
 
     for (const auto& r : token_roles) {
+      ldout_fmt(g_ceph_context, -1, "XXXX keystone role: id={} admin={} reader={} name={}", r.id, r.is_admin, r.is_reader, r.name);
       if (r.is_reader) {
         if (r.is_admin) {    /* system scope reader persona */
           /*
@@ -226,6 +232,20 @@ TokenEngine::get_acl_strategy(const TokenEngine::token_envelope_t& token) const
           perm |= RGW_OP_TYPE_READ;
         }
       }
+      // TODO(irq0) evaluate container ACL entries (that came in via aclspec)
+      //
+      // SWIFT: "A user with the specified role name on the project
+      // within which the container is stored is granted access. A
+      // user token scoped to the project must be included in the
+      // request. Access to the container is also granted when used in
+      // X-Container-Read."
+
+      // const auto it = acl_keystone_role_map.find(role_name);
+      // if (it != acl_keystone_role_map.end()) {
+      //   ldpp_dout(dpp, 0) << " -- ACL role=" << it->first << " perm=" << it->second << dendl;
+      //   perm |= it->second;
+      // }
+
     }
 
     return perm;
