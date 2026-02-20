@@ -239,10 +239,10 @@ class TestSSEKMSWithTestingKMS : public ::testing::Test {
             if (perf_counters->get_name() == "rgw") {
               auto [sum, count] =
                   perf_counters->get_tavg_ns(l_rgw_kms_fetch_lat);
-              fmt::println(
+              fmt::print(
                   std::cout,
                   "RGW KMS perf counters: err_trans={} err_perm={} err_sec={} "
-                  "avg_fetch_lat={} fetch_cnt={}",
+                  "avg_fetch_lat={} fetch_cnt={}\n",
                   perf_counters->get(l_rgw_kms_error_transient),
                   perf_counters->get(l_rgw_kms_error_permanent),
                   perf_counters->get(l_rgw_kms_error_secret_store),
