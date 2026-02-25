@@ -16,13 +16,13 @@
 
 #include <sys/stat.h>
 
-#include <chrono>
-#include <thread>
-#include <variant>
-
 #include <boost/asio/executor.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/strand.hpp>
+#include <chrono>
+#include <future>
+#include <thread>
+#include <variant>
 
 #include "common/async/call_once.h"
 #include "common/async/yield_context.h"
@@ -54,9 +54,13 @@ class KMSCache {
   // The TTL Reaper is either a service thread we own or async running
   // on an executor elsewhere (where we keep a strand and cancellation
   // signal).
-  using AsyncState = std::pair<
-      boost::asio::strand<boost::asio::io_context::executor_type>,
-      boost::asio::cancellation_signal>;
+  struct AsyncState {
+    boost::asio::strand<boost::asio::io_context::executor_type> strand;
+    boost::asio::cancellation_signal cancel_signal;
+    std::future<void> done;
+    explicit AsyncState(boost::asio::io_context::executor_type ex)
+        : strand(boost::asio::make_strand(ex)) {}
+  };
   std::variant<std::monostate, std::jthread, AsyncState> reaper_state;
 
  public:
@@ -83,9 +87,8 @@ class KMSCache {
   static std::jthread make_ttl_reaper_thread(
       CephContext* cct, KMSSecretCache& cache, std::chrono::seconds ttl);
 
-  static void
-  make_ttl_reaper_async(
-      CephContext* cct, KMSSecretCache& cache, std::chrono::seconds ttl,
+  static std::future<void> make_ttl_reaper_async(CephContext* cct,
+      KMSSecretCache& cache, std::chrono::seconds ttl,
       const boost::asio::strand<boost::asio::io_context::executor_type>& strand,
       boost::asio::cancellation_signal& cancel_signal);
 

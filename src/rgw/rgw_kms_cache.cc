@@ -20,12 +20,12 @@
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/cancellation_type.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/use_future.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
-#include <tuple>
 #include <utility>
 #include <variant>
 
@@ -69,11 +69,11 @@ std::jthread KMSCache::make_ttl_reaper_thread(
   });
 }
 
-void KMSCache::make_ttl_reaper_async(
+std::future<void> KMSCache::make_ttl_reaper_async(
     CephContext* cct, KMSSecretCache& cache, std::chrono::seconds ttl,
     const boost::asio::strand<boost::asio::io_context::executor_type>& strand,
     boost::asio::cancellation_signal& cancel_signal) {
-  boost::asio::spawn(
+  return boost::asio::spawn(
       strand,
       [cct, &cache, ttl](const boost::asio::yield_context& yield) {
         ldout(cct, 10) << "KMS Cache: Starting async TTL reaper, running every "
@@ -94,7 +94,7 @@ void KMSCache::make_ttl_reaper_async(
       },
       boost::asio::bind_cancellation_slot(
           cancel_signal.slot(),
-          boost::asio::bind_executor(strand, boost::asio::detached)));
+          boost::asio::bind_executor(strand, boost::asio::use_future)));
 }
 
 KMSCache::KMSCache(CephContext* _cct, std::unique_ptr<Keyring> _keyring)
@@ -134,14 +134,10 @@ void KMSCache::initialize_ttl_reaper(
        cct->_conf->rgw_crypt_s3_kms_cache_negative_ttl,
        cct->_conf->rgw_crypt_s3_kms_cache_transient_error_ttl});
   if (executor.has_value()) {
-    reaper_state.emplace<AsyncState>(
-        std::piecewise_construct,
-        std::forward_as_tuple(make_strand(executor.value())),
-        std::forward_as_tuple());
-    make_ttl_reaper_async(
+    auto& state = reaper_state.emplace<AsyncState>(executor.value());
+    state.done = make_ttl_reaper_async(
         cct, *cache, std::chrono::seconds(min_ttl_secs),
-        std::get<AsyncState>(reaper_state).first,
-        std::get<AsyncState>(reaper_state).second);
+        state.strand, state.cancel_signal);
   } else {
     reaper_state.emplace<std::jthread>(make_ttl_reaper_thread(
         cct, *cache, std::chrono::seconds(min_ttl_secs)));
@@ -154,9 +150,16 @@ void KMSCache::stop_ttl_reaper() {
       fu2::overload(
           [](const std::monostate& mono) {},
           [](AsyncState& async_state) {
-            boost::asio::post(async_state.first, [&async_state] {
-              async_state.second.emit(boost::asio::cancellation_type::all);
+            boost::asio::dispatch(
+                async_state.strand,
+                [&signal = async_state.cancel_signal]() {
+                  signal.emit(boost::asio::cancellation_type::terminal);
             });
+            try {
+              async_state.done.wait();
+            } catch (const std::future_error& e) {
+              if (e.code() != std::future_errc::no_state) throw;
+            }
           },
           [&](const std::jthread&) { reaper_state.emplace<std::monostate>(); }),
       reaper_state);

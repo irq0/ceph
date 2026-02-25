@@ -11,11 +11,14 @@
 
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/co_spawn.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/spawn.hpp>
+#include <boost/asio/use_future.hpp>
 #include <cerrno>
 #include <chrono>
 #include <variant>
+#include <thread>
 
 #include "common/web_cache.h"
 #include "rgw_common.h"
@@ -82,13 +85,22 @@ TEST_F(TestKMSCacheReaperLifecycle, NoInit) {
 
 TEST_F(TestKMSCacheReaperLifecycle, Async) {
   boost::asio::io_context io;
+  auto work = boost::asio::make_work_guard(io);
+  std::jthread io_thread([&]() {
+    io.run();
+  });
+  auto drain = [&] {
+    boost::asio::post(io, boost::asio::use_future).get();
+  };
   this->initialize_ttl_reaper(io.get_executor());
-  io.poll();
+  drain();
   EXPECT_TRUE(reaper_initialized());
   EXPECT_TRUE(
       std::holds_alternative<AsyncState>(reaper_state));
   stop_ttl_reaper();
-  io.run();
+  drain();
+  work.reset();
+  io.restart();
   EXPECT_EQ(io.run(), 0);
 }
 
