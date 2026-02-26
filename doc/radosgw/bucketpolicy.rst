@@ -149,7 +149,11 @@ For all requests, condition keys we support are:
 - aws:UserAgent
 - aws:username
 
-We support certain s3 condition keys for bucket and object requests.
+Request that authenticate with Keystone also include:
+
+- keystone:role
+
+We support certain S3 condition keys for bucket and object requests.
 
 *Support for the following bucket-related operations was added in the Mimic
 release of Ceph.*

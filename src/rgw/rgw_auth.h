@@ -813,7 +813,7 @@ public:
   bool is_owner_of(const rgw_owner& o) const override;
   bool is_identity(const Principal& p) const override;
   uint32_t get_perm_mask() const override {
-    return RGW_PERM_NONE; 
+    return RGW_PERM_NONE;
   }
   void to_str(std::ostream& out) const override;
   void load_acct_info(const DoutPrefixProvider* dpp, RGWUserInfo& user_info) const override; /* out */

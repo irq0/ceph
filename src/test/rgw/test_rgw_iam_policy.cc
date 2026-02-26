@@ -769,7 +769,7 @@ TEST_F(PolicyTest, Eval7) {
 		       "", arbitrary_tenant, "mybucket/*");
   EXPECT_EQ(p.eval(e, subacct, s3ListBucket, arn1),
 	    Effect::Allow);
-  
+
   ARN arn2(Partition::aws, Service::s3,
 		       "", arbitrary_tenant, "mybucket/*");
   EXPECT_EQ(p.eval(e, parentacct, s3ListBucket, arn2),
