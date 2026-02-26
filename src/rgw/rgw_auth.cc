@@ -1043,6 +1043,11 @@ void rgw::auth::RemoteApplier::modify_request_state(const DoutPrefixProvider* dp
   // copy our identity policies into req_state
   s->iam_identity_policies.insert(s->iam_identity_policies.end(),
                                   policies.begin(), policies.end());
+
+  for (const auto& role : this->info.keystone_roles) {
+    s->env.emplace("keystone:role", role);
+  }
+
 }
 
 std::optional<rgw::ARN> rgw::auth::RemoteApplier::get_caller_identity() const 
