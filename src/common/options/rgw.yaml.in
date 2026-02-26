@@ -873,6 +873,13 @@ options:
     this level of Keystone audit detail. User identity logging is controlled separately
     by rgw_keystone_scope_include_user for privacy considerations. Requires
     rgw_enable_ops_log to be enabled.
+- name: rgw_keystone_inject_roles
+  type: bool
+  level: advanced
+  desc: Inject Keystone roles as IAM policy condition keys
+  long_desc: When enabled, Keystone role names are injected into the IAM policy
+    evaluation environment as "keystone:role". This allows bucket policies to
+    use conditions like StringEquals on keystone:role.
   default: false
   services:
   - rgw
