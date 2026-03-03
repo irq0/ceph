@@ -152,7 +152,6 @@ TokenEngine::get_creds_info(const TokenEngine::token_envelope_t& token
     role_names.push_back(role.name);
     if (role.is_admin && !role.is_reader) {
       level = acct_privilege_t::IS_ADMIN_ACCT;
-      break;
     }
   }
 
