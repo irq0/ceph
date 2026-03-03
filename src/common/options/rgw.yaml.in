@@ -971,6 +971,17 @@ options:
   services:
   - rgw
   with_legacy: true
+- name: rgw_keystone_inject_roles
+  type: bool
+  level: advanced
+  desc: Inject Keystone roles as IAM policy condition keys
+  long_desc: When enabled, Keystone role names are injected into the IAM policy
+    evaluation environment as "keystone:role". This allows bucket policies to
+    use conditions like StringEquals on keystone:role.
+  default: false
+  services:
+  - rgw
+  with_legacy: true
 - name: rgw_cross_domain_policy
   type: str
   level: advanced

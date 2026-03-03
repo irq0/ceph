@@ -1044,8 +1044,10 @@ void rgw::auth::RemoteApplier::modify_request_state(const DoutPrefixProvider* dp
   s->iam_identity_policies.insert(s->iam_identity_policies.end(),
                                   policies.begin(), policies.end());
 
-  for (const auto& role : this->info.keystone_roles) {
-    s->env.emplace("keystone:role", role);
+  if (cct->_conf->rgw_keystone_inject_roles) {
+    for (const auto& role : this->info.keystone_roles) {
+      s->env.emplace("keystone:role", role);
+    }
   }
 
 }
