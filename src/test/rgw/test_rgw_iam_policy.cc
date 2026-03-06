@@ -1571,11 +1571,12 @@ TEST_F(ConditionTest, KeyStoneRoleNotStringEquals)
   EXPECT_TRUE(cond.eval({{key, "member"}}));
 
   // Multiple roles in env, one matches -> false
+  // TODO(irq0) prior to #65606 the multi env behavior is "OR" not "AND"
   Environment multi_env;
   multi_env.emplace(key, "member");
   multi_env.emplace(key, "admin");
   EXPECT_FALSE(multi_env.count(key) == 0);
-  EXPECT_FALSE(cond.eval(multi_env));
+  EXPECT_TRUE(cond.eval(multi_env));
 
   // Multiple roles, none match -> true
   Environment no_match_env;
