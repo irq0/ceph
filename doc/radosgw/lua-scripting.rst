@@ -9,6 +9,7 @@ Lua Scripting
 This feature allows users to assign execution context to Lua scripts. The supported contexts are:
 
  - ``prerequest`` which will execute a script before each operation is performed
+ - ``postauth`` which will execute a script after each operation is authorized but before it is performed
  - ``postrequest`` which will execute after each operation is performed
  - ``background`` which will execute within a specified time interval
  - ``getdata`` which will execute on objects' data when objects are downloaded
@@ -45,27 +46,27 @@ To upload a script:
 
 ::
 
-   # radosgw-admin script put --infile={lua-file-path} --context={prerequest|postrequest|background|getdata|putdata} [--tenant={tenant-name}]   
+   # radosgw-admin script put --infile={lua-file-path} --context={prerequest|postauth|postrequest|background|getdata|putdata} [--tenant={tenant-name}]  
    
 * When uploading a script with the ``background`` context, a tenant name should not be specified.
 
 ::
 
-  # cephadm shell radosgw-admin script put --infile=/rootfs/{lua-file-path} --context={prerequest|postrequest|background|getdata|putdata} [--tenant={tenant-name}]
+  # cephadm shell radosgw-admin script put --infile=/rootfs/{lua-file-path} --context={prerequest|postauth|postrequest|background|getdata|putdata} [--tenant={tenant-name}]
 
 
 To print the content of the script to standard output:
 
 ::
    
-   # radosgw-admin script get --context={preRequest|postRequest|background|getdata|putdata} [--tenant={tenant-name}]
+   # radosgw-admin script get --context={preRequest|postAuth|postRequest|background|getdata|putdata} [--tenant={tenant-name}]
 
 
 To remove the script:
 
 ::
    
-   # radosgw-admin script rm --context={preRequest|postRequest|background|getdata|putdata} [--tenant={tenant-name}]
+   # radosgw-admin script rm --context={preRequest|postAuth|postRequest|background|getdata|putdata} [--tenant={tenant-name}]
 
 
 Package Management via CLI
@@ -193,6 +194,8 @@ Request Fields
 | ``Reques.Bucket.Quota.Enabled``                    | boolean  | bucket quota is enabled                                      | no       | no        | no       |
 +----------------------------------------------------+----------+--------------------------------------------------------------+----------+-----------+----------+
 | ``Request.Bucket.Quota.Rounded``                   | boolean  | bucket quota is rounded to 4K                                | no       | no        | no       |
++----------------------------------------------------+----------+--------------------------------------------------------------+----------+-----------+----------+
+| ``Request.Bucket.Tags``                            | table    | bucket tags                                                  | yes      | no        | yes      |
 +----------------------------------------------------+----------+--------------------------------------------------------------+----------+-----------+----------+
 | ``Request.Bucket.PlacementRule``                   | table    | bucket placement rule                                        | no       | no        | yes      |
 +----------------------------------------------------+----------+--------------------------------------------------------------+----------+-----------+----------+
@@ -330,6 +333,23 @@ Tracing functions can be used only in the ``postrequest`` context.
   The function accepts one or two arguments: A string containing the event ``name`` should be the first argument, followed by the event ``attributes``, which is optional for events without attributes.
   An event's attributes must be a table of strings.
 
+Request Blocking and Error Handling
+-----------------------------------
+Script Execution Errors
+~~~~~~~~~~~~~~~~~~~~~~~
+If the Lua script fails with a syntax or runtime error, RGW will log the error. The request that triggered the script will still go through.
+
+Request Blocking and Return Values
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The script's return value determines how RGW proceeds with the request:
+- To block the request: The script must return the value ``RGW_ABORT_REQUEST``. RGW interprets this as ``-EPERM`` and will stop processing the request.
+- To continue the request: No return value, or any other return value or type will be treated as success.
+
+Return Value Context
+~~~~~~~~~~~~~~~~~~~~
+The Lua script’s return value is evaluated only during the prerequest and postauth context and is ignored in any other RGW request-processing context.
+The HTTP response status code is 403 (Forbidden) by default when a request is blocked by Lua. The response code can be changed using ``Request.Response.HTTPStatusCode`` and ``Request.Response.HTTPStatus``.
+If a request is aborted this way, the ``data`` and ``postrequest`` context will also be aborted.
 Background Context
 --------------------
 The ``background`` context may be used for purposes that include analytics, monitoring, caching data for other context executions.
