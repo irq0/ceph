@@ -20,7 +20,6 @@ from . import(
     get_secret_key
     )
 
-
 # configure logging for the tests module
 log = logging.getLogger(__name__)
 
@@ -117,6 +116,31 @@ def another_user(tenant=None):
     return client
 
 
+def another_user_with_uid(uid, tenant=None):
+    access_key = str(time.time())
+    secret_key = str(time.time())
+    if tenant:
+        _, result = admin(['user', 'create', '--uid', uid, '--tenant', tenant, '--access-key', access_key, '--secret-key', secret_key, '--display-name', '"Super Admin"'])
+    else:
+        _, result = admin(['user', 'create', '--uid', uid, '--access-key', access_key, '--secret-key', secret_key, '--display-name', '"Super Admin"'])
+    assert result == 0
+    hostname = get_config_host()
+    port_no = get_config_port()
+    if port_no == 443 or port_no == 8443:
+        scheme = "https://"
+    else:
+        scheme = "http://"
+
+    client = boto3.client(
+        "s3",
+        endpoint_url=scheme + hostname + ":" + str(port_no),
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+    )
+
+    return client
+
+
 def put_script(script, context, tenant=None):
     fp = tempfile.NamedTemporaryFile(mode='w+')
     fp.write(script)
@@ -209,7 +233,7 @@ class UnixSocket:
 
 @pytest.mark.basic_test
 def test_script_management():
-    contexts = ['prerequest', 'postrequest', 'background', 'getdata', 'putdata']
+    contexts = ['prerequest', 'postauth', 'postrequest', 'background', 'getdata', 'putdata']
     scripts = {}
     for context in contexts:
         script = 'print("hello from ' + context + '")'
@@ -233,7 +257,7 @@ def test_script_management():
 def test_script_management_with_tenant():
     tenant = 'mytenant'
     conn2 = another_user(tenant)
-    contexts = ['prerequest', 'postrequest', 'getdata', 'putdata']
+    contexts = ['prerequest', 'postauth', 'postrequest', 'getdata', 'putdata']
     scripts = {}
     for context in contexts:
         for t in ['', tenant]:
@@ -289,7 +313,7 @@ end
     # cleanup
     conn.delete_object(Bucket=bucket_name, Key=key)
     conn.delete_bucket(Bucket=bucket_name)
-    contexts = ['prerequest', 'postrequest', 'getdata', 'putdata']
+    contexts = ['prerequest', 'postauth', 'postrequest', 'getdata', 'putdata']
     for context in contexts:
         result = admin(['script', 'rm', '--context', context])
         assert result[1] == 0
@@ -315,7 +339,7 @@ end
 RGWDebugLog("op was: "..Request.RGWOp)
 '''
 
-    contexts = ['prerequest', 'postrequest', 'getdata', 'putdata']
+    contexts = ['prerequest', 'postauth', 'postrequest', 'getdata', 'putdata']
     for context in contexts:
         footer = '\nRGWDebugLog("context was: '+context+'\\n\\n")'
         result = put_script(script+footer, context)
@@ -341,7 +365,7 @@ RGWDebugLog("op was: "..Request.RGWOp)
     # cleanup
     delete_all_objects(conn, bucket_name)
     conn.delete_bucket(Bucket=bucket_name)
-    contexts = ['prerequest', 'postrequest', 'getdata', 'putdata']
+    contexts = ['prerequest', 'postauth', 'postrequest', 'getdata', 'putdata']
     for context in contexts:
         result = admin(['script', 'rm', '--context', context])
         assert result[1] == 0
@@ -398,7 +422,7 @@ RGWDebugLog("payload size of chunk of: " .. full_name .. " is: " .. #Data)
     # cleanup
     delete_all_objects(conn, bucket_name)
     conn.delete_bucket(Bucket=bucket_name)
-    contexts = ['prerequest', 'postrequest', 'background', 'getdata', 'putdata']
+    contexts = ['prerequest', 'postauth', 'postrequest', 'background', 'getdata', 'putdata']
     for context in contexts:
         result = admin(['script', 'rm', '--context', context])
         assert result[1] == 0
@@ -469,8 +493,158 @@ end
         socket_server.shutdown()
         delete_all_objects(conn, bucket_name)
         conn.delete_bucket(Bucket=bucket_name)
-        contexts = ['prerequest', 'postrequest', 'background', 'getdata', 'putdata']
+        contexts = ['prerequest', 'postauth', 'postrequest', 'background', 'getdata', 'putdata']
         for context in contexts:
             result = admin(['script', 'rm', '--context', context])
             assert result[1] == 0
 
+
+@pytest.mark.example_test
+def test_interrupt_request():
+    script = '''
+return RGW_ABORT_REQUEST
+    '''
+
+    conn = connection()
+    bucket_name = gen_bucket_name()
+    conn.create_bucket(Bucket=bucket_name)
+
+    result = put_script(script, "prerequest")
+    assert result[1] == 0
+    key = "hello"
+
+    try:
+        conn.put_object(
+            Body="this should be blocked".encode("ascii"), Bucket=bucket_name, Key=key
+        )
+        pytest.fail("The put_object operation was not blocked by the Lua script.")
+    except Exception as e:
+        pass
+
+    out, err = admin(["script", "rm", "--context", "prerequest"])
+    assert err == 0
+
+    try:
+        conn.get_object(Bucket=bucket_name, Key=key)
+        pytest.fail("The object was written to the bucket despite the error.")
+    except Exception as e:
+        assert e.response["Error"]["Code"] == "NoSuchKey"
+        log.info("Successfully confirmed that the request was interrupted.")
+
+    conn.delete_bucket(Bucket=bucket_name)
+
+
+@pytest.mark.example_test
+def test_interrupt_request_postauth():
+    script = '''
+return RGW_ABORT_REQUEST
+    '''
+
+    conn = connection()
+    bucket_name = gen_bucket_name()
+    conn.create_bucket(Bucket=bucket_name)
+
+    result = put_script(script, "postauth")
+    assert result[1] == 0
+    key = "hello"
+
+    try:
+        conn.put_object(
+            Body="this should be blocked".encode("ascii"), Bucket=bucket_name, Key=key
+        )
+        pytest.fail("The put_object operation was not blocked by the Lua script.")
+    except Exception as e:
+        pass
+
+    out, err = admin(["script", "rm", "--context", "postauth"])
+    assert err == 0
+
+    try:
+        conn.get_object(Bucket=bucket_name, Key=key)
+        pytest.fail("The object was written to the bucket despite the error.")
+    except Exception as e:
+        assert e.response["Error"]["Code"] == "NoSuchKey"
+        log.info("Successfully confirmed that the request was interrupted.")
+
+    conn.delete_bucket(Bucket=bucket_name)
+
+
+@pytest.mark.request_test
+def test_write_lock_with_tags():
+    admin_uid = "adminid_" + str(time.time())
+    admin_client = another_user_with_uid(admin_uid)
+    regular_client = another_user()
+    script = '''
+local ADMIN_USER_ID = "{admin_uid}"
+local LOCK_TAG_KEY = "write-lock" 
+local LOCK_TAG_VALUE = "true"
+
+local write_methods = {{ PUT = true, POST = true, DELETE = true, COPY = true }}
+local user_id = (Request.User and Request.User.Id) or "anonymous"
+
+if user_id == ADMIN_USER_ID then
+    return 0 
+end
+
+local method = Request.HTTP and Request.HTTP.Method or "UNKNOWN_METHOD"
+
+if method and write_methods[method] then
+    if Request.Bucket and Request.Bucket.Tags then
+        if Request.Bucket.Tags[LOCK_TAG_KEY] == LOCK_TAG_VALUE then
+            Request.Response.HTTPStatusCode = 403
+            return RGW_ABORT_REQUEST
+        end
+    end
+end
+return 0
+'''.format(admin_uid=admin_uid)
+    context = "postauth"
+    bucket_name = gen_bucket_name()
+    admin_client.create_bucket(Bucket=bucket_name)
+    admin_client.put_bucket_acl(Bucket=bucket_name, ACL="public-read-write")
+
+    result = put_script(script, context)
+    assert result[1] == 0
+    try:
+        admin_client.put_object(Body="data1", Bucket=bucket_name, Key="admin-notags")
+        resp1 = admin_client.get_object(Bucket=bucket_name, Key="admin-notags")
+        assert resp1["Body"].read().decode("utf-8") == "data1"
+
+        regular_client.put_object(Body="data2", Bucket=bucket_name, Key="regular-notags")
+        resp2 = regular_client.get_object(Bucket=bucket_name, Key="regular-notags")
+        assert resp2["Body"].read().decode("utf-8") == "data2"
+
+        admin_client.put_bucket_tagging(
+            Bucket=bucket_name,
+            Tagging={"TagSet": [{"Key": "write-lock", "Value": "true"}]},
+        )
+
+        admin_client.put_object(Body="data3", Bucket=bucket_name, Key="admin-withtags")
+        resp3 = admin_client.get_object(Bucket=bucket_name, Key="admin-withtags")
+        assert resp3["Body"].read().decode("utf-8") == "data3"
+
+        write_failed = False
+        try:
+            regular_client.put_object(Body="this should fail", Bucket=bucket_name, Key="regular-withtags")
+        except Exception as e:
+            write_failed = True
+
+        assert (
+            write_failed
+        ), "Case 4 Failed: The PUT operation should have been blocked by Lua!"
+
+        read_failed = False
+        try:
+            admin_client.get_object(Bucket=bucket_name, Key="regular-withtags")
+        except Exception as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                read_failed = True
+
+        assert (read_failed), "Case 4 Failed: The object was written to the bucket despite the error!"
+
+    finally:
+        # Clean up
+        admin(["script", "rm", "--context", context])
+        time.sleep(5)
+        delete_all_objects(admin_client, bucket_name)
+        admin_client.delete_bucket(Bucket=bucket_name)
