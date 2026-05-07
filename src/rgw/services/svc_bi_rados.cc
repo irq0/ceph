@@ -351,7 +351,10 @@ int RGWSI_BucketIndex_RADOS::cls_bucket_head(const DoutPrefixProvider *dpp,
   return 0;
 }
 
-int RGWSI_BucketIndex_RADOS::init_index(const DoutPrefixProvider *dpp,RGWBucketInfo& bucket_info, const rgw::bucket_index_layout_generation& idx_layout)
+int RGWSI_BucketIndex_RADOS::init_index(const DoutPrefixProvider *dpp,
+                                        RGWBucketInfo& bucket_info,
+                                        const rgw::bucket_index_layout_generation& idx_layout,
+                                        bool judge_support_logrecord)
 {
   librados::IoCtx index_pool;
 
@@ -366,9 +369,15 @@ int RGWSI_BucketIndex_RADOS::init_index(const DoutPrefixProvider *dpp,RGWBucketI
   map<int, string> bucket_objs;
   get_bucket_index_objects(dir_oid, idx_layout.layout.normal.num_shards, idx_layout.gen, &bucket_objs);
 
-  return CLSRGWIssueBucketIndexInit(index_pool,
-				    bucket_objs,
-				    cct->_conf->rgw_bucket_index_max_aio)();
+  if (judge_support_logrecord) {
+    return CLSRGWIssueBucketIndexInit2(index_pool,
+                                       bucket_objs,
+                                       cct->_conf->rgw_bucket_index_max_aio)();
+  } else {
+    return CLSRGWIssueBucketIndexInit(index_pool,
+                                      bucket_objs,
+                                      cct->_conf->rgw_bucket_index_max_aio)();
+  }
 }
 
 int RGWSI_BucketIndex_RADOS::clean_index(const DoutPrefixProvider *dpp, RGWBucketInfo& bucket_info, const rgw::bucket_index_layout_generation& idx_layout)
@@ -419,6 +428,17 @@ int RGWSI_BucketIndex_RADOS::read_stats(const DoutPrefixProvider *dpp,
       result->size += stats.total_size;
       result->size_rounded += stats.total_size_rounded;
     }
+    if (hiter->storage_class_stats.has_value()) {
+      for(auto it = hiter->storage_class_stats.value().begin(); it != hiter->storage_class_stats.value().end(); ++it){
+        std::string storage_class = it->first;
+        struct rgw_bucket_category_stats& stats = it->second;
+        result->storage_class_ents[storage_class].count += stats.num_entries;
+        result->storage_class_ents[storage_class].size += stats.total_size;
+        result->storage_class_ents[storage_class].size_rounded += stats.total_size_rounded;
+        result->storage_class_ents[storage_class].bucket = result->bucket;
+      }
+    }
+
   }
 
   result->placement_rule = std::move(bucket_info.placement_rule);

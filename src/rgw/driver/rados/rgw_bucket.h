@@ -220,6 +220,7 @@ extern int rgw_object_get_attr(rgw::sal::Driver* driver, rgw::sal::Object* obj,
 
 void check_bad_owner_bucket_mapping(rgw::sal::Driver* driver,
                                     const rgw_owner& owner,
+                                    const std::string& owner_name,
                                     const std::string& tenant,
                                     bool fix, optional_yield y,
                                     const DoutPrefixProvider *dpp);
@@ -233,6 +234,7 @@ struct RGWBucketAdminOpState {
   std::string object_name;
   std::string new_bucket_name;
   std::string marker;
+  uint32_t max_entries;
 
   bool list_buckets;
   bool stat_buckets;
@@ -343,9 +345,12 @@ public:
   int init(rgw::sal::Driver* storage, RGWBucketAdminOpState& op_state, optional_yield y,
              const DoutPrefixProvider *dpp, std::string *err_msg = NULL);
 
-  int check_bad_index_multipart(RGWBucketAdminOpState& op_state,
-              RGWFormatterFlusher& flusher,
-              const DoutPrefixProvider *dpp, optional_yield y, std::string *err_msg = NULL);
+  int check_bad_index_multipart(rgw::sal::RadosStore* const rados_store,
+				RGWBucketAdminOpState& op_state,
+				RGWFormatterFlusher& flusher,
+				const DoutPrefixProvider *dpp,
+				optional_yield y,
+				std::string *err_msg = nullptr);
 
   int check_object_index(const DoutPrefixProvider *dpp, 
                          RGWBucketAdminOpState& op_state,
@@ -723,6 +728,7 @@ public:
                        const rgw_owner& owner,
                        const RGWBucketInfo& bucket_info,
                        optional_yield y,
+                       bool reset,
                        RGWBucketEnt* pent);
 
   /* bucket sync */

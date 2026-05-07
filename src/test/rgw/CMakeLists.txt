@@ -37,11 +37,11 @@ target_link_libraries(ceph_test_rgw_d4n_directory PRIVATE
   )
 install(TARGETS ceph_test_rgw_d4n_directory DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
-  
+
 if(WITH_RADOSGW_D4N)
 add_executable(ceph_test_rgw_d4n_filter
   test_d4n_filter.cc
-  ) 
+  )
 target_include_directories(ceph_test_rgw_d4n_filter
   PUBLIC "${CMAKE_SOURCE_DIR}/src/dmclock/support/src"
   SYSTEM PRIVATE "${CMAKE_SOURCE_DIR}/src/rgw/store/dbstore/common")
@@ -323,3 +323,15 @@ if(WITH_RADOSGW_POSIX)
   target_link_libraries(unittest_posix_bucket_cache  ${UNITTEST_LIBS}
     ${rgw_libs} ${LMDB_LIBRARIES})
 endif(WITH_RADOSGW_POSIX)
+
+# Test for storage class stats with std::optional
+add_executable(unittest_rgw_storage_class_stats
+               test_rgw_storage_class_stats.cc
+              )
+target_link_libraries(unittest_rgw_storage_class_stats
+                      cls_rgw_client
+                      cls_user_client
+                      global
+                      ${UNITTEST_LIBS}
+                      )
+add_ceph_unittest(unittest_rgw_storage_class_stats)

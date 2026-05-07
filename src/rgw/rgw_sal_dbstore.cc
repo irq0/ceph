@@ -217,6 +217,7 @@ namespace rgw::sal {
   }
 
   int DBBucket::sync_owner_stats(const DoutPrefixProvider *dpp, optional_yield y,
+                                 bool reset,
                                  RGWBucketEnt* ent)
   {
     return 0;
@@ -228,8 +229,10 @@ namespace rgw::sal {
     return 0;
   }
 
-  int DBBucket::chown(const DoutPrefixProvider *dpp, const rgw_owner& new_owner, optional_yield y)
-  {
+  int DBBucket::chown(const DoutPrefixProvider* dpp,
+                      const rgw_owner& new_owner,
+                      const std::string& new_owner_name,
+                      optional_yield y) {
     int ret;
 
     ret = store->getDB()->update_bucket(dpp, "owner", info, false, &new_owner, nullptr, nullptr, nullptr);
