@@ -58,7 +58,7 @@ static int set(const DoutPrefixProvider* dpp, optional_yield y,
 
   librados::ObjectWriteOperation op;
   ::cls_user_set_buckets(op, entries, add, reset);
-  return ref.operate(dpp, std::move(op), y);
+  return ref.operate(dpp, &op, y);
 }
 
 int add(const DoutPrefixProvider* dpp, optional_yield y,
