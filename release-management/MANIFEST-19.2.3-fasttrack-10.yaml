@@ -1,0 +1,240 @@
+schema_version: 1
+release:
+  product: cobaltcore-storage
+  upstream_base: 19.2.3
+  upstream_tag: v19.2.3
+  upstream_commit: c92aebb279828e9c3c1f5d24613efca272649e62
+  branch: release/cobaltcore-storage-v19.2.3-fasttrack-10
+  effort_milestone: release/cobaltcore-storage-v19.2.3-fasttrack-10
+  downstream_version: 19.2.3-fasttrack-10
+  downstream_tag: release/cobaltcore-storage-v19.2.3-fasttrack-10
+  source_commit: 0ebaff4ba79671acb4ff232df669de4280c61b1b
+  rc_tag: (none — released directly from branch)
+  promoted_at: '2026-06-04T18:09:20+00:00'
+  promoted_by: irq0
+  release_record:
+    file: release-management/releases/v19.2.3-fasttrack-10/RELEASE.md
+    test_evidence_dir: release-management/releases/v19.2.3-fasttrack-10/test-evidence/
+  artifacts:
+  - kind: container-image
+    ref: harbor.clyso.com/custom-ceph/ceph/ceph
+    tag: cobaltcore-storage-v19.2.3-fasttrack-10
+    digest: sha256:e316b9513c3c1a084e7660fc1e0a03e5689eacc808562a5e9d406f528a8e1020
+backports:
+- id: 019e92ed-d2ca-78ab-bc93-35d84ba848b0
+  title: SSE-KMS Secrets Cache
+  component: rgw
+  category: feature
+  provenance:
+    type: upstream_pr
+    upstream_pr_state: approved-open
+    upstream_prs:
+    - https://github.com/ceph/ceph/pull/61256
+    upstream_commits:
+    - 10fb08ad89b16b842461e682ecc839460480a1fb
+  justification:
+    type: customer
+    refs:
+    - https://github.com/cobaltcore-dev/cloud-storage/issues/125
+    public_summary: 'Adds a secure in-memory cache for SSE-KMS encryption keys retrieved from Barbican
+
+      (or other KMS backends), eliminating redundant round-trips on repeated
+
+      access to the same encrypted objects. Uses a new SIEVE-based eviction
+
+      cache (WebCache) and stores decrypted secrets in the Linux kernel keyring.
+
+      Please refer to the Ceph documentation on how to configure this feature.'
+  risk:
+    blast: data-loss
+    conflict: substantive
+    coverage: partial
+    upstream: approved-open
+    total: 10
+    band: high
+  risk_notes: "- TTLs mean that a deleted or rotated Barbican key won't be immediately\n  reflected.\n\
+    - New async primitives (`async::call_once`) and the `WebCache` are\n  significant new library code\
+    \ shipping for the first time.\n- Cache size tuning and system wide keyring quota adjustment needed\n\
+    \  for production workloads (refer to the docs)."
+  behavior_change: 'Repeated SSE-KMS access no longer hits the KMS backend on every
+
+    request; decrypted secrets are cached in-memory and in the Linux
+
+    kernel keyring. KMS-cache is **ON** out of the box.'
+  upgrade_notes: 'Feature flag: `rgw_crypt_s3_kms_cache_enabled` — set `false` to disable
+
+    caching entirely and revert to per-request KMS lookups.'
+  derived:
+    patch_status: active
+- id: 019e92ed-d2cb-72c0-a34e-b5bf55eac620
+  title: 'Write Lock - lua: postAuth hook, bucket tags, request blocking'
+  component: rgw
+  category: feature
+  provenance:
+    type: upstream_pr
+    upstream_pr_state: open-in-review
+    upstream_prs:
+    - https://github.com/ceph/ceph/pull/66065
+    - https://github.com/ceph/ceph/pull/67219
+    - https://github.com/ceph/ceph/pull/66567
+    - https://github.com/ceph/ceph/pull/67548
+    upstream_commits:
+    - 68396f6337b5bb91b7e31593754d0dc95b5e9135
+    - 6e09062fcc4a623ab8ac9f1f0e8ec78456f7fe28
+    - d6bc0c5be8625bd7c5abfcd66700019616423583
+    - fba30067e93cbb538a30cb5c2dfde470c253f567
+  justification:
+    type: customer
+    refs:
+    - https://github.com/cobaltcore-dev/cloud-storage/issues/310
+    public_summary: "Lua script extensions for RGW to allow \"Write Lock\" feature\n\n- New `postAuth`\
+      \ Lua hook point that runs after authentication /\n  authorization but before the operation executes.\n\
+      - Lua scripts can now read bucket tags.\n- Lua scripts can abort request processing."
+  risk:
+    blast: availability
+    conflict: trivial
+    coverage: partial
+    upstream: open-in-review
+    total: 9
+    band: medium
+  risk_notes: 'The `postAuth` hook runs on every request. A slow or buggy Lua script
+
+    will add latency to all S3 operations.'
+  behavior_change: 'A new `postAuth` Lua hook point is available. Scripts can read bucket
+
+    tags and abort request processing. Lua is **inactive** out of the box
+
+    (no scripts are uploaded by default).'
+  upgrade_notes: 'No dedicated feature flag; controlled by whether a Lua script is uploaded
+
+    via `radosgw-admin`.'
+  derived:
+    patch_status: active
+- id: 019e92ed-d2cc-7bce-a481-77ca769cfda9
+  title: RGW Keystone Scope Logging + Role Injection into IAM Policy
+  component: rgw
+  category: feature
+  provenance:
+    type: upstream_pr
+    upstream_pr_state: merged-main
+    upstream_prs:
+    - https://github.com/ceph/ceph/pull/66111
+    - https://github.com/ceph/ceph/pull/67752
+    upstream_commits:
+    - 3180812e54197784ba5b7fc7027e62553144e175
+    - 47a46ac109aeb290d52d4fc319ffdec503572307
+  justification:
+    type: customer
+    refs:
+    - https://github.com/cobaltcore-dev/cloud-storage/issues/335
+    - https://github.com/cobaltcore-dev/cloud-storage/issues/380
+    public_summary: "- Adds Keystone authentication scope (project, domain, roles) to the RGW\n  ops log.\n\
+      - Allows Keystone role names to be injected as `keystone:role` condition\n  keys in S3 bucket policies,\
+      \ enabling role-based access control via\n  standard IAM policy conditions."
+  risk:
+    blast: availability
+    conflict: substantive
+    coverage: partial
+    upstream: merged-main
+    total: 8
+    band: medium
+  risk_notes: "- Role injection (`rgw_keystone_inject_roles`) changes IAM policy\n  evaluation semantics.\
+    \ Existing bucket policies with `keystone:role`\n  conditions that previously had no effect will **start\
+    \ matching**. Audit\n  policies before enabling.\n- Scope logging with `rgw_keystone_scope_include_user=true`\
+    \ writes\n  human-readable usernames to ops logs, which may have GDPR / privacy\n  implications.\n\
+    - Future upstream versions will change `StringMatch` operator semantics\n  (see <https://github.com/ceph/ceph/pull/65606/commits>).\
+    \ This backport\n  already accounts for the new behavior."
+  behavior_change: 'Keystone scope (project, domain, roles) now appears in RGW ops logs.
+
+    Keystone role names can be referenced from S3 bucket policies as
+
+    `keystone:role`. Both features are **OFF** out of the box.'
+  upgrade_notes: "- `rgw_keystone_scope_enabled` — enable Keystone scope in the ops log.\n- `rgw_keystone_inject_roles`\
+    \ — inject Keystone roles as IAM policy\n  condition keys.\n\nExisting bucket policies referencing\
+    \ `keystone:role` should be audited\nbefore enabling role injection."
+  derived:
+    patch_status: active
+- id: 019e934e-ca1d-7c09-824f-6a6d4932446a
+  title: 'backport: fix clang-14 issues in WebCache'
+  component: build
+  category: integration
+  provenance:
+    type: other
+    other: 'Downstream-only build adaptation against clang-14. The new
+
+      WebCache template code introduced by the SSE-KMS Secrets Cache
+
+      backport (UUID 019e92ed-d2ca-78ab-bc93-35d84ba848b0, merge
+
+      18f476756e71) fails to compile under clang-14 without explicit
+
+      `typename` qualifiers on dependent template return types. Adds the
+
+      qualifiers in `src/common/web_cache.h` and a `[[maybe_unused]]`
+
+      attribute in the test. No upstream PR — the new WebCache library
+
+      itself is still WIP upstream (PR #61256).
+
+      '
+  justification:
+    type: engineering
+    refs: []
+    public_summary: 'Build adaptation: adds `typename` qualifiers to dependent template
+
+      return types in the new WebCache code so it compiles under clang-14.'
+  risk:
+    blast: cosmetic
+    conflict: clean
+    coverage: strong
+    upstream: downstream-only
+    total: 6
+    band: low
+  risk_notes: 'Pure C++ template-correctness fix. Touches no runtime code path. The
+
+    test file change is the addition of a `[[maybe_unused]]` attribute on
+
+    a discarded value, which is also a compiler-warning fix.'
+  behavior_change: None.
+  upgrade_notes: None.
+  derived:
+    patch_status: active
+- id: 019e934e-ca1e-7572-9158-f63181137c3a
+  title: 'backport: remove ambiguous CephContext fwd decl in rgw_keystone_scope.h'
+  component: rgw
+  category: integration
+  provenance:
+    type: other
+    other: 'Downstream-only build adaptation. The Keystone scope backport (UUID
+
+      019e92ed-d2cc-7bce-a481-77ca769cfda9, merge c582732911a7) carries a
+
+      redundant forward declaration of `CephContext` that becomes
+
+      ambiguous against the existing declaration on the 19.2.3 base.
+
+      Removes the duplicate so the file compiles. No upstream PR.
+
+      '
+  justification:
+    type: engineering
+    refs: []
+    public_summary: 'Build adaptation: removes a redundant `class CephContext;` forward
+
+      declaration from `src/rgw/rgw_keystone_scope.h` that becomes ambiguous
+
+      against the existing declaration on the 19.2.3 base.'
+  risk:
+    blast: cosmetic
+    conflict: clean
+    coverage: strong
+    upstream: downstream-only
+    total: 6
+    band: low
+  risk_notes: 'Removes 2 lines from a header. No runtime behavior. Compiles cleanly
+
+    in CI.'
+  behavior_change: None.
+  upgrade_notes: None.
+  derived:
+    patch_status: active
