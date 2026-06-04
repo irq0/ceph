@@ -1,0 +1,4 @@
+product: cobaltcore-storage
+upstream_repo: ceph/ceph
+downstream_repo: cobaltcore-dev/ceph
+issues_repo: cobaltcore-dev/cloud-storage
