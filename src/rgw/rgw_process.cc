@@ -6,6 +6,7 @@
 #include "common/WorkQueue.h"
 #include "include/scope_guard.h"
 
+#include <chrono>
 #include <utility>
 #include "rgw_auth_registry.h"
 #include "rgw_dmclock_scheduler.h"
@@ -557,6 +558,23 @@ done:
           << " request_id=" << s->trans_id
           << " ======"
           << dendl;
+
+  if (scheduler) {
+    const bool dropped = [op_ret]() {
+      switch (-op_ret) {
+        case ERR_SERVICE_UNAVAILABLE:
+        case ERR_RATE_LIMITED:
+        case ERR_INTERNAL_ERROR:
+        case EBUSY:
+        case ETIMEDOUT:
+          return true;
+        default:
+          return false;
+      }
+    }();
+    scheduler->report_completion(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(lat), dropped);
+  }
 
   if (handler)
     handler->put_op(op);
