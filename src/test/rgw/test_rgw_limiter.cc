@@ -89,7 +89,7 @@ TEST_P(ConcurrencyLimiterTest, LimitStaysBounded) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Implementations, ConcurrencyLimiterTest,
-    ::testing::Values("static"),
+    ::testing::Values("static", "gradient2"),
     [](const ::testing::TestParamInfo<std::string_view>& info) {
       return std::string(info.param);
     });
