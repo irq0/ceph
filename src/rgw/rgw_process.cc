@@ -362,6 +362,7 @@ int process_request(const RGWProcessEnv& penv,
   RGWOp* op = nullptr;
   int init_error = 0;
   bool should_log = false;
+  bool admitted = false;
   RGWREST* rest = penv.rest;
   RGWRESTMgr *mgr;
   bool is_health_request = false;
@@ -394,6 +395,7 @@ int process_request(const RGWProcessEnv& penv,
     abort_early(s, op, ret, handler, yield);
     goto done;
   }
+  admitted = true;
   req->op = op;
   ldpp_dout(op, 10) << "op=" << typeid(*op).name() << " " << dendl;
   s->op_type = op->get_type();
@@ -586,20 +588,26 @@ done:
   }
 
   if (scheduler != nullptr) {
-    const bool dropped = [op_ret]() {
-      switch (-op_ret) {
-        case ERR_SERVICE_UNAVAILABLE:
-        case ERR_RATE_LIMITED:
-        case ERR_INTERNAL_ERROR:
-        case EBUSY:
-        case ETIMEDOUT:
-          return true;
-        default:
-          return false;
-      }
-    }();
-    scheduler->report_completion(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(lat), dropped);
+    const int err_no = -(op_ret < 0 ? op_ret : s->err.ret);
+    const bool self_shed = !admitted || err_no == ERR_RATE_LIMITED;
+
+    s->rados_latency.busy();
+
+    if (!self_shed) {
+      const bool dropped = [err_no]() {
+        switch (err_no) {
+          case ERR_SERVICE_UNAVAILABLE:
+          case ERR_INTERNAL_ERROR:
+          case EBUSY:
+          case ETIMEDOUT:
+            return true;
+          default:
+            return false;
+        }
+      }();
+      scheduler->report_completion(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(lat), dropped);
+    }
   }
 
   if (handler)
