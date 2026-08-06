@@ -65,6 +65,7 @@
 
 #include "osd/OSDMap.h"
 #include "osd/error_code.h"
+#include "osdc/perf_osdop.h"
 
 class Context;
 class Messenger;
@@ -1832,6 +1833,7 @@ private:
   ceph::timer<ceph::coarse_mono_clock> timer;
 
   PerfCounters* logger = nullptr;
+  std::array<PerfCounters*, ceph::osdc::perf::osdop_slot_count> osdop_loggers = {};
 
   uint64_t tick_event = 0;
 

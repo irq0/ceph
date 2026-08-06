@@ -19,6 +19,9 @@
 #include <algorithm>
 #include <sstream>
 
+#include "common/perf_histogram.h"
+#include "common/perf_counters_key.h"
+#include "include/rados.h"
 #include "osd/OSDMap.h"
 #include "osd/error_code.h"
 #include "Filer.h"
@@ -64,6 +67,7 @@
 #include "neorados/RADOSImpl.h"
 
 #include "osdc/SplitOp.h"
+#include "osdc/perf_osdop.h"
 
 using std::list;
 using std::make_pair;
@@ -127,31 +131,7 @@ enum {
   l_osdc_op_rmw,
   l_osdc_op_pg,
 
-  l_osdc_osdop_stat,
-  l_osdc_osdop_create,
-  l_osdc_osdop_read,
-  l_osdc_osdop_write,
-  l_osdc_osdop_writefull,
-  l_osdc_osdop_writesame,
-  l_osdc_osdop_append,
-  l_osdc_osdop_zero,
-  l_osdc_osdop_truncate,
-  l_osdc_osdop_delete,
-  l_osdc_osdop_mapext,
-  l_osdc_osdop_sparse_read,
-  l_osdc_osdop_clonerange,
-  l_osdc_osdop_getxattr,
-  l_osdc_osdop_setxattr,
-  l_osdc_osdop_cmpxattr,
-  l_osdc_osdop_rmxattr,
-  l_osdc_osdop_resetxattrs,
-  l_osdc_osdop_call,
-  l_osdc_osdop_watch,
-  l_osdc_osdop_notify,
-  l_osdc_osdop_src_cmpxattr,
-  l_osdc_osdop_pgls,
-  l_osdc_osdop_pgls_filter,
-  l_osdc_osdop_other,
+  l_osdc_osdop,
 
   l_osdc_linger_active,
   l_osdc_linger_send,
@@ -182,10 +162,6 @@ enum {
   l_osdc_osd_session_open,
   l_osdc_osd_session_close,
   l_osdc_osd_laggy,
-
-  l_osdc_osdop_omap_wr,
-  l_osdc_osdop_omap_rd,
-  l_osdc_osdop_omap_del,
 
   l_osdc_replica_read_sent,
   l_osdc_replica_read_bounced,
@@ -269,6 +245,41 @@ void Objecter::update_crush_location()
   crush_location = cct->crush_location.get_location();
 }
 
+static PerfCounters* create_osdop_logger(CephContext* cct, const char* op) {
+  using namespace ceph::osdc::perf;
+  PerfCountersBuilder pcb(cct, ceph::perf_counters::key_create("osdop", {{"op", op}}),
+                          l_osdop_first, l_osdop_last);
+  pcb.add_u64_counter(l_osdop_ops, "ops", "OSD operations issued",
+                      nullptr, PerfCountersBuilder::PRIO_USEFUL);
+  pcb.add_u64_counter(l_osdop_compound, "compound",
+                      "Requests dominated by this op that carried other ops",
+                      nullptr, PerfCountersBuilder::PRIO_USEFUL);
+  pcb.add_time_histogram(l_osdop_latency, "latency",
+                         PerfHistogramCommon::axis_config_d::latency("latency"),
+                         "OSD operation completion latency distribution",
+                         nullptr, PerfCountersBuilder::PRIO_INTERESTING);
+  auto* pc = pcb.create_perf_counters();
+  cct->get_perfcounters_collection()->add(pc);
+  return pc;
+}
+
+static int dominant_osdop_slot(const osdc_opvec& ops)
+{
+  using namespace ceph::osdc::perf;
+  int best_slot = -1;
+  int best_rank = -1;
+  for (const auto& o : ops) {
+    const int slot = osdop_slot_of(o.op.op);
+    if (slot < 0)
+      continue;
+    if (const int rank = osdop_rank(o.op.op); rank > best_rank) {
+      best_rank = rank;
+      best_slot = slot;
+    }
+  }
+  return best_slot;
+}
+
 // messages ------------------------------
 
 /*
@@ -301,50 +312,11 @@ void Objecter::init()
 			"rdwr", PerfCountersBuilder::PRIO_INTERESTING);
     pcb.add_u64_counter(l_osdc_op_pg, "op_pg", "PG operation");
 
-    pcb.add_u64_counter(l_osdc_osdop_stat, "osdop_stat", "Stat operations");
-    pcb.add_u64_counter(l_osdc_osdop_create, "osdop_create",
-			"Create object operations");
-    pcb.add_u64_counter(l_osdc_osdop_read, "osdop_read", "Read operations");
-    pcb.add_u64_counter(l_osdc_osdop_write, "osdop_write", "Write operations");
-    pcb.add_u64_counter(l_osdc_osdop_writefull, "osdop_writefull",
-			"Write full object operations");
-    pcb.add_u64_counter(l_osdc_osdop_writesame, "osdop_writesame",
-                        "Write same operations");
-    pcb.add_u64_counter(l_osdc_osdop_append, "osdop_append",
-			"Append operation");
-    pcb.add_u64_counter(l_osdc_osdop_zero, "osdop_zero",
-			"Set object to zero operations");
-    pcb.add_u64_counter(l_osdc_osdop_truncate, "osdop_truncate",
-			"Truncate object operations");
-    pcb.add_u64_counter(l_osdc_osdop_delete, "osdop_delete",
-			"Delete object operations");
-    pcb.add_u64_counter(l_osdc_osdop_mapext, "osdop_mapext",
-			"Map extent operations");
-    pcb.add_u64_counter(l_osdc_osdop_sparse_read, "osdop_sparse_read",
-			"Sparse read operations");
-    pcb.add_u64_counter(l_osdc_osdop_clonerange, "osdop_clonerange",
-			"Clone range operations");
-    pcb.add_u64_counter(l_osdc_osdop_getxattr, "osdop_getxattr",
-			"Get xattr operations");
-    pcb.add_u64_counter(l_osdc_osdop_setxattr, "osdop_setxattr",
-			"Set xattr operations");
-    pcb.add_u64_counter(l_osdc_osdop_cmpxattr, "osdop_cmpxattr",
-			"Xattr comparison operations");
-    pcb.add_u64_counter(l_osdc_osdop_rmxattr, "osdop_rmxattr",
-			"Remove xattr operations");
-    pcb.add_u64_counter(l_osdc_osdop_resetxattrs, "osdop_resetxattrs",
-			"Reset xattr operations");
-    pcb.add_u64_counter(l_osdc_osdop_call, "osdop_call",
-			"Call (execute) operations");
-    pcb.add_u64_counter(l_osdc_osdop_watch, "osdop_watch",
-			"Watch by object operations");
-    pcb.add_u64_counter(l_osdc_osdop_notify, "osdop_notify",
-			"Notify about object operations");
-    pcb.add_u64_counter(l_osdc_osdop_src_cmpxattr, "osdop_src_cmpxattr",
-			"Extended attribute comparison in multi operations");
-    pcb.add_u64_counter(l_osdc_osdop_pgls, "osdop_pgls");
-    pcb.add_u64_counter(l_osdc_osdop_pgls_filter, "osdop_pgls_filter");
-    pcb.add_u64_counter(l_osdc_osdop_other, "osdop_other", "Other operations");
+    pcb.add_time_histogram(l_osdc_osdop, "osdop",
+			   PerfHistogramCommon::axis_config_d::latency("latency"),
+			   "OSD operation latency distribution", nullptr,
+			   PerfCountersBuilder::PRIO_INTERESTING);
+
 
     pcb.add_u64(l_osdc_linger_active, "linger_active",
 		"Active lingering operations");
@@ -394,13 +366,6 @@ void Objecter::init()
 			"Sessions closed");
     pcb.add_u64(l_osdc_osd_laggy, "osd_laggy", "Laggy OSD sessions");
 
-    pcb.add_u64_counter(l_osdc_osdop_omap_wr, "omap_wr",
-			"OSD OMAP write operations");
-    pcb.add_u64_counter(l_osdc_osdop_omap_rd, "omap_rd",
-			"OSD OMAP read operations");
-    pcb.add_u64_counter(l_osdc_osdop_omap_del, "omap_del",
-			"OSD OMAP delete operations");
-
     pcb.add_u64_counter(l_osdc_replica_read_sent, "replica_read_sent",
 			"Operations sent to replica");
     pcb.add_u64_counter(l_osdc_replica_read_bounced, "replica_read_bounced",
@@ -412,6 +377,12 @@ void Objecter::init()
 
     logger = pcb.create_perf_counters();
     cct->get_perfcounters_collection()->add(logger);
+
+    using namespace ceph::osdc::perf;
+#define PERF_OSDOP_MAKE(op, opcode, str) \
+    osdop_loggers[osdop_slot_##op] = create_osdop_logger(cct, str);
+    __CEPH_FORALL_OSD_OPS(PERF_OSDOP_MAKE)
+#undef PERF_OSDOP_MAKE
   }
 
   m_request_state_hook = new RequestStateHook(this);
@@ -559,6 +530,12 @@ void Objecter::shutdown()
   }
 
   if (logger) {
+    for (auto*& pc : osdop_loggers) {
+      cct->get_perfcounters_collection()->remove(pc);
+      delete pc;
+      pc = nullptr;
+    }
+    
     cct->get_perfcounters_collection()->remove(logger);
     delete logger;
     logger = NULL;
@@ -2501,48 +2478,11 @@ void Objecter::_send_op_account(Op *op)
   if (op->target.flags & CEPH_OSD_FLAG_PGOP)
     logger->inc(l_osdc_op_pg);
 
-  for (auto p = op->ops.begin(); p != op->ops.end(); ++p) {
-    int code = l_osdc_osdop_other;
-    switch (p->op.op) {
-    case CEPH_OSD_OP_STAT: code = l_osdc_osdop_stat; break;
-    case CEPH_OSD_OP_CREATE: code = l_osdc_osdop_create; break;
-    case CEPH_OSD_OP_READ: code = l_osdc_osdop_read; break;
-    case CEPH_OSD_OP_WRITE: code = l_osdc_osdop_write; break;
-    case CEPH_OSD_OP_WRITEFULL: code = l_osdc_osdop_writefull; break;
-    case CEPH_OSD_OP_WRITESAME: code = l_osdc_osdop_writesame; break;
-    case CEPH_OSD_OP_APPEND: code = l_osdc_osdop_append; break;
-    case CEPH_OSD_OP_ZERO: code = l_osdc_osdop_zero; break;
-    case CEPH_OSD_OP_TRUNCATE: code = l_osdc_osdop_truncate; break;
-    case CEPH_OSD_OP_DELETE: code = l_osdc_osdop_delete; break;
-    case CEPH_OSD_OP_MAPEXT: code = l_osdc_osdop_mapext; break;
-    case CEPH_OSD_OP_SPARSE_READ: code = l_osdc_osdop_sparse_read; break;
-    case CEPH_OSD_OP_GETXATTR: code = l_osdc_osdop_getxattr; break;
-    case CEPH_OSD_OP_SETXATTR: code = l_osdc_osdop_setxattr; break;
-    case CEPH_OSD_OP_CMPXATTR: code = l_osdc_osdop_cmpxattr; break;
-    case CEPH_OSD_OP_RMXATTR: code = l_osdc_osdop_rmxattr; break;
-    case CEPH_OSD_OP_RESETXATTRS: code = l_osdc_osdop_resetxattrs; break;
-
-    // OMAP read operations
-    case CEPH_OSD_OP_OMAPGETVALS:
-    case CEPH_OSD_OP_OMAPGETKEYS:
-    case CEPH_OSD_OP_OMAPGETHEADER:
-    case CEPH_OSD_OP_OMAPGETVALSBYKEYS:
-    case CEPH_OSD_OP_OMAP_CMP: code = l_osdc_osdop_omap_rd; break;
-
-    // OMAP write operations
-    case CEPH_OSD_OP_OMAPSETVALS:
-    case CEPH_OSD_OP_OMAPSETHEADER: code = l_osdc_osdop_omap_wr; break;
-
-    // OMAP del operations
-    case CEPH_OSD_OP_OMAPCLEAR:
-    case CEPH_OSD_OP_OMAPRMKEYS: code = l_osdc_osdop_omap_del; break;
-
-    case CEPH_OSD_OP_CALL: code = l_osdc_osdop_call; break;
-    case CEPH_OSD_OP_WATCH: code = l_osdc_osdop_watch; break;
-    case CEPH_OSD_OP_NOTIFY: code = l_osdc_osdop_notify; break;
+  using namespace ceph::osdc::perf;
+  for (const auto& o : op->ops) {
+    if (int slot = osdop_slot_of(o.op.op); slot >= 0) {
+      osdop_loggers[slot]->inc(l_osdop_ops);
     }
-    if (code)
-      logger->inc(code);
   }
 }
 
@@ -3968,7 +3908,18 @@ void Objecter::handle_osd_op_reply(MOSDOpReply *m)
   bs::error_code handler_error = process_op_reply_handlers(op, out_ops);
 
   logger->inc(l_osdc_op_reply);
-  logger->tinc(l_osdc_op_latency, ceph::coarse_mono_time::clock::now() - op->stamp);
+
+  const auto lat = ceph::coarse_mono_time::clock::now() - op->stamp;
+  logger->tinc(l_osdc_op_latency, lat);
+  logger->htinc(l_osdc_osdop, lat);
+
+  if (const int slot = dominant_osdop_slot(op->ops); slot >= 0) {
+    using namespace ceph::osdc::perf;
+    osdop_loggers[slot]->htinc(l_osdop_latency, lat);
+    if (op->ops.size() > 1)
+      osdop_loggers[slot]->inc(l_osdop_compound);
+      }
+
   logger->set(l_osdc_op_inflight, num_in_flight);
 
   // This function unlocks sl.
