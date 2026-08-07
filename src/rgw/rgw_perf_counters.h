@@ -4,7 +4,9 @@
 #pragma once
 
 #include "include/common_fwd.h"
+#include "include/rados/librados_fwd.hpp"
 #include "rgw_common.h"
+#include "common/async/backend_latency.h"
 #include "common/perf_counters_cache.h"
 #include "common/perf_counters_key.h"
 
@@ -122,7 +124,22 @@ enum {
 enum {
   l_rgw_op_hist_first = 19000,
   l_rgw_op_hist_lat,
+  // Of the request latency above, the share spent waiting on RADOS: wall time
+  // with at least one RADOS op outstanding.  Bounded by l_rgw_op_hist_lat.
+  l_rgw_op_hist_rados_lat,
+  // Sum of the request's individual RADOS op durations.  RGW drives the data
+  // path concurrently, so this is total RADOS work and may exceed the request
+  // latency.  rados_work/rados_lat is the concurrency actually achieved.
+  l_rgw_op_hist_rados_work,
+  l_rgw_op_hist_rados_ops,
   l_rgw_op_hist_last,
+};
+
+enum {
+  l_rgw_rados_pool_first = 19100,
+  l_rgw_rados_pool_ops,
+  l_rgw_rados_pool_lat,
+  l_rgw_rados_pool_last,
 };
 
 namespace rgw::op_counters {
@@ -172,3 +189,79 @@ PerfCounters* get(CephContext* cct, RGWOpType type, const char* op_name);
 void htinc(PerfCounters* counters, int idx, ceph::timespan amt);
 
 } // namespace rgw::op_hist
+
+#ifdef WITH_RADOSGW_RADOS
+namespace rgw::rados_pool_counters {
+
+/// Record one completed RADOS operation against its pool's counters, which are
+/// labeled with the numeric pool id and created on first use.  Answers "which
+/// pool is slow" without needing any request context, so it covers RADOS
+/// traffic that no request owns (GC, lifecycle, sync) as well as request
+/// traffic.
+///
+/// Labeled by pool id rather than name so these line up directly with the
+/// Objecter's own per-pool counters, which cannot resolve a name without
+/// inverting its lock order.  Join ceph_pool_metadata for names.
+void record(CephContext* cct, int64_t pool_id, ceph::timespan dur);
+
+void shutdown(CephContext* cct);
+
+/// Times one RADOS operation and, on completion, reports it to both the
+/// request's backend_latency sink (if the yield carries one) and the per-pool
+/// counters.
+///
+/// For blocking calls the destructor does the reporting.  Operations that
+/// complete asynchronously must move this into the completion handler so that
+/// it is destroyed there rather than at submission.
+/// Holds the pool id by value rather than a reference to the IoCtx: on the
+/// yielding path this outlives the OpFunc closure that supplied the IoCtx, so
+/// anything borrowed from it would dangle by the time the operation completes.
+class rados_op_timer {
+ public:
+  /// Defined out of line so that this header needs only the librados forward
+  /// declaration.
+  rados_op_timer(CephContext* cct, librados::IoCtx& ioctx, optional_yield y);
+
+  rados_op_timer(rados_op_timer&& o) noexcept
+    : cct(o.cct), pool_id(o.pool_id), sink(o.sink), start(o.start) {
+    o.cct = nullptr; // marks the source as moved-from
+    o.sink = nullptr;
+  }
+  rados_op_timer& operator =(rados_op_timer&&) = delete;
+  rados_op_timer(const rados_op_timer&) = delete;
+  rados_op_timer& operator =(const rados_op_timer&) = delete;
+
+  ~rados_op_timer() {
+    if (cct == nullptr) { // moved from
+      return;
+    }
+    const auto dur = ceph::coarse_mono_clock::now() - start;
+    if (sink != nullptr) {
+      sink->op_end(dur);
+    }
+    rados_pool_counters::record(cct, pool_id, dur);
+  }
+
+ private:
+  CephContext* cct;
+  int64_t pool_id;
+  ceph::async::backend_latency* sink;
+  ceph::coarse_mono_time start = ceph::coarse_mono_clock::now();
+};
+
+} // namespace rgw::rados_pool_counters
+
+#else // WITH_RADOSGW_RADOS
+
+namespace rgw::rados_pool_counters {
+
+// rgw_aio.cc is also compiled into non-RADOS backends. Keep its shared
+// instrumentation call sites valid without pulling RADOS counters into them.
+class rados_op_timer {
+ public:
+  rados_op_timer(CephContext*, librados::IoCtx&, optional_yield) {}
+};
+
+} // namespace rgw::rados_pool_counters
+
+#endif // WITH_RADOSGW_RADOS

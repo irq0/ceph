@@ -1,6 +1,7 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:nil -*-
 // vim: ts=8 sw=2 sts=2 expandtab ft=cpp
 
+#include "common/ceph_time.h"
 #include "common/errno.h"
 #include "common/Throttle.h"
 #include "common/WorkQueue.h"
@@ -348,6 +349,13 @@ int process_request(const RGWProcessEnv& penv,
   s->req_id = driver->zone_unique_id(req->id);
   s->trans_id = trans_id;
   s->host_id = driver->get_host_id();
+  // Attach the sink to the request's yield context.  Ops reach RADOS under
+  // either `yield` (passed down through rgw_process_authenticated() into
+  // op->execute()) or `s->yield`, and RGWPutObj::execute() alone uses both, so
+  // attaching to only one of them would measure a silently biased subset.
+  // `yield` is a by-value parameter, so overwriting it here covers every use
+  // below.  The sink lives in `rstate`, which shares this function's scope.
+  yield = yield.with_latency_sink(&s->rados_latency);
   s->yield = yield;
 
   RGWOp* op = nullptr;
@@ -556,6 +564,7 @@ done:
           << " http_status=" << s->err.http_ret
           << " latency=" << lat
           << " request_id=" << s->trans_id
+          << fmt::format(" backend: ops={} busy={} work={}", s->rados_latency.ops(), ceph::timespan_str(s->rados_latency.busy()), ::timespan_str(s->rados_latency.work()))
           << " ======"
           << dendl;
 
@@ -564,6 +573,15 @@ done:
     const char *op_name = op ? op->name() : "unknown";
     auto *op_hist = rgw::op_hist::get(s->cct, type, op_name);
     rgw::op_hist::htinc(op_hist, l_rgw_op_hist_lat, lat);
+    // the request has quiesced, so no RADOS op is still outstanding and
+    // busy() is final
+    rgw::op_hist::htinc(op_hist, l_rgw_op_hist_rados_lat,
+                        s->rados_latency.busy());
+    rgw::op_hist::htinc(op_hist, l_rgw_op_hist_rados_work,
+                        s->rados_latency.work());
+    if (op_hist != nullptr) {
+      op_hist->inc(l_rgw_op_hist_rados_ops, s->rados_latency.ops());
+    }
   }
 
   if (handler)

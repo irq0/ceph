@@ -4,7 +4,9 @@
 #include "rgw_perf_counters.h"
 #include <array>
 #include <atomic>
+#include <map>
 #include <mutex>
+#include "include/rados/librados.hpp"
 #include "common/ceph_time.h"
 #include "common/perf_counters.h"
 #include "common/perf_counters_key.h"
@@ -321,6 +323,14 @@ static PerfCounters* create_op_hist_counters(
   pcb.set_prio_default(PerfCountersBuilder::PRIO_USEFUL);
   pcb.add_time_histogram(l_rgw_op_hist_lat, "lat",
       axis::web_latency("lat"), "Request latency distribution");
+  pcb.add_time_histogram(l_rgw_op_hist_rados_lat, "rados_lat",
+      axis::web_latency("rados_lat"),
+      "Request time spent waiting on RADOS");
+  pcb.add_time_histogram(l_rgw_op_hist_rados_work, "rados_work",
+      axis::web_latency("rados_work"),
+      "Total RADOS operation time per request");
+  pcb.add_u64_counter(l_rgw_op_hist_rados_ops, "rados_ops",
+      "RADOS operations issued by requests");
   PerfCounters* new_counters = pcb.create_perf_counters();
   cct->get_perfcounters_collection()->add(new_counters);
   return new_counters;
@@ -363,6 +373,72 @@ void htinc(PerfCounters *counters, int idx, ceph::timespan amt) {
 }
 } // namespace rgw::op_hist
 
+#ifdef WITH_RADOSGW_RADOS
+namespace rgw::rados_pool_counters {
+
+static const std::string rgw_rados_pool_key = "rgw_rados_pool";
+// Bounded by the number of pools RGW touches, so a plain map is enough; no
+// eviction, which would silently reset a pool's histogram.
+static std::map<int64_t, PerfCounters*> pool_counters;
+static ceph::mutex pool_lock = ceph::make_mutex("rgw::rados_pool_counters");
+
+static PerfCounters* create_pool_counters(CephContext* cct, int64_t pool_id) {
+  using axis = PerfHistogramCommon::axis_config_d;
+
+  const std::string key =
+      ceph::perf_counters::key_create(rgw_rados_pool_key,
+                                      {{"pool_id", std::to_string(pool_id)}});
+  PerfCountersBuilder pcb(cct, key, l_rgw_rados_pool_first,
+                          l_rgw_rados_pool_last);
+  pcb.set_prio_default(PerfCountersBuilder::PRIO_USEFUL);
+  pcb.add_u64_counter(l_rgw_rados_pool_ops, "ops",
+                      "RADOS operations issued to this pool");
+  pcb.add_time_histogram(l_rgw_rados_pool_lat, "lat", axis::web_latency("lat"),
+                         "RADOS operation latency distribution");
+  PerfCounters* new_counters = pcb.create_perf_counters();
+  cct->get_perfcounters_collection()->add(new_counters);
+  return new_counters;
+}
+
+void record(CephContext* cct, int64_t pool_id, ceph::timespan dur)
+{
+  PerfCounters* counters = nullptr;
+  {
+    std::lock_guard lock(pool_lock);
+    auto [it, inserted] = pool_counters.try_emplace(pool_id, nullptr);
+    if (inserted) {
+      it->second = create_pool_counters(cct, pool_id);
+    }
+    counters = it->second;
+  }
+
+  counters->inc(l_rgw_rados_pool_ops);
+  counters->htinc(l_rgw_rados_pool_lat, dur);
+}
+
+void shutdown(CephContext* cct)
+{
+  std::lock_guard lock(pool_lock);
+  for (auto& [pool_id, counters] : pool_counters) {
+    cct->get_perfcounters_collection()->remove(counters);
+    delete counters;
+  }
+  pool_counters.clear();
+}
+
+
+rados_op_timer::rados_op_timer(CephContext* cct, librados::IoCtx& ioctx,
+                               optional_yield y)
+  : cct(cct), pool_id(ioctx.get_id()), sink(y.latency_sink())
+{
+  if (sink != nullptr) {
+    sink->op_begin();
+  }
+}
+
+} // namespace rgw::rados_pool_counters
+#endif // WITH_RADOSGW_RADOS
+
 int rgw_perf_start(CephContext *cct)
 {
   frontend_counters_init(cct);
@@ -401,4 +477,7 @@ void rgw_perf_stop(CephContext *cct)
   delete bucket_counters_cache;
   delete rgw::lc_counters::lc_counters_cache;
   rgw::op_hist::shutdown(cct);
+#ifdef WITH_RADOSGW_RADOS
+  rgw::rados_pool_counters::shutdown(cct);
+#endif
 }

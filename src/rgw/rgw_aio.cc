@@ -18,6 +18,7 @@
 #include "librados/librados_asio.h"
 
 #include "rgw_aio.h"
+#include "rgw_perf_counters.h"
 #include "rgw_d3n_cacherequest.h"
 #include "rgw_cache_driver.h"
 
@@ -31,11 +32,14 @@ struct state {
   Aio* aio;
   librados::IoCtx ctx;
   librados::AioCompletion* c;
+  // reports when ~state() runs, which cb() does once the op has completed
+  rgw::rados_pool_counters::rados_op_timer timer;
 
-  state(Aio* aio, librados::IoCtx ctx, AioResult& r)
+  state(Aio* aio, librados::IoCtx ctx, AioResult& r, optional_yield y)
     : aio(aio), ctx(std::move(ctx)),
     // coverity[ctor_dtor_leak:SUPPRESS]
-      c(librados::Rados::aio_create_completion(&r, &cb)) {}
+      c(librados::Rados::aio_create_completion(&r, &cb)),
+      timer(g_ceph_context, this->ctx, y) {}
 };
 
 void cb(librados::completion_t, void* arg) {
@@ -51,11 +55,12 @@ void cb(librados::completion_t, void* arg) {
 }
 
 template <typename Op>
-Aio::OpFunc aio_abstract(librados::IoCtx ctx, Op&& op, jspan_context* trace_ctx = nullptr) {
-  return [ctx = std::move(ctx), op = std::forward<Op>(op), trace_ctx] (Aio* aio, AioResult& r) mutable {
+Aio::OpFunc aio_blocking(librados::IoCtx ctx, Op&& op, optional_yield y,
+                         jspan_context* trace_ctx) {
+  return [ctx = std::move(ctx), op = std::forward<Op>(op), y, trace_ctx] (Aio* aio, AioResult& r) mutable {
       constexpr bool read = std::is_same_v<std::decay_t<Op>, librados::ObjectReadOperation>;
       // use placement new to construct the rados state inside of user_data
-      auto s = new (&r.user_data) state(aio, ctx, r);
+      auto s = new (&r.user_data) state(aio, ctx, r, y);
       if constexpr (read) {
         (void)trace_ctx; // suppress unused trace_ctx warning. until we will support the read op trace
         r.result = ctx.aio_operate(r.obj.oid, s->c, &op, &r.data);
@@ -75,6 +80,9 @@ struct Handler {
   Aio* throttle = nullptr;
   librados::IoCtx ctx;
   AioResult& r;
+  // reports when the handler is destroyed, which happens once the operation
+  // has completed or been abandoned
+  rados_pool_counters::rados_op_timer timer;
   // write callback
   void operator()(boost::system::error_code ec, version_t) const {
     r.result = -ec.value();
@@ -89,16 +97,19 @@ struct Handler {
 };
 
 template <typename Op>
-Aio::OpFunc aio_abstract(librados::IoCtx ctx, Op&& op,
+Aio::OpFunc aio_yielding(librados::IoCtx ctx, Op&& op,
+                         optional_yield y,
                          boost::asio::yield_context yield,
                          jspan_context* trace_ctx) {
-  return [ctx = std::move(ctx), op = std::forward<Op>(op), yield, trace_ctx] (Aio* aio, AioResult& r) mutable {
+  return [ctx = std::move(ctx), op = std::forward<Op>(op), y, yield, trace_ctx] (Aio* aio, AioResult& r) mutable {
       // arrange for the completion Handler to run on the yield_context's strand
       // executor so it can safely call back into Aio without locking
       auto ex = yield.get_executor();
 
       librados::async_operate(ex, ctx, r.obj.oid, std::move(op), 0, trace_ctx,
-                              bind_executor(ex, Handler{aio, ctx, r}));
+                              bind_executor(ex, Handler{
+                                  aio, ctx, r,
+                                  rados_pool_counters::rados_op_timer{g_ceph_context, ctx, y}}));
     };
 }
 
@@ -120,10 +131,10 @@ Aio::OpFunc aio_abstract(librados::IoCtx ctx, Op&& op, optional_yield y, jspan_c
   static_assert(!std::is_lvalue_reference_v<Op>);
   static_assert(!std::is_const_v<Op>);
   if (y) {
-    return aio_abstract(std::move(ctx), std::forward<Op>(op),
+    return aio_yielding(std::move(ctx), std::forward<Op>(op), y,
                         y.get_yield_context(), trace_ctx);
   }
-  return aio_abstract(std::move(ctx), std::forward<Op>(op), trace_ctx);
+  return aio_blocking(std::move(ctx), std::forward<Op>(op), y, trace_ctx);
 }
 
 } // anonymous namespace

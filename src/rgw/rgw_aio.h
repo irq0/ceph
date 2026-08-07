@@ -40,7 +40,9 @@ struct AioResult {
   uint64_t id = 0; // id allows caller to associate a result with its request
   bufferlist data; // result buffer for reads
   int result = 0;
-  static constexpr size_t user_data_alignment = std::bit_ceil(3 * sizeof(void*));
+  // the blocking path stores its rados_op_timer here alongside the completion
+  // state, so this must stay wide enough for both
+  static constexpr size_t user_data_alignment = std::bit_ceil(7 * sizeof(void*));
   struct alignas(user_data_alignment) {
       unsigned char data[user_data_alignment];
   } user_data;
