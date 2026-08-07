@@ -1835,6 +1835,10 @@ private:
   PerfCounters* logger = nullptr;
   std::array<PerfCounters*, ceph::osdc::perf::osdop_slot_count> osdop_loggers = {};
 
+  // created on first use, in a registry shared by every Objecter under this
+  // CephContext; see pool_logger_registry in Objecter.cc
+  PerfCounters* _get_pool_logger(int64_t pool_id);
+
   uint64_t tick_event = 0;
 
   void start_tick();

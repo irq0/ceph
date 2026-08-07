@@ -263,6 +263,84 @@ static PerfCounters* create_osdop_logger(CephContext* cct, const char* op) {
   return pc;
 }
 
+static PerfCounters* create_pool_logger(CephContext* cct, int64_t pool_id) {
+  using namespace ceph::osdc::perf;
+  PerfCountersBuilder pcb(
+      cct, ceph::perf_counters::key_create(
+               "objecter_pool", {{"pool_id", std::to_string(pool_id)}}),
+      l_osdc_pool_first, l_osdc_pool_last);
+  pcb.add_u64_counter(l_osdc_pool_ops, "ops",
+                      "Operations completed against this pool", nullptr,
+                      PerfCountersBuilder::PRIO_USEFUL);
+  pcb.add_time_histogram(l_osdc_pool_latency, "latency",
+                         PerfHistogramCommon::axis_config_d::web_latency("lat"),
+                         "Operation latency distribution", nullptr,
+                         PerfCountersBuilder::PRIO_INTERESTING);
+  auto* pc = pcb.create_perf_counters();
+  cct->get_perfcounters_collection()->add(pc);
+  return pc;
+}
+
+namespace {
+
+// Pool counters are shared by every Objecter under a CephContext, because they
+// describe the daemon's traffic to a pool rather than one client handle's.  A
+// radosgw has at least two Objecters (RGWRados' librados handle plus each
+// neorados::RADOS), and per-Objecter counters would collide in the collection,
+// which disambiguates duplicate keys by appending a pointer -- corrupting the
+// pool_id label value in the process.
+class pool_logger_registry {
+ public:
+  void get(CephContext* cct) {
+    std::lock_guard l(lock);
+    ++refs[cct];
+  }
+
+  void put(CephContext* cct) {
+    std::lock_guard l(lock);
+    auto ref = refs.find(cct);
+    if (ref == refs.end() || --ref->second > 0) {
+      return;
+    }
+    refs.erase(ref);
+    for (auto it = loggers.lower_bound({cct, INT64_MIN});
+         it != loggers.end() && it->first.first == cct; ) {
+      cct->get_perfcounters_collection()->remove(it->second);
+      delete it->second;
+      it = loggers.erase(it);
+    }
+  }
+
+  PerfCounters* lookup(CephContext* cct, int64_t pool_id) {
+    std::lock_guard l(lock);
+    auto [it, inserted] = loggers.try_emplace({cct, pool_id}, nullptr);
+    if (inserted) {
+      it->second = create_pool_logger(cct, pool_id);
+    }
+    return it->second;
+  }
+
+ private:
+  ceph::mutex lock = ceph::make_mutex("Objecter::pool_logger_registry");
+  std::map<std::pair<CephContext*, int64_t>, PerfCounters*> loggers;
+  std::map<CephContext*, unsigned> refs;
+};
+
+pool_logger_registry& pool_loggers()
+{
+  static pool_logger_registry registry;
+  return registry;
+}
+
+} // anonymous namespace
+
+// The registry lock is a leaf, so this is safe to call with the session lock
+// held.  Deliberately does not touch the osdmap: see perf_osdop.h.
+PerfCounters* Objecter::_get_pool_logger(int64_t pool_id)
+{
+  return pool_loggers().lookup(cct, pool_id);
+}
+
 static int dominant_osdop_slot(const osdc_opvec& ops)
 {
   using namespace ceph::osdc::perf;
@@ -379,6 +457,10 @@ void Objecter::init()
     cct->get_perfcounters_collection()->add(logger);
 
     using namespace ceph::osdc::perf;
+    // paired with pool_loggers().put(cct) in shutdown(); both are guarded by
+    // the same logger null-check, so the refcount stays balanced
+    pool_loggers().get(cct);
+
 #define PERF_OSDOP_MAKE(op, opcode, str) \
     osdop_loggers[osdop_slot_##op] = create_osdop_logger(cct, str);
     __CEPH_FORALL_OSD_OPS(PERF_OSDOP_MAKE)
@@ -535,7 +617,9 @@ void Objecter::shutdown()
       delete pc;
       pc = nullptr;
     }
-    
+
+    pool_loggers().put(cct);
+
     cct->get_perfcounters_collection()->remove(logger);
     delete logger;
     logger = NULL;
@@ -3918,7 +4002,16 @@ void Objecter::handle_osd_op_reply(MOSDOpReply *m)
     osdop_loggers[slot]->htinc(l_osdop_latency, lat);
     if (op->ops.size() > 1)
       osdop_loggers[slot]->inc(l_osdop_compound);
-      }
+  }
+
+  // Every librados and neorados client funnels through here, so this sees pool
+  // traffic that higher layers miss -- cls_rgw_client's direct IoCtx calls,
+  // neorados, and any background path.
+  if (PerfCounters* pl = _get_pool_logger(op->target.base_oloc.pool)) {
+    using namespace ceph::osdc::perf;
+    pl->inc(l_osdc_pool_ops);
+    pl->htinc(l_osdc_pool_latency, lat);
+  }
 
   logger->set(l_osdc_op_inflight, num_in_flight);
 

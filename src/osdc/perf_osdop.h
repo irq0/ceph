@@ -11,6 +11,18 @@ enum {
   l_osdop_last,
 };
 
+// Per-pool counters.  Labeled with the numeric pool id rather than the name:
+// the name would need the osdmap lock, which cannot be taken at the reply site
+// without inverting the rwlock/session-lock order.  The mgr exports
+// ceph_pool_metadata{pool_id,name}, so dashboards join on pool_id the same way
+// the shipped ceph-mixin ones already do.
+enum {
+  l_osdc_pool_first = 123500,
+  l_osdc_pool_ops,
+  l_osdc_pool_latency,
+  l_osdc_pool_last,
+};
+
 enum {
 #define OSDOP_SLOT(op, opcode, str) osdop_slot_##op,
 __CEPH_FORALL_OSD_OPS(OSDOP_SLOT)
