@@ -72,6 +72,14 @@ void add_rgw_frontend_counters(PerfCountersBuilder *pcb) {
   pcb->add_u64_counter(l_rgw_d4n_cache_evictions, "d4n_cache_evictions", "D4N cache evictions");
 
   pcb->add_time_avg(l_rgw_kms_fetch_lat, "kms_fetch_lat", "Uncached KMS secret fetch latency");
+
+  // how long a task posted to the frontend's io_context waits before it runs.
+  // this goes unbounded exactly when every frontend thread is stuck in a
+  // synchronous call, so it is the direct measure of thread pool exhaustion
+  pcb->add_time_avg(l_rgw_frontend_executor_lat, "frontend_executor_lat",
+                    "Latency of a task posted to the frontend executor");
+  pcb->add_u64_counter(l_rgw_frontend_stall, "frontend_stall",
+                       "Times the frontend executor was found unresponsive");
   pcb->add_u64_counter(l_rgw_kms_error_permanent, "kms_error_permanent", "Permanent (e.g key not found) errors returned from KMS");
   pcb->add_u64_counter(l_rgw_kms_error_transient, "kms_error_transient", "Transient (e.g timeout, overloaded) errors returned from KMS");
   pcb->add_u64_counter(l_rgw_kms_error_secret_store, "kms_error_secret_store", "Secret store errors (e.g kernel keyring quota)");
@@ -428,11 +436,21 @@ void shutdown(CephContext* cct)
 
 
 rados_op_timer::rados_op_timer(CephContext* cct, librados::IoCtx& ioctx,
-                               optional_yield y)
-  : cct(cct), pool_id(ioctx.get_id()), sink(y.latency_sink())
+                               std::string_view oid, optional_yield y)
+  : cct(cct), pool_id(ioctx.get_id()), rctx(y.get_request_context())
 {
-  if (sink != nullptr) {
-    sink->op_begin();
+  if (rctx == nullptr) {
+    return;
+  }
+  if (rctx->latency != nullptr) {
+    rctx->latency->op_begin();
+  }
+  if (rctx->waits != nullptr) {
+    // the oid alone is the resource. formatting the pool into it would cost a
+    // heap allocation on every RADOS op, and the pool is already the axis the
+    // per-pool counters are keyed on. an empty yield means the caller blocks
+    // its thread here, which is what the thread view needs to distinguish
+    wait = rctx->waits->wait_begin(ceph::async::wait_kind::rados, oid, !y);
   }
 }
 

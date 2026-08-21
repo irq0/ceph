@@ -11,6 +11,7 @@
 #include <utility>
 #include "rgw_auth_registry.h"
 #include "rgw_dmclock_scheduler.h"
+#include "rgw_op_tracker.h"
 #include "rgw_op_type.h"
 #include "rgw_rest.h"
 #include "rgw_frontend.h"
@@ -50,6 +51,25 @@ void RGWProcess::RGWWQ::_dump_queue()
   }
 } /* RGWProcess::RGWWQ::_dump_queue */
 
+/// Announce that the request reached a named phase, both to the log and to
+/// the op tracker.
+///
+/// Only steps that can hold a request get one.  The phase answers "where did
+/// this request stop", and a step that cannot block is never the answer: if
+/// the phase is X, the request is inside X, because everything between X and
+/// the next phase is provably fast.  So leaving the fast steps unmarked costs
+/// no precision, and each mark costs a clock read, a lock and usually an
+/// allocation.  The steps that stay are the ones that reach RADOS, an external
+/// authenticator, or the client socket.
+///
+/// The remaining steps keep their plain ldpp_dout() line, so `debug_rgw=2`
+/// still shows the full sequence.
+static void mark_phase(RGWOp* op, RGWRequest* req, const char* phase)
+{
+  ldpp_dout(op, 2) << phase << dendl;
+  rgw::optracker::mark_event(req->tracked, phase);
+}
+
 auto schedule_request(Scheduler *scheduler, req_state *s, RGWOp *op)
 {
   using rgw::dmclock::SchedulerCompleter;
@@ -64,6 +84,11 @@ auto schedule_request(Scheduler *scheduler, req_state *s, RGWOp *op)
 		     << " client=" << static_cast<int>(client)
 		     << " cost=" << cost << dendl;
   }
+  // admission can suspend the request in the dmclock queue; record it so a
+  // convoy in front of the limiter is visible in the contention view
+  ceph::async::wait_guard wait{s->rctx.waits,
+                               ceph::async::wait_kind::admission,
+                               "admission", !s->yield};
   return scheduler->schedule_request(client, {},
                                      req_state::Clock::to_double(s->time),
                                      cost,
@@ -187,7 +212,7 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
                               rgw::sal::Driver* driver,
                               const bool skip_retarget)
 {
-  ldpp_dout(op, 2) << "init permissions" << dendl;
+  mark_phase(op, req, "init permissions");
   int ret = handler->init_permissions(op, y);
   if (ret < 0) {
     return ret;
@@ -198,7 +223,7 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
    * if you are using the REST endpoint either (ergo, no authenticated access)
    */
   if (! skip_retarget) {
-    ldpp_dout(op, 2) << "recalculating target" << dendl;
+    mark_phase(op, req, "recalculating target");
     ret = handler->retarget(op, &op, y);
     if (ret < 0) {
       return ret;
@@ -209,13 +234,13 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
   }
 
   /* If necessary extract object ACL and put them into req_state. */
-  ldpp_dout(op, 2) << "reading permissions" << dendl;
+  mark_phase(op, req, "reading permissions");
   ret = handler->read_permissions(op, y);
   if (ret < 0) {
     return ret;
   }
 
-  ldpp_dout(op, 2) << "init op" << dendl;
+  mark_phase(op, req, "init op");
   ret = op->init_processing(y);
   if (op->get_type() == RGW_OP_OPTIONS_CORS && ret == -EINVAL) {
     ldpp_dout(op, 0) << "NOTICE: RGW_OP_OPTIONS_CORS shouldn't return -EINVAL in case we have a global CORS!" << dendl;
@@ -223,6 +248,16 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
   }
   if (ret < 0) {
     return ret;
+  }
+
+  if (req->tracked != nullptr) {
+    // which bucket and whose request is the first thing asked of a stuck
+    // request, and this is the earliest point at which both are resolved
+    req->tracked->set_target(s->bucket_name,
+                             s->object ? s->object->get_name() : "",
+                             rgw::sal::User::empty(s->user.get())
+                                 ? std::string{}
+                                 : s->user->get_id().to_str());
   }
 
   ldpp_dout(op, 2) << "verifying op mask" << dendl;
@@ -239,7 +274,7 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
     }
   }
 
-  ldpp_dout(op, 2) << "verifying op permissions" << dendl;
+  mark_phase(op, req, "verifying op permissions");
   {
     auto span = tracing::rgw::tracer.add_span("verify_permission", s->trace);
     std::swap(span, s->trace);
@@ -300,7 +335,7 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
       }
     }
   }
-  ldpp_dout(op, 2) << "executing" << dendl;
+  mark_phase(op, req, "executing");
   {
     auto span = tracing::rgw::tracer.add_span("execute", s->trace);
     std::swap(span, s->trace);
@@ -308,7 +343,7 @@ int rgw_process_authenticated(RGWHandler_REST * const handler,
     std::swap(span, s->trace);
   }
 
-  ldpp_dout(op, 2) << "completing" << dendl;
+  mark_phase(op, req, "completing");
   op->complete();
 
   return 0;
@@ -350,13 +385,19 @@ int process_request(const RGWProcessEnv& penv,
   s->req_id = driver->zone_unique_id(req->id);
   s->trans_id = trans_id;
   s->host_id = driver->get_host_id();
+
+  // publish the request so it can be inspected while it runs. the scope is
+  // declared before the first `goto done` so that every exit path retires it
+  rgw::optracker::RequestScope tracked{penv.op_tracker, req->id, trans_id};
+  req->tracked = tracked.get();
+  s->rctx.waits = tracked.sink();
   // Attach the sink to the request's yield context.  Ops reach RADOS under
   // either `yield` (passed down through rgw_process_authenticated() into
   // op->execute()) or `s->yield`, and RGWPutObj::execute() alone uses both, so
   // attaching to only one of them would measure a silently biased subset.
   // `yield` is a by-value parameter, so overwriting it here covers every use
   // below.  The sink lives in `rstate`, which shares this function's scope.
-  yield = yield.with_latency_sink(&s->rados_latency);
+  yield = yield.with_request_context(&s->rctx);
   s->yield = yield;
 
   RGWOp* op = nullptr;
@@ -382,6 +423,10 @@ int process_request(const RGWProcessEnv& penv,
 
   ldpp_dout(s, 2) << "getting op " << s->op << dendl;
   op = handler->get_op();
+  if (op && tracked) {
+    tracked.get()->set_op(s->info.method ? s->info.method : "", op->name(),
+                          s->info.env->get("REMOTE_ADDR", ""));
+  }
   if (!op) {
     abort_early(s, NULL, -ERR_METHOD_NOT_ALLOWED, handler, yield);
     goto done;
@@ -400,7 +445,9 @@ int process_request(const RGWProcessEnv& penv,
   ldpp_dout(op, 10) << "op=" << typeid(*op).name() << " " << dendl;
   s->op_type = op->get_type();
   try {
-    ldpp_dout(op, 2) << "verifying requester" << dendl;
+    // authentication reaches keystone, LDAP or STS, so this is one of the
+    // longest a request can sit anywhere
+    mark_phase(op, req, "verifying requester");
     ret = op->verify_requester(*penv.auth_registry, yield);
     if (ret < 0) {
       dout(10) << "failed to authorize request" << dendl;
@@ -420,7 +467,7 @@ int process_request(const RGWProcessEnv& penv,
       s->auth.identity = std::move(result).value();
     }
 
-    ldpp_dout(op, 2) << "normalizing buckets and tenants" << dendl;
+    mark_phase(op, req, "normalizing buckets and tenants");
     ret = handler->postauth_init(yield);
     if (ret < 0) {
       dout(10) << "failed to run post-auth init" << dendl;
@@ -554,6 +601,18 @@ done:
     ldpp_dout(op, 2) << "http status=" << s->err.http_ret << dendl;
   } else {
     ldpp_dout(s, 2) << "http status=" << s->err.http_ret << dendl;
+  }
+
+  if (tracked) {
+    // repeated because the paths that fail before the op is initialized never
+    // reach the earlier call, and their bucket and user are what say who was
+    // affected
+    tracked.get()->set_target(s->bucket_name,
+                              s->object ? s->object->get_name() : "",
+                              rgw::sal::User::empty(s->user.get())
+                                  ? std::string{}
+                                  : s->user->get_id().to_str());
+    tracked.get()->set_result(s->err.http_ret, op_ret);
   }
 
   const auto lat = s->time_elapsed();

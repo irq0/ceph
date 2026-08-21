@@ -3933,6 +3933,68 @@ options:
   services:
   - rgw
   with_legacy: true
+- name: rgw_op_tracker
+  type: bool
+  level: advanced
+  desc: Track in-flight requests so they can be inspected over the admin socket
+  long_desc: When enabled, radosgw records each in-flight request, the phase it
+    has reached and what it is currently waiting on, and exposes them through
+    the `rgw ops in_flight` and `rgw threads` admin socket commands. This costs
+    memory and some CPU per request, so it is off by default. It can be turned
+    on and off without restarting radosgw, which is the point -- a diagnostic
+    that needs a restart is unavailable during the incident it exists for.
+  default: false
+  services:
+  - rgw
+  flags:
+  - runtime
+  see_also:
+  - rgw_op_tracker_complaint_time
+- name: rgw_op_tracker_complaint_time
+  type: secs
+  level: advanced
+  desc: A request in flight longer than this is reported by `rgw ops blocked`
+  default: 30
+  services:
+  - rgw
+  see_also:
+  - rgw_op_tracker
+- name: rgw_op_tracker_history_size
+  type: uint
+  level: advanced
+  desc: Number of completed requests to keep for `rgw ops historic`
+  default: 20
+  services:
+  - rgw
+  see_also:
+  - rgw_op_tracker
+- name: rgw_op_tracker_history_duration
+  type: uint
+  level: advanced
+  desc: Seconds of completed requests to keep for `rgw ops historic`
+  default: 600
+  services:
+  - rgw
+  see_also:
+  - rgw_op_tracker
+- name: rgw_op_tracker_history_slow_op_size
+  type: uint
+  level: advanced
+  desc: Number of slow completed requests to keep for `rgw ops historic_slow`
+  default: 20
+  services:
+  - rgw
+  see_also:
+  - rgw_op_tracker
+- name: rgw_op_tracker_history_slow_op_threshold
+  type: secs
+  level: advanced
+  desc: A completed request that took longer than this is kept as a slow op
+  default: 10
+  services:
+  - rgw
+  see_also:
+  - rgw_op_tracker
 - name: rgw_max_concurrent_requests
   type: int
   level: basic

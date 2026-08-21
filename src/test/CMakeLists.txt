@@ -382,7 +382,7 @@ target_link_libraries(ceph_test_librgw_file_nfsns
   ${LUA_LIBRARIES}
   ${ALLOC_LIBS}
   )
-  target_link_libraries(ceph_test_librgw_file_nfsns Boost::context)
+  target_link_libraries(ceph_test_librgw_file_nfsns Boost::context Boost::url)
 install(TARGETS ceph_test_librgw_file_nfsns DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # ceph_test_librgw_file_aw (nfs write transaction [atomic write] tests)
@@ -416,7 +416,7 @@ target_link_libraries(ceph_test_librgw_file_marker
   ${LUA_LIBRARIES}
   ${ALLOC_LIBS}
   )
-  target_link_libraries(ceph_test_librgw_file_marker Boost::context)
+  target_link_libraries(ceph_test_librgw_file_marker Boost::context Boost::url)
 install(TARGETS ceph_test_librgw_file_marker DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # ceph_test_librgw_file_xattr (attribute ops)

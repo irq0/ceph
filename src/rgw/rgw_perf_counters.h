@@ -7,6 +7,8 @@
 #include "include/rados/librados_fwd.hpp"
 #include "rgw_common.h"
 #include "common/async/backend_latency.h"
+#include "common/async/request_context.h"
+#include "common/async/yield_context.h"
 #include "common/perf_counters_cache.h"
 #include "common/perf_counters_key.h"
 
@@ -59,6 +61,9 @@ enum {
   l_rgw_kms_error_transient,
   l_rgw_kms_error_permanent,
   l_rgw_kms_error_secret_store,
+
+  l_rgw_frontend_executor_lat,
+  l_rgw_frontend_stall,
   l_rgw_last,
 };
 
@@ -206,9 +211,14 @@ void record(CephContext* cct, int64_t pool_id, ceph::timespan dur);
 
 void shutdown(CephContext* cct);
 
-/// Times one RADOS operation and, on completion, reports it to both the
-/// request's backend_latency sink (if the yield carries one) and the per-pool
-/// counters.
+/// Times one RADOS operation and, on completion, reports it to the request's
+/// backend_latency sink (if the yield carries one) and the per-pool counters.
+///
+/// While it is alive it also holds the operation open as a wait on the
+/// request's wait_sink, so an in-flight dump can name the pool and object a
+/// request is stuck on.  That makes this the one instrumentation point the
+/// op tracker needs for RADOS: every RGW call into RADOS already passes
+/// through here.
 ///
 /// For blocking calls the destructor does the reporting.  Operations that
 /// complete asynchronously must move this into the completion handler so that
@@ -219,13 +229,15 @@ void shutdown(CephContext* cct);
 class rados_op_timer {
  public:
   /// Defined out of line so that this header needs only the librados forward
-  /// declaration.
-  rados_op_timer(CephContext* cct, librados::IoCtx& ioctx, optional_yield y);
+  /// declaration.  `oid` is copied into the wait's resource name.
+  rados_op_timer(CephContext* cct, librados::IoCtx& ioctx,
+                 std::string_view oid, optional_yield y);
 
   rados_op_timer(rados_op_timer&& o) noexcept
-    : cct(o.cct), pool_id(o.pool_id), sink(o.sink), start(o.start) {
+    : cct(o.cct), pool_id(o.pool_id), rctx(o.rctx), wait(o.wait),
+      start(o.start) {
     o.cct = nullptr; // marks the source as moved-from
-    o.sink = nullptr;
+    o.rctx = nullptr;
   }
   rados_op_timer& operator =(rados_op_timer&&) = delete;
   rados_op_timer(const rados_op_timer&) = delete;
@@ -236,16 +248,25 @@ class rados_op_timer {
       return;
     }
     const auto dur = ceph::coarse_mono_clock::now() - start;
-    if (sink != nullptr) {
-      sink->op_end(dur);
+    if (rctx != nullptr) {
+      if (rctx->latency != nullptr) {
+        rctx->latency->op_end(dur);
+      }
+      if (rctx->waits != nullptr) {
+        rctx->waits->wait_end(wait);
+      }
     }
     rados_pool_counters::record(cct, pool_id, dur);
   }
 
  private:
+  // rgw_aio.cc placement-news this into AioResult::user_data, which is a
+  // fixed-size buffer, so hold one pointer to the whole request context
+  // rather than one per sink.  the static_assert there guards this.
   CephContext* cct;
   int64_t pool_id;
-  ceph::async::backend_latency* sink;
+  ceph::async::request_context* rctx;
+  uint64_t wait = 0;   ///< handle from wait_sink::wait_begin()
   ceph::coarse_mono_time start = ceph::coarse_mono_clock::now();
 };
 
@@ -259,7 +280,8 @@ namespace rgw::rados_pool_counters {
 // instrumentation call sites valid without pulling RADOS counters into them.
 class rados_op_timer {
  public:
-  rados_op_timer(CephContext*, librados::IoCtx&, optional_yield) {}
+  rados_op_timer(CephContext*, librados::IoCtx&, std::string_view,
+                 optional_yield) {}
 };
 
 } // namespace rgw::rados_pool_counters

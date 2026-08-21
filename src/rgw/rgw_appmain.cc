@@ -28,6 +28,7 @@
 #include "include/stringify.h"
 #include "rgw_kms_cache.h"
 #include "rgw_main.h"
+#include "rgw_op_tracker.h"
 #include "rgw_asio_thread.h"
 #include "rgw_common.h"
 #include "rgw_sal.h"
@@ -440,11 +441,24 @@ int rgw::AppMain::init_frontends2(RGWLib* rgwlib)
   ratelimiter.reset(new ActiveRateLimiter{dpp->get_cct()});
   ratelimiter->start();
 
+  // created whether or not rgw_op_tracker is on: it can be switched on at
+  // runtime, and the watchdog's executor latency counter is useful either way
+  op_tracker.reset(new rgw::optracker::Tracker{dpp->get_cct()});
+  if (int r = op_tracker->hook_to_admin_socket(); r < 0) {
+    ldpp_dout(dpp, 0) << "WARNING: rgw op tracker admin socket commands "
+                         "unavailable: " << cpp_strerror(r) << dendl;
+  }
+  // the watchdog measures this io_context, which is the one the beast
+  // frontend runs requests on
+  op_tracker->start(context_pool->get_io_context(),
+                    dpp->get_cct()->_conf->rgw_thread_pool_size);
+
   // initialize RGWProcessEnv
   env.rest = &rest;
   env.auth_registry = rgw::auth::StrategyRegistry::create(
       dpp->get_cct(), *implicit_tenant_context, env.driver);
   env.ratelimiting = ratelimiter.get();
+  env.op_tracker = op_tracker.get();
 
   int fe_count = 0;
   for (multimap<string, RGWFrontendConfig *>::iterator fiter = fe_map.begin();
@@ -689,6 +703,10 @@ void rgw::AppMain::shutdown(std::function<void(void)> finalize_async_signals)
   rgw::curl::cleanup_curl();
   g_conf().remove_observer(implicit_tenant_context.get());
   implicit_tenant_context.reset(); // deletes
+  env.op_tracker = nullptr;
+  // stops the watchdog and unregisters its commands. before rgw_perf_stop()
+  // because the watchdog reports into the frontend perf counters
+  op_tracker.reset();
   rgw_perf_stop(g_ceph_context);
   ratelimiter.reset(); // deletes--ensure this happens before we destruct
 } /* AppMain::shutdown */

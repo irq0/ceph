@@ -15,6 +15,9 @@ class RGWREST;
 namespace rgw {
   class SiteConfig;
 }
+namespace rgw::optracker {
+  class Tracker;
+}
 namespace rgw::auth {
   class StrategyRegistry;
 }
@@ -52,6 +55,8 @@ struct RGWProcessEnv {
   std::unique_ptr<rgw::auth::StrategyRegistry> auth_registry;
   ActiveRateLimiter* ratelimiting = nullptr;
   std::unique_ptr<rgw::kms::KMSCache> kms_cache;
+  /// inspection of in-flight requests; null unless rgw_op_tracker is set
+  rgw::optracker::Tracker* op_tracker = nullptr;
 
 #ifdef WITH_ARROW_FLIGHT
   // managed by rgw:flight::FlightFrontend in rgw_flight_frontend.cc

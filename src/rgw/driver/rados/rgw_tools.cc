@@ -233,7 +233,7 @@ int rgw_rados_operate(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, con
                       optional_yield y, int flags, const jspan_context* trace_info,
                       version_t* pver)
 {
-  rgw::rados_pool_counters::rados_op_timer timer(dpp->get_cct(), ioctx, y);
+  rgw::rados_pool_counters::rados_op_timer timer(dpp->get_cct(), ioctx, oid, y);
   // given a yield_context, call async_operate() to yield the coroutine instead
   // of blocking
   if (y) {
@@ -262,7 +262,7 @@ int rgw_rados_operate(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, con
                       librados::ObjectWriteOperation&& op, optional_yield y,
 		      int flags, const jspan_context* trace_info, version_t* pver)
 {
-  rgw::rados_pool_counters::rados_op_timer timer(dpp->get_cct(), ioctx, y);
+  rgw::rados_pool_counters::rados_op_timer timer(dpp->get_cct(), ioctx, oid, y);
   if (y) {
     auto& yield = y.get_yield_context();
     auto ex = yield.get_executor();
@@ -286,7 +286,7 @@ int rgw_rados_notify(const DoutPrefixProvider *dpp, librados::IoCtx& ioctx, cons
                      bufferlist& bl, uint64_t timeout_ms, bufferlist* pbl,
                      optional_yield y)
 {
-  rgw::rados_pool_counters::rados_op_timer timer(dpp->get_cct(), ioctx, y);
+  rgw::rados_pool_counters::rados_op_timer timer(dpp->get_cct(), ioctx, oid, y);
   if (y) {
     auto& yield = y.get_yield_context();
     boost::system::error_code ec;

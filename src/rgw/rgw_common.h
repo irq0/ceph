@@ -42,6 +42,7 @@
 #include "rgw_quota_types.h"
 #include "rgw_string.h"
 #include "common/async/backend_latency.h"
+#include "common/async/request_context.h"
 #include "common/async/yield_context.h"
 #include "rgw_website.h"
 #include "rgw_object_lock.h"
@@ -1460,6 +1461,9 @@ struct req_state : DoutPrefixProvider {
   /// time this request spent waiting on RADOS. reported into by any call made
   /// under `yield`, which carries a pointer to it
   ceph::async::backend_latency rados_latency;
+  /// per-request instrumentation carried by `yield`.  always points at
+  /// rados_latency; `waits` is set only while the op tracker is enabled
+  ceph::async::request_context rctx{&rados_latency, nullptr};
 
   //token claims from STS token for ops log (can be used for Keystone token also)
   std::vector<std::string> token_claims;

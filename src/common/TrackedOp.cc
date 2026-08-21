@@ -373,6 +373,36 @@ void OpTracker::record_history_op(TrackedOpRef&& i)
   history.insert(ceph_clock_now(), std::move(i));
 }
 
+bool OpTracker::visit_all_ops_in_flight(std::function<bool(TrackedOp&)>&& visit)
+{
+  if (!tracking_enabled)
+    return false;
+
+  // as in visit_ops_in_flight(), collect refs under the shard locks and run
+  // the visitor with nothing held, so that a ref dropped by the visitor can
+  // take those locks to retire its op
+  std::vector<TrackedOpRef> ops_in_flight;
+  {
+    std::shared_lock l{lock};
+    for (const auto sdata : sharded_in_flight_list) {
+      ceph_assert(sdata);
+      std::lock_guard locker(sdata->ops_in_flight_lock_sharded);
+      std::transform(std::begin(sdata->ops_in_flight_sharded),
+                     std::end(sdata->ops_in_flight_sharded),
+                     std::back_inserter(ops_in_flight),
+                     [] (TrackedOp& op) { return TrackedOpRef(&op); });
+    }
+  }
+  if (ops_in_flight.empty())
+    return false;
+
+  for (auto& op : ops_in_flight) {
+    if (!visit(*op))
+      break;
+  }
+  return true;
+}
+
 bool OpTracker::visit_ops_in_flight(utime_t* oldest_secs,
 				    std::function<bool(TrackedOp&)>&& visit)
 {

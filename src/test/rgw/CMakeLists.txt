@@ -512,3 +512,9 @@ add_executable(unittest_rgw_limiter test_rgw_limiter.cc)
 add_ceph_unittest(unittest_rgw_limiter)
 target_link_libraries(unittest_rgw_limiter
   rgw_common ${rgw_libs} ${UNITTEST_LIBS})
+
+# unittest_rgw_op_tracker
+add_executable(unittest_rgw_op_tracker test_rgw_op_tracker.cc)
+add_ceph_unittest(unittest_rgw_op_tracker)
+target_link_libraries(unittest_rgw_op_tracker
+  rgw_common ${rgw_libs} ${UNITTEST_LIBS})

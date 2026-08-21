@@ -12,11 +12,15 @@
 
 #include <atomic>
 
+namespace rgw::optracker { class TrackedRequest; }
+
 struct RGWRequest
 {
   uint64_t id;
   req_state *s;
   RGWOp *op;
+  /// this request's entry in the op tracker, or null when it is disabled
+  rgw::optracker::TrackedRequest *tracked = nullptr;
 
   explicit RGWRequest(uint64_t id) : id(id), s(NULL), op(NULL) {}
 

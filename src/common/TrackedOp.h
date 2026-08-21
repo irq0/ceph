@@ -165,6 +165,18 @@ public:
   bool visit_ops_in_flight(utime_t* oldest_secs,
 			   std::function<bool(TrackedOp&)>&& visit);
   /**
+   * walk through every op in flight, regardless of age
+   *
+   * Unlike visit_ops_in_flight(), which exists to raise warnings and so
+   * visits nothing until the oldest op passes the complaint time, this
+   * always visits what is there. For callers that summarize the in-flight
+   * set rather than complain about it.
+   *
+   * @param visit a function consuming tracked ops, returning false to stop
+   * @return True if any op was visited, false otherwise
+   */
+  bool visit_all_ops_in_flight(std::function<bool(TrackedOp&)>&& visit);
+  /**
    * walk through slow ops in flight
    *
    * @param[out] oldest_sec the amount of time since the oldest op was initiated

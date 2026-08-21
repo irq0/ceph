@@ -39,7 +39,7 @@ struct state {
     : aio(aio), ctx(std::move(ctx)),
     // coverity[ctor_dtor_leak:SUPPRESS]
       c(librados::Rados::aio_create_completion(&r, &cb)),
-      timer(g_ceph_context, this->ctx, y) {}
+      timer(g_ceph_context, this->ctx, r.obj.oid, y) {}
 };
 
 void cb(librados::completion_t, void* arg) {
@@ -109,7 +109,8 @@ Aio::OpFunc aio_yielding(librados::IoCtx ctx, Op&& op,
       librados::async_operate(ex, ctx, r.obj.oid, std::move(op), 0, trace_ctx,
                               bind_executor(ex, Handler{
                                   aio, ctx, r,
-                                  rados_pool_counters::rados_op_timer{g_ceph_context, ctx, y}}));
+                                  rados_pool_counters::rados_op_timer{
+                                      g_ceph_context, ctx, r.obj.oid, y}}));
     };
 }
 
