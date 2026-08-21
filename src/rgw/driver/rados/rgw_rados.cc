@@ -18,6 +18,7 @@
 #include "common/ceph_json.h"
 
 #include "common/errno.h"
+#include "osdc/objecter_instance.h"
 #include "common/Formatter.h"
 #include "common/Throttle.h"
 #include "common/BackTrace.h"
@@ -1232,6 +1233,9 @@ int RGWRados::init_rados()
 {
   int ret = 0;
 
+  // Named so that this handle's requests and counters can be told apart from
+  // the other Objecters under this CephContext; see osdc/objecter_instance.h.
+  ceph::osdc::instance_name_guard instance{"rgw_rados"};
   ret = rados.init_with_context(cct);
   if (ret < 0) {
     return ret;

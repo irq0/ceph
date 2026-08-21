@@ -1718,6 +1718,9 @@ public:
   Messenger *messenger;
   MonClient *monc;
   boost::asio::io_context& service;
+  /// Distinguishes this Objecter from the others under the same CephContext;
+  /// empty when the caller did not name it.  See osdc/objecter_instance.h.
+  const std::string instance_name;
   // The guaranteed sequenced, one-at-a-time execution and apparently
   // people sometimes depend on this.
   boost::asio::strand<boost::asio::io_context::executor_type>
@@ -1845,9 +1848,12 @@ private:
   void tick();
   void update_crush_location();
 
-  class RequestStateHook;
-
-  RequestStateHook *m_request_state_hook = nullptr;
+  /// Effective instance name: what this Objecter is actually called in the
+  /// admin socket output and its perf counter labels.  Differs from
+  /// instance_name only when two handles under one CephContext asked for the
+  /// same name.  Valid between init() and shutdown().
+  std::string registered_name;
+  bool registered = false;
 
 public:
   /*** track pending operations ***/
@@ -2882,6 +2888,23 @@ public:
   void dump_pool_ops(ceph::Formatter *fmt) const;
   void dump_pool_stat_ops(ceph::Formatter *fmt) const;
   void dump_statfs_ops(ceph::Formatter *fmt) const;
+
+  // The *_entries variants emit only the objects, leaving the enclosing array
+  // section to the caller, so that the admin socket hook can merge every
+  // Objecter under a CephContext into one array per request type.  Each entry
+  // carries an "instance" field naming the Objecter it came from.  All of them
+  // want a read-lock on the Objecter held.
+  void dump_instance(ceph::Formatter *fmt) const;
+  /// Emit this Objecter's entries for one of the request-type sections named
+  /// above, taking the read lock itself.  The admin socket hook walks the
+  /// sections and calls this on every registered instance.
+  void dump_section_entries(std::string_view section, ceph::Formatter *fmt);
+  void dump_ops_entries(ceph::Formatter *fmt);
+  void dump_linger_ops_entries(ceph::Formatter *fmt);
+  void dump_command_ops_entries(ceph::Formatter *fmt);
+  void dump_pool_ops_entries(ceph::Formatter *fmt) const;
+  void dump_pool_stat_ops_entries(ceph::Formatter *fmt) const;
+  void dump_statfs_ops_entries(ceph::Formatter *fmt) const;
 
   int get_client_incarnation() const { return client_inc; }
   void set_client_incarnation(int inc) { client_inc = inc; }

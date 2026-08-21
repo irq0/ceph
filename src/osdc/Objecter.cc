@@ -67,6 +67,7 @@
 #include "neorados/RADOSImpl.h"
 
 #include "osdc/SplitOp.h"
+#include "osdc/objecter_instance.h"
 #include "osdc/perf_osdop.h"
 
 using std::list;
@@ -180,17 +181,6 @@ inline bs::error_code osdcode(int r) {
 
 // config obs ----------------------------
 
-class Objecter::RequestStateHook : public AdminSocketHook {
-  Objecter *m_objecter;
-public:
-  explicit RequestStateHook(Objecter *objecter);
-  int call(std::string_view command, const cmdmap_t& cmdmap,
-	   const bufferlist&,
-	   Formatter *f,
-	   std::ostream& ss,
-	   cb::list& out) override;
-};
-
 std::unique_lock<std::mutex> Objecter::OSDSession::get_lock(object_t& oid)
 {
   if (oid.name.empty())
@@ -245,9 +235,66 @@ void Objecter::update_crush_location()
   crush_location = cct->crush_location.get_location();
 }
 
-static PerfCounters* create_osdop_logger(CephContext* cct, const char* op) {
+namespace ceph::osdc {
+
+namespace {
+// Read by the Objecter constructor.  Thread-local rather than per-CephContext
+// because librados and neorados both build their Objecter synchronously on the
+// thread that asked for the handle, which makes a thread-local exact without
+// needing a lock held across connect().
+thread_local std::string pending_instance_name;
+}
+
+instance_name_guard::instance_name_guard(std::string_view name)
+  : prev(std::exchange(pending_instance_name, std::string{name}))
+{}
+
+instance_name_guard::~instance_name_guard()
+{
+  pending_instance_name = std::move(prev);
+}
+
+std::string take_instance_name()
+{
+  return std::exchange(pending_instance_name, std::string{});
+}
+
+std::string instance_logger_key(std::string_view counter_name,
+				std::string_view instance)
+{
+  if (instance.empty()) {
+    return std::string{counter_name};
+  }
+  return ceph::perf_counters::key_create(counter_name,
+					 {{"instance", instance}});
+}
+
+std::string uniquify_instance_name(std::string_view name,
+				   const std::set<std::string>& taken)
+{
+  // An unnamed Objecter is deliberately not given an invented name: it keeps
+  // the unlabeled counters and untagged dump entries it has always had.
+  if (name.empty()) {
+    return {};
+  }
+  std::string candidate{name};
+  for (unsigned i = 1; taken.contains(candidate); ++i) {
+    candidate = fmt::format("{}-{}", name, i);
+  }
+  return candidate;
+}
+
+} // namespace ceph::osdc
+
+static PerfCounters* create_osdop_logger(CephContext* cct, const char* op,
+					 std::string_view instance) {
   using namespace ceph::osdc::perf;
-  PerfCountersBuilder pcb(cct, ceph::perf_counters::key_create("osdop", {{"op", op}}),
+  PerfCountersBuilder pcb(cct,
+			  instance.empty()
+			    ? ceph::perf_counters::key_create(
+				"osdop", {{"op", op}})
+			    : ceph::perf_counters::key_create(
+				"osdop", {{"instance", instance}, {"op", op}}),
                           l_osdop_first, l_osdop_last);
   pcb.add_u64_counter(l_osdop_ops, "ops", "OSD operations issued",
                       nullptr, PerfCountersBuilder::PRIO_USEFUL);
@@ -332,6 +379,190 @@ pool_logger_registry& pool_loggers()
   return registry;
 }
 
+// Every Objecter under a CephContext, so that "objecter_requests" can report
+// all of them.  AdminSocket keys hooks by command prefix, so an Objecter that
+// registers its own hook only wins if it happens to init first -- in a radosgw
+// that is the config store's handle, which is idle while the handles carrying
+// the actual object traffic stay invisible.  The registry owns one hook per
+// CephContext instead, and outlives any individual Objecter, so the command
+// also survives the first-registered handle shutting down.
+class objecter_registry {
+ public:
+  /// Register \a objecter and return the name it is known by, which differs
+  /// from the one it asked for only if that name was taken.
+  std::string add(CephContext* cct, Objecter* objecter) {
+    std::lock_guard l(lock);
+    auto& per_cct = instances[cct];
+    if (per_cct.empty()) {
+      register_commands(cct);
+    }
+    std::set<std::string> taken;
+    for (const auto& instance : per_cct) {
+      taken.insert(instance.first);
+    }
+    auto name = ceph::osdc::uniquify_instance_name(objecter->instance_name,
+						   taken);
+    if (name != objecter->instance_name) {
+      lgeneric_derr(cct) << "objecter instance name '"
+			 << objecter->instance_name
+			 << "' is already taken; registering as '" << name
+			 << "'" << dendl;
+    }
+    per_cct.emplace(name, objecter);
+    return name;
+  }
+
+  /// Deregister \a objecter, dropping the admin socket commands with the last
+  /// Objecter under \a cct.  Defined out of line: it destroys the Hook.
+  void remove(CephContext* cct, const Objecter* objecter);
+
+  /// Merge every instance's in-flight requests into one set of arrays, keeping
+  /// the shape a single Objecter has always produced.  \a only names a single
+  /// instance to report on, or is empty for all of them.
+  void dump_requests(CephContext* cct, std::string_view only, Formatter* fmt) {
+    std::lock_guard l(lock);
+    Formatter::ObjectSection requests{*fmt, "requests"sv};
+    // Section order and names are those a lone Objecter has always produced;
+    // qa/workunits parse this shape.  Each section takes each Objecter's read
+    // lock separately rather than holding them all for the whole dump: the
+    // sections describe disjoint sets of requests, so nothing can be counted
+    // twice or missed, and only the six of them together are non-atomic.
+    for (auto section : {"ops"sv, "linger_ops"sv, "pool_ops"sv,
+			 "pool_stat_ops"sv, "statfs_ops"sv, "command_ops"sv}) {
+      dump_section(cct, only, fmt, section);
+    }
+  }
+
+  /// The per-instance identity an operator needs to correlate a handle with
+  /// what the cluster sees: `ceph osd blocklist ls`, mon session lists, and
+  /// OSD-side slow op logs all speak in global_ids and client addresses.
+  /// Deliberately not perf counter labels: both are regenerated on every
+  /// restart, which would churn time series.
+  void dump_instances(CephContext* cct, Formatter* fmt) {
+    std::lock_guard l(lock);
+    Formatter::ObjectSection root{*fmt, "objecter_instances"sv};
+    Formatter::ArraySection array{*fmt, "instances"sv};
+    auto per_cct = instances.find(cct);
+    if (per_cct == instances.end()) {
+      return;
+    }
+    for (const auto& [name, objecter] : per_cct->second) {
+      Formatter::ObjectSection section{*fmt, "instance"sv};
+      fmt->dump_string("instance", name);
+      fmt->dump_unsigned("global_id", objecter->monc->get_global_id());
+      fmt->dump_stream("addrs") << objecter->monc->get_myaddrs();
+    }
+  }
+
+ private:
+  // Called with lock held.
+  void dump_section(CephContext* cct, std::string_view only, Formatter* fmt,
+		    std::string_view section) {
+    Formatter::ArraySection array{*fmt, section};
+    auto per_cct = instances.find(cct);
+    if (per_cct == instances.end()) {
+      return;
+    }
+    for (const auto& [name, objecter] : per_cct->second) {
+      if (!only.empty() && name != only) {
+	continue;
+      }
+      // Lock order is registry -> Objecter; nothing takes them the other way
+      // round, and shutdown() drops out of the Objecter's write lock before
+      // calling remove().
+      objecter->dump_section_entries(section, fmt);
+    }
+  }
+
+  void register_commands(CephContext* cct);
+
+  class Hook;
+
+  ceph::mutex lock = ceph::make_mutex("Objecter::objecter_registry");
+  // Ordered by name so the dump is stable across calls.
+  std::map<CephContext*, std::map<std::string, Objecter*>> instances;
+  std::map<CephContext*, std::unique_ptr<Hook>> hooks;
+};
+
+objecter_registry& objecters()
+{
+  static objecter_registry registry;
+  return registry;
+}
+
+class objecter_registry::Hook : public AdminSocketHook {
+  CephContext* cct;
+ public:
+  explicit Hook(CephContext* cct) : cct(cct) {}
+
+  int call(std::string_view command, const cmdmap_t& cmdmap,
+	   const bufferlist&, Formatter* f, std::ostream& ss,
+	   cb::list& out) override {
+    if (command == "objecter_instances") {
+      objecters().dump_instances(cct, f);
+      return 0;
+    }
+    std::string instance;
+    cmd_getval(cmdmap, "instance", instance);
+    objecters().dump_requests(cct, instance, f);
+    return 0;
+  }
+};
+
+void objecter_registry::remove(CephContext* cct,
+			       const Objecter* objecter)
+{
+  std::unique_ptr<Hook> dead;
+  {
+    std::lock_guard l(lock);
+    auto per_cct = instances.find(cct);
+    if (per_cct == instances.end()) {
+      return;
+    }
+    std::erase_if(per_cct->second,
+		  [objecter](const auto& kv) { return kv.second == objecter; });
+    if (!per_cct->second.empty()) {
+      return;
+    }
+    instances.erase(per_cct);
+    if (auto hook = hooks.find(cct); hook != hooks.end()) {
+      dead = std::move(hook->second);
+      hooks.erase(hook);
+    }
+  }
+  // Deliberately outside the registry lock: unregister_commands() waits for
+  // an in-flight hook call to return, and that call takes this lock.  The
+  // hook object stays alive until the wait is over.  If another Objecter
+  // registers in the meantime it installs a fresh hook, which survives --
+  // AdminSocket removes commands by hook address.
+  if (dead) {
+    cct->get_admin_socket()->unregister_commands(dead.get());
+  }
+}
+
+// Called with the registry lock held.  Safe in that order: AdminSocket drops
+// its own lock before dispatching to a hook, so it never calls back into the
+// registry while holding it.
+void objecter_registry::register_commands(CephContext* cct)
+{
+  auto [it, inserted] = hooks.try_emplace(cct, std::make_unique<Hook>(cct));
+  if (!inserted) {
+    return;
+  }
+  auto* admin_socket = cct->get_admin_socket();
+  for (auto [cmddesc, help] : {
+	 std::pair{"objecter_requests name=instance,type=CephString,req=false",
+		   "show in-progress osd requests"},
+	 std::pair{"objecter_instances",
+		   "show the client identity of each rados handle"}}) {
+    int ret = admin_socket->register_command(cmddesc, it->second.get(), help);
+    if (ret < 0) {
+      lgeneric_derr(cct) << "error registering admin socket command: "
+			 << cpp_strerror(ret) << dendl;
+    }
+  }
+}
+
 } // anonymous namespace
 
 // The registry lock is a leaf, so this is safe to call with the session lock
@@ -367,8 +598,19 @@ void Objecter::init()
 {
   ceph_assert(!initialized);
 
+  // The admin socket commands cover every Objecter under this CephContext, so
+  // the registry owns them rather than each Objecter registering its own --
+  // AdminSocket keys hooks by command prefix, and only the first would stick.
+  // Done before the counters are built so both use the same effective name,
+  // which differs from the requested one only if two handles asked for it.
+  // Paired with objecters().remove() in shutdown().
+  registered_name = objecters().add(cct, this);
+  registered = true;
+
   if (!logger) {
-    PerfCountersBuilder pcb(cct, "objecter", l_osdc_first, l_osdc_last);
+    PerfCountersBuilder pcb(
+      cct, ceph::osdc::instance_logger_key("objecter", registered_name),
+      l_osdc_first, l_osdc_last);
 
     pcb.add_u64(l_osdc_op_active, "op_active", "Operations active", "actv",
 		PerfCountersBuilder::PRIO_CRITICAL);
@@ -462,22 +704,9 @@ void Objecter::init()
     pool_loggers().get(cct);
 
 #define PERF_OSDOP_MAKE(op, opcode, str) \
-    osdop_loggers[osdop_slot_##op] = create_osdop_logger(cct, str);
+    osdop_loggers[osdop_slot_##op] = create_osdop_logger(cct, str, registered_name);
     __CEPH_FORALL_OSD_OPS(PERF_OSDOP_MAKE)
 #undef PERF_OSDOP_MAKE
-  }
-
-  m_request_state_hook = new RequestStateHook(this);
-  auto admin_socket = cct->get_admin_socket();
-  int ret = admin_socket->register_command("objecter_requests",
-					   m_request_state_hook,
-					   "show in-progress osd requests");
-
-  /* Don't warn on EEXIST, happens if multiple ceph clients
-   * are instantiated from one process */
-  if (ret < 0 && ret != -EEXIST) {
-    lderr(cct) << "error registering admin socket command: "
-	       << cpp_strerror(ret) << dendl;
   }
 
   update_crush_location();
@@ -628,15 +857,15 @@ void Objecter::shutdown()
   // Let go of Objecter write lock so timer thread can shutdown
   wl.unlock();
 
-  // Outside of lock to avoid cycle WRT calls to RequestStateHook
-  // This is safe because we guarantee no concurrent calls to
-  // shutdown() with the ::initialized check at start.
-  if (m_request_state_hook) {
-    auto admin_socket = cct->get_admin_socket();
-    admin_socket->unregister_commands(m_request_state_hook);
-    delete m_request_state_hook;
-    m_request_state_hook = NULL;
-  }
+  // Outside of lock to avoid cycle WRT calls to the admin socket hooks, which
+  // take the read lock on every registered Objecter.  This is safe because we
+  // guarantee no concurrent calls to shutdown() with the ::initialized check
+  // at start.  The registry drops the commands once the last Objecter under
+  // this CephContext is gone, so they outlive whichever handle registered
+  // first rather than disappearing with it.
+  objecters().remove(cct, this);
+  registered_name.clear();
+  registered = false;
 }
 
 void Objecter::_send_linger(LingerOp *info,
@@ -5033,6 +5262,35 @@ void Objecter::dump_active()
   rl.unlock();
 }
 
+void Objecter::dump_section_entries(std::string_view section, Formatter *fmt)
+{
+  shared_lock rl(rwlock);
+  if (section == "ops"sv) {
+    dump_ops_entries(fmt);
+  } else if (section == "linger_ops"sv) {
+    dump_linger_ops_entries(fmt);
+  } else if (section == "pool_ops"sv) {
+    dump_pool_ops_entries(fmt);
+  } else if (section == "pool_stat_ops"sv) {
+    dump_pool_stat_ops_entries(fmt);
+  } else if (section == "statfs_ops"sv) {
+    dump_statfs_ops_entries(fmt);
+  } else if (section == "command_ops"sv) {
+    dump_command_ops_entries(fmt);
+  } else {
+    ceph_abort_msg("unknown objecter_requests section");
+  }
+}
+
+void Objecter::dump_instance(Formatter *fmt) const
+{
+  // Omitted for unnamed Objecters, so that the single-Objecter daemons that
+  // never set a name keep producing exactly the output they always have.
+  if (!registered_name.empty()) {
+    fmt->dump_string("instance", registered_name);
+  }
+}
+
 void Objecter::dump_requests(Formatter *fmt)
 {
   // Read-lock on Objecter held here
@@ -5052,6 +5310,7 @@ void Objecter::_dump_ops(const OSDSession *s, Formatter *fmt)
     Op *op = p->second;
     auto age = std::chrono::duration<double>(ceph::coarse_mono_clock::now() - op->stamp);
     fmt->open_object_section("op");
+    dump_instance(fmt);
     fmt->dump_unsigned("tid", op->tid);
     op->target.dump(fmt);
     fmt->dump_stream("last_sent") << op->stamp;
@@ -5075,6 +5334,13 @@ void Objecter::dump_ops(Formatter *fmt)
 {
   // Read-lock on Objecter held
   fmt->open_array_section("ops");
+  dump_ops_entries(fmt);
+  fmt->close_section(); // ops array
+}
+
+void Objecter::dump_ops_entries(Formatter *fmt)
+{
+  // Read-lock on Objecter held
   for (auto siter = osd_sessions.begin();
        siter != osd_sessions.end(); ++siter) {
     OSDSession *s = siter->second;
@@ -5084,7 +5350,6 @@ void Objecter::dump_ops(Formatter *fmt)
   }
   _dump_ops(homeless_session, fmt);
   _dump_ops(splitop_session, fmt);
-  fmt->close_section(); // ops array
 }
 
 void Objecter::_dump_linger_ops(const OSDSession *s, Formatter *fmt)
@@ -5092,6 +5357,7 @@ void Objecter::_dump_linger_ops(const OSDSession *s, Formatter *fmt)
   for (auto p = s->linger_ops.begin(); p != s->linger_ops.end(); ++p) {
     auto op = p->second;
     fmt->open_object_section("linger_op");
+    dump_instance(fmt);
     fmt->dump_unsigned("linger_id", op->linger_id);
     op->target.dump(fmt);
     fmt->dump_stream("snapid") << op->snap;
@@ -5104,6 +5370,13 @@ void Objecter::dump_linger_ops(Formatter *fmt)
 {
   // We have a read-lock on the objecter
   fmt->open_array_section("linger_ops");
+  dump_linger_ops_entries(fmt);
+  fmt->close_section(); // linger_ops array
+}
+
+void Objecter::dump_linger_ops_entries(Formatter *fmt)
+{
+  // We have a read-lock on the objecter
   for (auto siter = osd_sessions.begin();
        siter != osd_sessions.end(); ++siter) {
     auto s = siter->second;
@@ -5113,7 +5386,6 @@ void Objecter::dump_linger_ops(Formatter *fmt)
   }
   _dump_linger_ops(homeless_session, fmt);
   // No linger ops in splitop_session
-  fmt->close_section(); // linger_ops array
 }
 
 void Objecter::_dump_command_ops(const OSDSession *s, Formatter *fmt)
@@ -5121,6 +5393,7 @@ void Objecter::_dump_command_ops(const OSDSession *s, Formatter *fmt)
   for (auto p = s->command_ops.begin(); p != s->command_ops.end(); ++p) {
     auto op = p->second;
     fmt->open_object_section("command_op");
+    dump_instance(fmt);
     fmt->dump_unsigned("command_id", op->tid);
     fmt->dump_int("osd", op->session ? op->session->osd : -1);
     fmt->open_array_section("command");
@@ -5139,6 +5412,13 @@ void Objecter::dump_command_ops(Formatter *fmt)
 {
   // We have a read-lock on the Objecter here
   fmt->open_array_section("command_ops");
+  dump_command_ops_entries(fmt);
+  fmt->close_section(); // command_ops array
+}
+
+void Objecter::dump_command_ops_entries(Formatter *fmt)
+{
+  // We have a read-lock on the Objecter here
   for (auto siter = osd_sessions.begin();
        siter != osd_sessions.end(); ++siter) {
     auto s = siter->second;
@@ -5148,15 +5428,21 @@ void Objecter::dump_command_ops(Formatter *fmt)
   }
   _dump_command_ops(homeless_session, fmt);
   // No command_ops for splitops session.
-  fmt->close_section(); // command_ops array
 }
 
 void Objecter::dump_pool_ops(Formatter *fmt) const
 {
   fmt->open_array_section("pool_ops");
+  dump_pool_ops_entries(fmt);
+  fmt->close_section(); // pool_ops array
+}
+
+void Objecter::dump_pool_ops_entries(Formatter *fmt) const
+{
   for (auto p = pool_ops.begin(); p != pool_ops.end(); ++p) {
     auto op = p->second;
     fmt->open_object_section("pool_op");
+    dump_instance(fmt);
     fmt->dump_unsigned("tid", op->tid);
     fmt->dump_int("pool", op->pool);
     fmt->dump_string("name", op->name);
@@ -5166,17 +5452,23 @@ void Objecter::dump_pool_ops(Formatter *fmt) const
     fmt->dump_stream("last_sent") << op->last_submit;
     fmt->close_section(); // pool_op object
   }
-  fmt->close_section(); // pool_ops array
 }
 
 void Objecter::dump_pool_stat_ops(Formatter *fmt) const
 {
   fmt->open_array_section("pool_stat_ops");
+  dump_pool_stat_ops_entries(fmt);
+  fmt->close_section(); // pool_stat_ops array
+}
+
+void Objecter::dump_pool_stat_ops_entries(Formatter *fmt) const
+{
   for (auto p = poolstat_ops.begin();
        p != poolstat_ops.end();
        ++p) {
     PoolStatOp *op = p->second;
     fmt->open_object_section("pool_stat_op");
+    dump_instance(fmt);
     fmt->dump_unsigned("tid", op->tid);
     fmt->dump_stream("last_sent") << op->last_submit;
 
@@ -5188,37 +5480,25 @@ void Objecter::dump_pool_stat_ops(Formatter *fmt) const
 
     fmt->close_section(); // pool_stat_op object
   }
-  fmt->close_section(); // pool_stat_ops array
 }
 
 void Objecter::dump_statfs_ops(Formatter *fmt) const
 {
   fmt->open_array_section("statfs_ops");
+  dump_statfs_ops_entries(fmt);
+  fmt->close_section(); // statfs_ops array
+}
+
+void Objecter::dump_statfs_ops_entries(Formatter *fmt) const
+{
   for (auto p = statfs_ops.begin(); p != statfs_ops.end(); ++p) {
     auto op = p->second;
     fmt->open_object_section("statfs_op");
+    dump_instance(fmt);
     fmt->dump_unsigned("tid", op->tid);
     fmt->dump_stream("last_sent") << op->last_submit;
     fmt->close_section(); // statfs_op object
   }
-  fmt->close_section(); // statfs_ops array
-}
-
-Objecter::RequestStateHook::RequestStateHook(Objecter *objecter) :
-  m_objecter(objecter)
-{
-}
-
-int Objecter::RequestStateHook::call(std::string_view command,
-				     const cmdmap_t& cmdmap,
-				     const bufferlist&,
-				     Formatter *f,
-				     std::ostream& ss,
-				     cb::list& out)
-{
-  shared_lock rl(m_objecter->rwlock);
-  m_objecter->dump_requests(f);
-  return 0;
 }
 
 void Objecter::blocklist_self(bool set)
@@ -5503,7 +5783,8 @@ Objecter::OSDSession::~OSDSession()
 Objecter::Objecter(CephContext *cct,
 		   Messenger *m, MonClient *mc,
 		   asio::io_context& service) :
-  Dispatcher(cct), messenger(m), monc(mc), service(service)
+  Dispatcher(cct), messenger(m), monc(mc), service(service),
+  instance_name(ceph::osdc::take_instance_name())
 {
   mon_timeout = cct->_conf.get_val<std::chrono::seconds>("rados_mon_op_timeout");
   osd_timeout = cct->_conf.get_val<std::chrono::seconds>("rados_osd_op_timeout");
@@ -5538,7 +5819,7 @@ Objecter::~Objecter()
   ceph_assert(check_latest_map_ops.empty());
   ceph_assert(check_latest_map_commands.empty());
 
-  ceph_assert(!m_request_state_hook);
+  ceph_assert(!registered);
   ceph_assert(!logger);
 }
 

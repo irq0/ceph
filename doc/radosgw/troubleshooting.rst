@@ -57,6 +57,7 @@ reside in ``/var/run/ceph``, and the daemon can be queried with::
  ceph daemon /var/run/ceph/client.rgw help
  
  help                list available commands
+ objecter_instances  show the client identity of each rados handle
  objecter_requests   show in-progress osd requests
  perfcounters_dump   dump perfcounters value
  perfcounters_schema dump perfcounters schema
@@ -69,10 +70,18 @@ Of particular interest::
 
 will dump information about current in-progress requests with the
 RADOS cluster.  This allows one to identify if any requests are blocked
-by a non-responsive OSD.  For example, one might see::
+by a non-responsive OSD.
+
+A ``radosgw`` holds several RADOS handles, and the dump covers all of them.
+Each request carries an ``instance`` field naming the handle it belongs to:
+``rgw_rados`` for bulk object traffic, ``neorados`` for the data log and
+related subsystems, and ``cfgstore`` for the realm and period configuration.
+Pass ``--instance <name>`` to report on one handle alone.  For example, one
+might see::
 
   { "ops": [
-        { "tid": 1858,
+        { "instance": "rgw_rados",
+          "tid": 1858,
           "pg": "2.d2041a48",
           "osd": 1,
           "last_sent": "2012-03-08 14:56:37.949872",
@@ -84,7 +93,8 @@ by a non-responsive OSD.  For example, one might see::
           "mtime": "2012-03-08 14:56:37.949813",
           "osd_ops": [
                 "write 0~4096"]},
-        { "tid": 1873,
+        { "instance": "rgw_rados",
+          "tid": 1873,
           "pg": "2.695e9f8e",
           "osd": 1,
           "last_sent": "2012-03-08 14:56:37.970615",
@@ -100,6 +110,26 @@ by a non-responsive OSD.  For example, one might see::
   "pool_ops": [],
   "pool_stat_ops": [],
   "statfs_ops": []}
+
+To map a handle onto what the cluster sees -- ``ceph osd blocklist ls``,
+monitor session lists, and the OSD-side logs all speak in client global IDs
+and addresses -- use::
+
+ ceph daemon /var/run/ceph/client.rgw objecter_instances
+
+ { "instances": [
+        { "instance": "cfgstore",
+          "global_id": 4109,
+          "addrs": "v1:10.0.0.5:0/1842301"},
+        { "instance": "neorados",
+          "global_id": 4127,
+          "addrs": "v1:10.0.0.5:0/1842302"},
+        { "instance": "rgw_rados",
+          "global_id": 4131,
+          "addrs": "v1:10.0.0.5:0/1842303"}]}
+
+The same instance names label the daemon's objecter perf counters, which are
+reported by ``ceph daemon /var/run/ceph/client.rgw counter dump``.
 
 In this dump, two requests are in progress.  The ``last_sent`` field is
 the time the RADOS request was sent.  If this is a while ago, it suggests

@@ -29,6 +29,7 @@
 #include "common/ceph_time.h"
 #include "common/Clock.h"
 #include "common/errno.h"
+#include "osdc/objecter_instance.h"
 #include "common/async/blocked_completion.h"
 
 #include "librados/AioCompletionImpl.h"
@@ -6027,6 +6028,10 @@ int RadosRole::delete_obj(const DoutPrefixProvider *dpp, optional_yield y)
 std::optional<neorados::RADOS>
 make_neorados(CephContext* cct, boost::asio::io_context& io_context) {
   try {
+    // Named so that this handle's requests and counters can be told apart from
+    // the other Objecters under this CephContext; see
+    // osdc/objecter_instance.h.
+    ceph::osdc::instance_name_guard instance{"neorados"};
     auto neorados = neorados::RADOS::make_with_cct(boost::intrusive_ptr{cct},
                                                    io_context,
                                                    ceph::async::use_blocked);

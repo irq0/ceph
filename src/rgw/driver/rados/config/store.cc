@@ -14,6 +14,7 @@
 
 #include "include/rados/librados.hpp"
 #include "common/errno.h"
+#include "osdc/objecter_instance.h"
 #include "impl.h"
 #include "store.h"
 
@@ -32,7 +33,10 @@ auto create_config_store(const DoutPrefixProvider* dpp)
 {
   auto impl = std::make_unique<ConfigImpl>(dpp->get_cct()->_conf);
 
-  // initialize a Rados client
+  // initialize a Rados client.  Name its Objecter so that it can be told
+  // apart from the other handles sharing this CephContext in the admin socket
+  // and in the perf counters; see osdc/objecter_instance.h.
+  ceph::osdc::instance_name_guard instance{"cfgstore"};
   int r = impl->rados.init_with_context(dpp->get_cct());
   if (r < 0) {
     ldpp_dout(dpp, -1) << "Rados client initialization failed with "
